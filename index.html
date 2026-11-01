@@ -105,16 +105,25 @@ let token = store.get('life_token');
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function hm(t) { return t ? t.slice(0, 5) : '-'; }
+/* DB의 life_today()와 같은 계산: 서울 시각 새벽 4시가 하루 경계 */
+function seoulToday() { return new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10); }
 
 async function rpc(fn, args) {
-  const r = await fetch(SB_URL + '/rest/v1/rpc/' + fn, {
-    method: 'POST',
-    headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify(args)
-  });
+  let r;
+  try {
+    r = await fetch(SB_URL + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args)
+    });
+  } catch (e) { throw new Error('인터넷 연결을 확인해 주세요.'); }
   const d = await r.json().catch(() => null);
   if (!r.ok) {
     if (d && d.message === 'auth') { logout(); throw new Error('다시 로그인해 주세요.'); }
+    /* 새벽 4시를 넘겨 화면이 어제에 머문 경우: 새로 불러와 오늘 순서로 보낸다 */
+    if (d && ['need_wake', 'need_bed', 'not_needed'].includes(d.message)) {
+      tab = 'today'; await refresh(); throw new Error('날이 바뀌었어요. 오늘 기록을 시작해 주세요.');
+    }
     throw new Error('저장하지 못했어요. 다시 해 주세요.');
   }
   return d;
@@ -126,7 +135,7 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200);
 }
 function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
-function logout() { token = null; store.del('life_token'); state = null; renderAuth('login'); }
+function logout() { token = null; store.del('life_token'); state = null; tab = 'today'; renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위 */
 function timeOptions(startHour, selected) {
@@ -224,6 +233,7 @@ async function act(fn, args, cheer) {
   if (go) go.disabled = true;
   try {
     state = await rpc(fn, args);
+    historyItems = []; historyDone = false;
     if (cheer) toast(cheer);
     render();
   } catch (x) {
@@ -389,7 +399,10 @@ function renderTabs() {
   const items = [['today', '오늘'], ['history', '히스토리'], ['mine', '내 기록']];
   if (state.me.is_leader) items.push(['leader', '조원']);
   $tabs.innerHTML = `<div class="tabs"><div>${items.map(([k, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
-  $tabs.querySelectorAll('button').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
+  $tabs.querySelectorAll('button').forEach(b => b.onclick = () => {
+    tab = b.dataset.tab; window.scrollTo(0, 0);
+    if (tab === 'today') refresh().catch(x => toast(x.message)); else render();
+  });
 }
 function render() {
   if (state.need === 'bed_yesterday') return renderBedYesterday();
@@ -406,7 +419,9 @@ async function refresh() {
   render();
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && token && tab === 'today' && !document.getElementById('go')) refresh().catch(() => {});
+  if (document.visibilityState !== 'visible' || !token || !state) return;
+  if (state.today !== seoulToday()) { tab = 'today'; refresh().catch(() => {}); return; }
+  if (tab === 'today' && !document.getElementById('go')) refresh().catch(() => {});
 });
 
 if (token) refresh().catch(x => { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; });
