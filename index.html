@@ -105,11 +105,18 @@
     </div>
     <form id="pwForm" hidden>
       <button type="button" class="am-back" id="pwBack">‹ 설정으로</button>
+      <p class="sub" id="pwMust" hidden>처음 비밀번호예요. 나만 아는 새 비밀번호로 바꿔 주세요. 바꾼 비밀번호는 다른 사람이 알 수 없어요.</p>
+      <div class="consent" id="pwConsent" hidden><b>시작하기 전에</b><ul>
+        <li>식단과 운동은 우리 조 사람들과 함께 봅니다.</li>
+        <li>수면과 컨디션은 소그룹 리더와 나만 봅니다.</li>
+        <li>기록은 돌봄과 생활개선에만 씁니다. 나중에 분석을 시작할 때는 먼저 알려 드립니다.</li>
+        <li>원하면 언제든 기록을 모두 지워 드립니다.</li>
+      </ul></div>
       <label class="f" style="margin-top:6px">지금 비밀번호<input id="pwNow" type="password" autocomplete="current-password" required></label>
       <label class="f">새 비밀번호 (6자 이상, 영어+숫자)<input id="pwNew" type="password" autocomplete="new-password" required minlength="6"></label>
       <label class="f">새 비밀번호 한 번 더<input id="pwNew2" type="password" autocomplete="new-password" required minlength="6"></label>
       <div class="err" id="pwErr"></div>
-      <button class="main">바꾸기</button>
+      <button class="main" id="pwGo">바꾸기</button>
     </form>
   </div>
 </div>
@@ -171,7 +178,7 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200);
 }
 function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
-function logout() { token = null; store.del('life_token'); state = null; tab = 'today'; byId('menuBtn').hidden = true; byId('amBg').hidden = true; renderAuth('login'); }
+function logout() { token = null; store.del('life_token'); state = null; tab = 'today'; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위 */
 function timeOptions(startHour, selected) {
@@ -440,6 +447,7 @@ function renderTabs() {
 }
 function render() {
   byId('myName').textContent = state.me.nickname; byId('menuBtn').hidden = false;
+  if (state.me.must_change_pw) forcePw();
   if (state.need === 'bed_yesterday') return renderBedYesterday();
   if (state.need === 'wake') return renderWake();
   renderTabs();
@@ -460,10 +468,27 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ☰ 계정 창. 로그아웃·비밀번호 바꾸기는 다른 기록들처럼 모든 기기에서 나간다 */
+/* 처음 비밀번호면 바꾸기 전에는 닫히지 않는다(업무·영성 기록과 같음) */
+let pwForced = false;
+function forcePw() {
+  if (pwForced) return;
+  pwForced = true;
+  amView('pw'); byId('pwForm').reset(); byId('pwErr').textContent = '';
+  byId('amName').textContent = state.me.nickname + '님';
+  byId('amClose').hidden = byId('pwBack').hidden = true; byId('pwMust').hidden = false;
+  byId('pwConsent').hidden = !state.me.need_consent;
+  byId('pwGo').textContent = state.me.need_consent ? '동의하고 바꾸기' : '바꾸기';
+  byId('amBg').hidden = false;
+}
+function unforcePw() {
+  pwForced = false;
+  byId('amClose').hidden = byId('pwBack').hidden = false; byId('pwMust').hidden = byId('pwConsent').hidden = true;
+  byId('pwGo').textContent = '바꾸기';
+}
 function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; }
 byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false; };
 byId('amClose').onclick = () => { byId('amBg').hidden = true; };
-byId('amBg').onclick = e => { if (e.target === byId('amBg')) byId('amBg').hidden = true; };
+byId('amBg').onclick = e => { if (e.target === byId('amBg') && !pwForced) byId('amBg').hidden = true; };
 byId('amSet').onclick = () => amView('set');
 byId('amBack').onclick = () => amView('main');
 byId('pwBack').onclick = () => amView('set');
