@@ -66,6 +66,7 @@
   .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
   .tbl th { color: var(--sub); font-size: 12px; text-align: center; padding: 4px 2px; }
   .tbl td { text-align: center; padding: 8px 2px; border-top: 1px solid var(--line); }
+  #out { position: absolute; top: 8px; right: 10px; background: none; color: var(--sub); font-size: 13px; min-height: 40px; padding: 0 8px; width: auto; }
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
   .tabs div { max-width: 480px; margin: 0 auto; display: flex; }
   .tabs button { flex: 1; background: none; color: var(--sub); border-radius: 0; min-height: 60px; padding: 0; font-size: 13px; }
@@ -78,6 +79,7 @@
 <body>
 <div id="app"><div class="loading">불러오는 중…</div></div>
 <div id="tabs"></div>
+<button id="out" hidden>로그아웃</button>
 <div id="toast"></div>
 <input type="file" id="file" accept="image/*" hidden>
 
@@ -135,7 +137,7 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200);
 }
 function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
-function logout() { token = null; store.del('life_token'); state = null; tab = 'today'; renderAuth('login'); }
+function logout() { token = null; store.del('life_token'); state = null; tab = 'today'; $out.hidden = true; renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위 */
 function timeOptions(startHour, selected) {
@@ -380,9 +382,7 @@ async function renderMine() {
     const rows = await rpc('life_mine', { p_token: token });
     if (tab !== 'mine') return;
     $app.innerHTML = `<h1>내 기록</h1><p class="sub" style="margin-bottom:12px">최근 2주예요. 수면과 컨디션은 리더와 나만 봐요.</p>
-      <div class="card">${recordTable(rows)}</div>
-      <button class="switch" id="out" style="margin-top:16px">로그아웃</button>`;
-    document.getElementById('out').onclick = logout;
+      <div class="card">${recordTable(rows)}</div>`;
   } catch (x) { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 async function renderLeader() {
@@ -405,6 +405,7 @@ function renderTabs() {
   });
 }
 function render() {
+  $out.hidden = false;
   if (state.need === 'bed_yesterday') return renderBedYesterday();
   if (state.need === 'wake') return renderWake();
   renderTabs();
@@ -424,6 +425,8 @@ document.addEventListener('visibilitychange', () => {
   if (tab === 'today' && !document.getElementById('go')) refresh().catch(() => {});
 });
 
+const $out = document.getElementById('out');
+$out.onclick = () => { if (confirm('로그아웃할까요?')) logout(); };
 if (token) refresh().catch(x => { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; });
 else renderAuth('login');
 </script>
