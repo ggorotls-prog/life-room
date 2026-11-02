@@ -66,7 +66,19 @@
   .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
   .tbl th { color: var(--sub); font-size: 12px; text-align: center; padding: 4px 2px; }
   .tbl td { text-align: center; padding: 8px 2px; border-top: 1px solid var(--line); }
-  #out { position: absolute; top: 8px; right: 10px; background: none; color: var(--sub); font-size: 13px; min-height: 40px; padding: 0 8px; width: auto; }
+  [hidden] { display: none !important; }
+  /* ☰ 계정 창: 업무 기록·영성 기록과 같은 모양(2026-11-02 룡: 기본 화면 통일) */
+  #menuBtn { position: absolute; top: 8px; right: 10px; z-index: 5; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; min-height: 36px; padding: 0 12px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+  .am-bg { position: fixed; inset: 0; z-index: 15; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .am { width: 100%; max-width: 360px; background: var(--card); color: var(--ink); border-radius: 18px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+  .am-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 2px 12px; }
+  .am-head strong { font-size: 17px; }
+  .am-x { background: none; color: var(--sub); font-size: 18px; width: 36px; min-height: 36px; padding: 0; }
+  .am-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: left; margin-top: 8px; padding: 14px 16px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 15px; }
+  .am-item small { color: var(--sub); font-size: 12px; font-weight: 400; }
+  .am-item .am-go { color: var(--sub); font-size: 18px; font-weight: 400; }
+  .am-item.danger { color: var(--err); }
+  .am-back { background: none; color: var(--sub); font-size: 14px; min-height: 32px; padding: 4px 2px; }
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
   .tabs div { max-width: 480px; margin: 0 auto; display: flex; }
   .tabs button { flex: 1; background: none; color: var(--sub); border-radius: 0; min-height: 60px; padding: 0; font-size: 13px; }
@@ -79,7 +91,28 @@
 <body>
 <div id="app"><div class="loading">불러오는 중…</div></div>
 <div id="tabs"></div>
-<button id="out" hidden>로그아웃</button>
+<button id="menuBtn" aria-label="내 계정" hidden><span id="myName"></span> ☰</button>
+<div class="am-bg" id="amBg" role="dialog" aria-modal="true" aria-labelledby="amName" hidden>
+  <div class="am">
+    <div class="am-head"><strong id="amName"></strong><button type="button" class="am-x" id="amClose" aria-label="닫기">✕</button></div>
+    <div id="amMain">
+      <button type="button" class="am-item" id="amSet"><span>⚙️ 설정</span><span class="am-go">›</span></button>
+      <button type="button" class="am-item danger" id="amOut"><span>로그아웃</span><small>모든 기기에서 나가져요</small></button>
+    </div>
+    <div id="amSetView" hidden>
+      <button type="button" class="am-back" id="amBack">‹ 처음으로</button>
+      <button type="button" class="am-item" id="amPw"><span>비밀번호 바꾸기</span><span class="am-go">›</span></button>
+    </div>
+    <form id="pwForm" hidden>
+      <button type="button" class="am-back" id="pwBack">‹ 설정으로</button>
+      <label class="f" style="margin-top:6px">지금 비밀번호<input id="pwNow" type="password" autocomplete="current-password" required></label>
+      <label class="f">새 비밀번호 (6자 이상, 영어+숫자)<input id="pwNew" type="password" autocomplete="new-password" required minlength="6"></label>
+      <label class="f">새 비밀번호 한 번 더<input id="pwNew2" type="password" autocomplete="new-password" required minlength="6"></label>
+      <div class="err" id="pwErr"></div>
+      <button class="main">바꾸기</button>
+    </form>
+  </div>
+</div>
 <div id="toast"></div>
 <input type="file" id="file" accept="image/*" hidden>
 
@@ -93,6 +126,7 @@ const CHEERS = {
   bed: ['오늘 하루 수고하셨어요 🌙','잘 자는 것도 운동이에요 😴','내일 다시 새로 시작해요 ✨']
 };
 
+const byId = id => document.getElementById(id);
 const $app = document.getElementById('app');
 const $tabs = document.getElementById('tabs');
 const $file = document.getElementById('file');
@@ -137,7 +171,7 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200);
 }
 function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
-function logout() { token = null; store.del('life_token'); state = null; tab = 'today'; $out.hidden = true; renderAuth('login'); }
+function logout() { token = null; store.del('life_token'); state = null; tab = 'today'; byId('menuBtn').hidden = true; byId('amBg').hidden = true; renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위 */
 function timeOptions(startHour, selected) {
@@ -164,8 +198,8 @@ function renderAuth(mode) {
     <div class="card" style="margin-top:20px">
       <form id="f">
         ${signup ? '<label class="f">초대 코드 (리더에게 받아요)<input id="code" autocomplete="off" autocapitalize="characters" required></label>' : ''}
-        <label class="f">닉네임${signup ? ' (본명 말고 편한 이름으로)' : ''}<input id="nick" maxlength="12" autocomplete="username" required></label>
-        <label class="f">비밀번호<input id="pw" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></label>
+        <label class="f">${signup ? '아이디 (닉네임, 본명 말고 편한 이름으로)' : '아이디'}<input id="nick" maxlength="12" autocomplete="username" required></label>
+        <label class="f">${signup ? '비밀번호 (6자 이상, 영어+숫자)' : '비밀번호'}<input id="pw" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></label>
         ${signup ? `<div class="consent"><b>시작하기 전에</b><ul>
           <li>식단과 운동은 우리 조 사람들과 함께 봅니다.</li>
           <li>수면과 컨디션은 소그룹 리더와 나만 봅니다.</li>
@@ -405,7 +439,7 @@ function renderTabs() {
   });
 }
 function render() {
-  $out.hidden = false;
+  byId('myName').textContent = state.me.nickname; byId('menuBtn').hidden = false;
   if (state.need === 'bed_yesterday') return renderBedYesterday();
   if (state.need === 'wake') return renderWake();
   renderTabs();
@@ -425,8 +459,30 @@ document.addEventListener('visibilitychange', () => {
   if (tab === 'today' && !document.getElementById('go')) refresh().catch(() => {});
 });
 
-const $out = document.getElementById('out');
-$out.onclick = () => { if (confirm('로그아웃할까요?')) logout(); };
+/* ☰ 계정 창. 로그아웃·비밀번호 바꾸기는 다른 기록들처럼 모든 기기에서 나간다 */
+function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; }
+byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false; };
+byId('amClose').onclick = () => { byId('amBg').hidden = true; };
+byId('amBg').onclick = e => { if (e.target === byId('amBg')) byId('amBg').hidden = true; };
+byId('amSet').onclick = () => amView('set');
+byId('amBack').onclick = () => amView('main');
+byId('pwBack').onclick = () => amView('set');
+byId('amPw').onclick = () => { byId('pwForm').reset(); byId('pwErr').textContent = ''; amView('pw'); };
+byId('amOut').onclick = async () => { await rpc('life_logout_all', { p_token: token }).catch(() => {}); logout(); };
+byId('pwForm').onsubmit = async e => {
+  e.preventDefault();
+  byId('pwErr').textContent = '';
+  if (byId('pwNew').value !== byId('pwNew2').value) { byId('pwErr').textContent = '새 비밀번호 두 칸이 서로 달라요.'; return; }
+  const btn = e.submitter; btn.disabled = true;
+  try {
+    const nick = state.me.nickname;
+    const d = await rpc('life_change_password', { p_token: token, p_current: byId('pwNow').value, p_next: byId('pwNew').value });
+    if (d.error) { byId('pwErr').textContent = d.error; return; }
+    logout();
+    byId('nick').value = nick;
+    byId('err').textContent = '비밀번호를 바꿨어요. 모든 기기에서 나갔어요. 새 비밀번호로 들어와 주세요.';
+  } catch (x) { byId('pwErr').textContent = x.message; } finally { btn.disabled = false; }
+};
 if (token) refresh().catch(x => { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; });
 else renderAuth('login');
 </script>
