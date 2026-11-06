@@ -397,12 +397,14 @@ async function act(fn, args, cheer) {
 const SLOTS = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']];
 function exerciseCard(d) {
   const list = (d.exercises || []).map(e => `<div><span class="t">${e.at}</span><span>${esc(e.note || '운동')}</span></div>`).join('');
+  const wk = state.week, goal = state.me.goal;
   return `<div class="check${d.exercise ? ' done' : ''}" style="display:block">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="ico">🏃</div>
-      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">${d.exercise ? `오늘 ${d.exercises.length}번` : '어떤 운동을 했는지 한 줄'}</span></div>
+      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''} <a href="#" id="goalBtn">목표</a></span></div>
       <div class="btns"><button class="pick" id="exBtn">운동 기록</button></div>
     </div>
+    <div id="goalBox"></div>
     <div id="exBox"></div>
     ${list ? `<div class="list">${list}</div>` : ''}
   </div>`;
@@ -446,6 +448,17 @@ function renderToday() {
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
     pendingKind = 'diet'; pendingSlot = b.dataset.slot; $file.click();
   });
+  document.getElementById('goalBtn').onclick = e => {
+    e.preventDefault();
+    const box = document.getElementById('goalBox');
+    if (box.innerHTML) { box.innerHTML = ''; return; }
+    box.innerHTML = `<label class="f">이번 주 운동, 며칠 하기로 결단했어요? (일~토, 하루 몇 번 해도 1일)</label>
+      <div class="slots" style="grid-template-columns:repeat(7,1fr)">${[1,2,3,4,5,6,7].map(n => `<button type="button" data-goal="${n}" class="${n === state.me.goal ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+    box.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => {
+      box.querySelectorAll('[data-goal]').forEach(x => x.disabled = true);
+      act('life_set_goal', { p_token: token, p_goal: +b.dataset.goal }, `이번 주 ${b.dataset.goal}일! 💪`);
+    });
+  };
   document.getElementById('exBtn').onclick = () => {
     const box = document.getElementById('exBox');
     if (box.innerHTML) { box.innerHTML = ''; return; }
