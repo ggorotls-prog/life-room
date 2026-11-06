@@ -553,6 +553,8 @@ function render() {
   if (state.need === 'bed_yesterday') return renderBedYesterday();
   if (state.need === 'wake') return renderWake();
   if (state.day && state.day.bed && store.get('life_awake') !== state.today) return renderSleeping();
+  /* 자는 중이 아닌데 잠금이 남아 있으면 푼다(취침 기록을 지웠거나 날이 바뀐 경우) */
+  if (store.get('life_lock') === '1') { unlockAsked = false; unlockPhone(); }
   renderTabs();
   if (tab === 'history') return renderHistory();
   if (tab === 'mine') return renderMine();
