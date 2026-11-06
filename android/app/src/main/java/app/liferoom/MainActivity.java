@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -173,6 +174,17 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private long pausedAt = 0;
+
+    @Override
+    protected void onPause() { super.onPause(); pausedAt = System.currentTimeMillis(); }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pausedAt > 0 && System.currentTimeMillis() - pausedAt > 10 * 60 * 1000) web.reload();
     }
 
     @Override

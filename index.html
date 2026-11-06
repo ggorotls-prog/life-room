@@ -608,8 +608,22 @@ async function refresh() {
   historyItems = []; historyDone = false;
   render();
 }
-document.addEventListener('visibilitychange', () => {
+/* 새 버전 알아차리기(2026-11-06 룡: 앱이 옛 화면을 계속 보여 줌). 앱으로 돌아올 때마다 서버의 파일 표식을 보고 바뀌었으면 새로 연다 */
+let siteTag = null;
+async function siteVersion() {
+  try { const r = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' }); return r.headers.get('etag') || r.headers.get('last-modified'); }
+  catch (e) { return null; }
+}
+siteVersion().then(t => { siteTag = t; });
+async function checkNewSite() {
+  const t = await siteVersion();
+  if (t && siteTag && t !== siteTag && !document.getElementById('go')) { location.reload(); return true; }
+  if (t && !siteTag) siteTag = t;
+  return false;
+}
+document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible' || !token || !state) return;
+  if (await checkNewSite()) return;
   if (state.today !== seoulToday()) { tab = 'today'; refresh().catch(() => {}); return; }
   if (tab === 'today' && !document.getElementById('go')) refresh().catch(() => {});
 });
