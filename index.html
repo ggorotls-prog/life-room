@@ -219,7 +219,7 @@ function bindUnlock(onDone) {
 }
 function pinGuide() {
   if (!phone || store.get('life_lock_fail') !== '1') return '';
-  return `<div class="card" style="margin-top:12px;text-align:left;font-size:14px">📌 아직 잠글 수 없어요. 폰 설정 &gt; 접근성 &gt; 설치된 앱 &gt; <b>건강 기록</b>을 켠 뒤 「다시 잠그기」를 눌러 주세요.
+  return `<div class="card" style="margin-top:12px;text-align:left;font-size:14px">📌 아직 잠글 수 없어요. 폰 설정에서 두 가지를 한 번만 해 주세요.<br>① 설정 &gt; 애플리케이션 &gt; 건강 기록 &gt; 오른쪽 위 ⋮ &gt; <b>제한된 설정 허용</b><br>② 설정 &gt; 접근성 &gt; 설치된 앱 &gt; <b>건강 기록</b> 켜기<br>그 뒤 「다시 잠그기」.
     <button type="button" id="pinSet" style="width:100%;margin-top:8px">설정 열기</button></div>`;
 }
 function lockLine() {
