@@ -37,6 +37,16 @@
   .ask .big { font-size: 56px; line-height: 1.1; }
   .ask h1 { margin-top: 12px; }
   .ask .card { margin-top: 20px; text-align: left; }
+  .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+  .slots button { min-height: 48px; padding: 0 4px; font-size: 14px; }
+  .slots button.on { background: var(--main); color: #fff; }
+  .list { margin-top: 8px; font-size: 14px; }
+  .list div { padding: 6px 0; border-top: 1px solid var(--line); display: flex; gap: 8px; }
+  .list div:first-child { border-top: 0; }
+  .list .t { color: var(--sub); white-space: nowrap; }
+  .exbox { display: flex; gap: 6px; margin-top: 10px; }
+  .exbox input { min-height: 48px; }
+  .exbox button { white-space: nowrap; }
   .why { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
   .why button { min-height: 48px; font-size: 14px; }
   .why-td { font-size: 11px; color: var(--sub); white-space: nowrap; }
@@ -383,14 +393,33 @@ async function act(fn, args, cheer) {
 }
 
 /* 오늘 */
-function checkCard(kind, ico, name, on) {
-  return `<div class="check${on ? ' done' : ''}">
-    <div class="ico">${ico}</div>
-    <div class="txt"><strong>${name} ${on ? '✅' : ''}</strong></div>
-    <div class="btns">
-      ${on ? '' : `<button data-check="${kind}">체크</button>`}
-      <button class="pick" data-photo="${kind}">📷 사진</button>
-    </div></div>`;
+const SLOTS = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']];
+function exerciseCard(d) {
+  const list = (d.exercises || []).map(e => `<div><span class="t">${e.at}</span><span>${esc(e.note || '운동')}</span></div>`).join('');
+  return `<div class="check${d.exercise ? ' done' : ''}" style="display:block">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="ico">🏃</div>
+      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">${d.exercise ? `오늘 ${d.exercises.length}번` : '어떤 운동을 했는지 한 줄'}</span></div>
+      <div class="btns"><button class="pick" id="exBtn">운동 기록</button></div>
+    </div>
+    <div id="exBox"></div>
+    ${list ? `<div class="list">${list}</div>` : ''}
+  </div>`;
+}
+function dietCard(d) {
+  const meals = d.meals || [];
+  const n = sl => meals.filter(m => m === sl).length;
+  return `<div class="check${d.diet ? ' done' : ''}" style="display:block">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="ico">🥗</div>
+      <div class="txt"><strong>식단 ${d.diet ? '✅' : ''}</strong><span class="sub">먹은 끼니를 눌러 주세요</span></div>
+      <div class="btns"><button data-photo="diet">📷</button></div>
+    </div>
+    <div class="slots">${SLOTS.map(([k, name]) => {
+      const c = n(k), done = c > 0 && k !== 'snack';
+      return `<button type="button" data-slot="${k}" class="${c ? 'on' : ''}" ${done ? 'disabled' : ''}>${name}${k === 'snack' && c ? ' ' + c : ''}${done ? ' ✓' : ''}</button>`;
+    }).join('')}</div>
+  </div>`;
 }
 function renderToday() {
   const s = state, d = s.day, goal = s.me.goal, wk = s.week;
@@ -405,8 +434,8 @@ function renderToday() {
     <div class="week"><b>${wk}/${goal}</b><div class="bar"><i style="width:${pct}%"></i></div></div>
     <p class="sub">${wk >= goal ? '이번 주 통과! 🎉' : `이번 주 ${goal - wk}개 남았어요`}</p>
     <div class="checks">
-      ${checkCard('exercise', '🏃', '운동', d.exercise)}
-      ${checkCard('diet', '🥗', '식단', d.diet)}
+      ${exerciseCard(d)}
+      ${dietCard(d)}
       <div class="check${d.bed ? ' done' : ''}">
         <div class="ico">🌙</div>
         <div class="txt"><strong>수면 ${d.bed ? '✅' : ''}</strong><span class="sub">기상 ${hm(d.wake)}${d.bed ? ' · 취침 ' + hm(d.bed) : ''}</span></div>
@@ -416,11 +445,25 @@ function renderToday() {
     <div id="bedBox"></div>
     <h2>오늘 우리 조</h2>
     <div class="card" style="padding:4px 16px">${board}</div>`;
-  $app.querySelectorAll('[data-check]').forEach(b => b.onclick = () => {
+  $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
     b.disabled = true;
-    const k = b.dataset.check;
-    act('life_post', { p_token: token, p_kind: k, p_photo: null }, pick(CHEERS[k]));
+    act('life_post', { p_token: token, p_kind: 'diet', p_photo: null, p_slot: b.dataset.slot, p_note: null }, pick(CHEERS.diet));
   });
+  document.getElementById('exBtn').onclick = () => {
+    const box = document.getElementById('exBox');
+    if (box.innerHTML) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="exbox"><input id="exNote" maxlength="60" placeholder="예: 걷기 30분, 팔굽혀펴기 20개" autocomplete="off">
+      <button class="pick" id="exGo">저장</button></div><div class="err" id="err"></div>`;
+    const inp = document.getElementById('exNote'); inp.focus();
+    const go = () => {
+      const v = inp.value.trim();
+      if (!v) { document.getElementById('err').textContent = '어떤 운동인지 적어 주세요.'; return; }
+      document.getElementById('exGo').disabled = true;
+      act('life_post', { p_token: token, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: v }, pick(CHEERS.exercise));
+    };
+    document.getElementById('exGo').onclick = go;
+    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+  };
   $app.querySelectorAll('[data-photo]').forEach(b => b.onclick = () => { pendingKind = b.dataset.photo; $file.click(); });
   document.getElementById('bedBtn').onclick = () => {
     if (!d.bed) { /* 버튼 하나: 지금 시각으로 취침, 앱이면 폰 고정 */
@@ -470,7 +513,7 @@ $file.onchange = async () => {
   toast('사진 올리는 중…');
   try {
     const data = await shrink(f);
-    state = await rpc('life_post', { p_token: token, p_kind: kind, p_photo: data });
+    state = await rpc('life_post', { p_token: token, p_kind: kind, p_photo: data, p_slot: null, p_note: null });
     historyItems = []; historyDone = false;
     toast(pick(CHEERS[kind]));
     render();
@@ -485,10 +528,12 @@ async function loadHistory() {
 }
 function historyHtml() {
   const label = { exercise: '🏃 운동', diet: '🥗 식단' };
+  const slotName = Object.fromEntries(SLOTS);
   const items = historyItems.map(p => `
     <div class="card post">
-      <div class="head"><div class="nm">${esc(p.nickname)}</div><span class="sub">${label[p.kind]} · ${p.day.slice(5).replace('-', '/')}</span>
+      <div class="head"><div class="nm">${esc(p.nickname)}</div><span class="sub">${p.kind === 'diet' && p.slot ? '🥗 ' + slotName[p.slot] : label[p.kind]} · ${p.day.slice(5).replace('-', '/')}</span>
       ${p.mine ? `<button class="del" data-del="${p.id}">지우기</button>` : ''}</div>
+      ${p.note ? `<p style="padding:0 14px 12px;font-size:15px">${esc(p.note)}</p>` : ''}
       ${p.photo ? `<img src="${esc(p.photo)}" alt="${label[p.kind]} 사진" loading="lazy">` : ''}
     </div>`).join('');
   return `<h1>우리 조 히스토리</h1><p class="sub" style="margin-bottom:12px">오늘 누가 뭘 먹고 뭘 했을까요?</p>
@@ -504,7 +549,7 @@ async function renderHistory() {
     const more = document.getElementById('more');
     if (more) more.onclick = async () => { more.disabled = true; await loadHistory(); renderHistory(); };
     $app.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
-      if (!confirm('이 기록을 지울까요? 사진 없는 하루는 체크도 함께 빠질 수 있어요.')) return;
+      if (!confirm('이 기록을 지울까요?')) return;
       state = await rpc('life_delete_post', { p_token: token, p_id: +b.dataset.del });
       historyItems = []; historyDone = false;
       renderHistory();
