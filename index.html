@@ -430,8 +430,9 @@ function renderToday() {
     </div>`).join('');
   $app.innerHTML = `
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
-    <div class="week"><b>${wk}/${goal}</b><div class="bar"><i style="width:${pct}%"></i></div></div>
-    <p class="sub">${wk >= goal ? '이번 주 통과! 🎉' : `이번 주 ${goal - wk}개 남았어요`}</p>
+    <div class="week"><b>🏃 ${wk}/${goal}일</b><div class="bar"><i style="width:${pct}%"></i></div><button type="button" id="goalBtn" style="min-height:36px;font-size:13px;padding:0 10px">목표</button></div>
+    <p class="sub">${wk >= goal ? '이번 주 운동 목표 달성! 🎉' : `이번 주 운동 ${goal - wk}일 남았어요 (일~토, 하루 몇 번 해도 1일)`}</p>
+    <div id="goalBox"></div>
     <div class="checks">
       ${exerciseCard(d)}
       ${dietCard(d)}
@@ -447,6 +448,16 @@ function renderToday() {
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
     pendingKind = 'diet'; pendingSlot = b.dataset.slot; $file.click();
   });
+  document.getElementById('goalBtn').onclick = () => {
+    const box = document.getElementById('goalBox');
+    if (box.innerHTML) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="card" style="margin-top:8px"><label class="f" style="margin-top:0">이번 주 운동, 며칠 하기로 결단했어요?</label>
+      <div class="slots" style="grid-template-columns:repeat(7,1fr)">${[1,2,3,4,5,6,7].map(n => `<button type="button" data-goal="${n}" class="${n === goal ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
+    box.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => {
+      box.querySelectorAll('[data-goal]').forEach(x => x.disabled = true);
+      act('life_set_goal', { p_token: token, p_goal: +b.dataset.goal }, `이번 주 ${b.dataset.goal}일! 💪`);
+    });
+  };
   document.getElementById('exBtn').onclick = () => {
     const box = document.getElementById('exBox');
     if (box.innerHTML) { box.innerHTML = ''; return; }
