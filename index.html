@@ -150,7 +150,7 @@ const byId = id => document.getElementById(id);
 const $app = document.getElementById('app');
 const $tabs = document.getElementById('tabs');
 const $file = document.getElementById('file');
-let state = null, tab = 'today', pendingKind = null, faceSel = null, historyItems = [], historyDone = false;
+let state = null, tab = 'today', pendingKind = null, pendingSlot = null, faceSel = null, historyItems = [], historyDone = false;
 
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -412,8 +412,7 @@ function dietCard(d) {
   return `<div class="check${d.diet ? ' done' : ''}" style="display:block">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="ico">🥗</div>
-      <div class="txt"><strong>식단 ${d.diet ? '✅' : ''}</strong><span class="sub">먹은 끼니를 눌러 주세요</span></div>
-      <div class="btns"><button data-photo="diet">📷</button></div>
+      <div class="txt"><strong>식단 ${d.diet ? '✅' : ''}</strong><span class="sub">끼니를 누르고 사진을 올려 주세요 📷</span></div>
     </div>
     <div class="slots">${SLOTS.map(([k, name]) => {
       const c = n(k), done = c > 0 && k !== 'snack';
@@ -446,8 +445,7 @@ function renderToday() {
     <h2>오늘 우리 조</h2>
     <div class="card" style="padding:4px 16px">${board}</div>`;
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
-    b.disabled = true;
-    act('life_post', { p_token: token, p_kind: 'diet', p_photo: null, p_slot: b.dataset.slot, p_note: null }, pick(CHEERS.diet));
+    pendingKind = 'diet'; pendingSlot = b.dataset.slot; $file.click();
   });
   document.getElementById('exBtn').onclick = () => {
     const box = document.getElementById('exBox');
@@ -464,7 +462,6 @@ function renderToday() {
     document.getElementById('exGo').onclick = go;
     inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
   };
-  $app.querySelectorAll('[data-photo]').forEach(b => b.onclick = () => { pendingKind = b.dataset.photo; $file.click(); });
   document.getElementById('bedBtn').onclick = () => {
     if (!d.bed) { /* 버튼 하나: 지금 시각으로 취침, 앱이면 폰 고정 */
       store.del('life_awake'); unlockAsked = false; lockPhone();
@@ -507,13 +504,13 @@ function shrink(file) {
   });
 }
 $file.onchange = async () => {
-  const f = $file.files[0], kind = pendingKind;
-  $file.value = '';
+  const f = $file.files[0], kind = pendingKind, slot = pendingSlot;
+  $file.value = ''; pendingSlot = null;
   if (!f || !kind) return;
   toast('사진 올리는 중…');
   try {
     const data = await shrink(f);
-    state = await rpc('life_post', { p_token: token, p_kind: kind, p_photo: data, p_slot: null, p_note: null });
+    state = await rpc('life_post', { p_token: token, p_kind: kind, p_photo: data, p_slot: slot, p_note: null });
     historyItems = []; historyDone = false;
     toast(pick(CHEERS[kind]));
     render();
