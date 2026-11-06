@@ -401,7 +401,7 @@ function exerciseCard(d) {
   return `<div class="check${d.exercise ? ' done' : ''}" style="display:block">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="ico">🏃</div>
-      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''} <a href="#" id="goalBtn">목표</a></span></div>
+      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''} <a href="#" id="goalBtn">수정</a></span></div>
       <div class="btns"><button class="pick" id="exBtn">운동 기록</button></div>
     </div>
     <div id="goalBox"></div>
