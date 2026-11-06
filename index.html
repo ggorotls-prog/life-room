@@ -50,8 +50,9 @@
   .why { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
   .why button { min-height: 48px; font-size: 14px; }
   .why-td { font-size: 11px; color: var(--sub); white-space: nowrap; }
-  .faces { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
-  .faces button { background: #f2f3ef; font-size: 26px; padding: 0; min-height: 56px; }
+  .faces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+  .faces button { background: #f2f3ef; font-size: 26px; padding: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .faces button small { font-size: 12px; font-weight: 700; }
   .faces button.on { background: var(--main-soft); outline: 2px solid var(--main); }
   .week { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
   .week b { font-size: 22px; font-weight: 900; white-space: nowrap; }
@@ -139,7 +140,7 @@
 <script>
 const SB_URL = 'https://trlnatdkebjvgiqneulv.supabase.co';
 const SB_KEY = 'sb_publishable_BqE1VCDg50oi9zCflCjMuw_wYF55CTj';
-const FACES = ['😫','😕','😐','🙂','😄'];
+const FACES = ['😫','😐','😄'], FACE_NAMES = ['나쁨', '보통', '좋음'];
 const CHEERS = {
   exercise: ['운동 완료! 몸이 고마워해요 💪','오늘도 해냈어요 🔥','한 걸음 더 건강해졌어요 🌱'],
   diet: ['식단 체크! 잘 챙기셨어요 🥗','먹는 것도 실력이에요 🍚','오늘 한 끼도 소중하게 👍'],
@@ -331,7 +332,7 @@ function renderWake() {
       <div id="tBox" hidden><label class="f" style="margin-top:0">몇 시에 일어나셨어요?</label>
       <select id="t" style="margin-top:6px">${timeOptions(4, nowRounded())}</select></div>
       <label class="f" style="margin-top:0">오늘 컨디션은요?</label>
-      <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" aria-label="컨디션 ${i + 1}">${f}</button>`).join('')}</div>
+      <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
       <div class="err" id="err"></div>
       <button class="main" id="go">일어났어요 ☀️</button>
       ${locked ? '' : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}
@@ -421,8 +422,7 @@ function dietCard(d) {
   </div>`;
 }
 function renderToday() {
-  const s = state, d = s.day, goal = s.me.goal, wk = s.week;
-  const pct = Math.min(100, Math.round(wk / goal * 100));
+  const s = state, d = s.day;
   const board = (s.board || []).map(b => `
     <div class="row${b.mine ? ' mine' : ''}">
       <div class="nm">${esc(b.nickname)}</div>
@@ -430,9 +430,7 @@ function renderToday() {
     </div>`).join('');
   $app.innerHTML = `
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
-    <div class="week"><b>🏃 ${wk}/${goal}일</b><div class="bar"><i style="width:${pct}%"></i></div><button type="button" id="goalBtn" style="min-height:36px;font-size:13px;padding:0 10px">목표</button></div>
-    <p class="sub">${wk >= goal ? '이번 주 운동 목표 달성! 🎉' : `이번 주 운동 ${goal - wk}일 남았어요 (일~토, 하루 몇 번 해도 1일)`}</p>
-    <div id="goalBox"></div>
+
     <div class="checks">
       ${exerciseCard(d)}
       ${dietCard(d)}
@@ -448,16 +446,6 @@ function renderToday() {
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
     pendingKind = 'diet'; pendingSlot = b.dataset.slot; $file.click();
   });
-  document.getElementById('goalBtn').onclick = () => {
-    const box = document.getElementById('goalBox');
-    if (box.innerHTML) { box.innerHTML = ''; return; }
-    box.innerHTML = `<div class="card" style="margin-top:8px"><label class="f" style="margin-top:0">이번 주 운동, 며칠 하기로 결단했어요?</label>
-      <div class="slots" style="grid-template-columns:repeat(7,1fr)">${[1,2,3,4,5,6,7].map(n => `<button type="button" data-goal="${n}" class="${n === goal ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
-    box.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => {
-      box.querySelectorAll('[data-goal]').forEach(x => x.disabled = true);
-      act('life_set_goal', { p_token: token, p_goal: +b.dataset.goal }, `이번 주 ${b.dataset.goal}일! 💪`);
-    });
-  };
   document.getElementById('exBtn').onclick = () => {
     const box = document.getElementById('exBox');
     if (box.innerHTML) { box.innerHTML = ''; return; }
