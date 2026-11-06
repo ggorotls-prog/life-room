@@ -115,11 +115,14 @@ public class MainActivity extends Activity {
         } catch (Exception e) { return false; }
     }
 
+    private AlertDialog accDialog;
+
     private void askAccessibility(boolean force) {
         if (accessibilityOn()) return;
+        if (accDialog != null && accDialog.isShowing()) return;
         if (!force && getSharedPreferences(LockService.PREFS, MODE_PRIVATE).getBoolean("acc_asked", false)) return;
         getSharedPreferences(LockService.PREFS, MODE_PRIVATE).edit().putBoolean("acc_asked", true).apply();
-        new AlertDialog.Builder(this)
+        accDialog = new AlertDialog.Builder(this)
                 .setTitle("취침 잠금을 켜 주세요 (한 번만)")
                 .setMessage("「잘게요」 뒤 일어날 때까지 다른 앱을 못 쓰게 하려면 폰 설정 두 곳을 켜야 해요.\n\n① 앱 정보 → 오른쪽 위 ⋮ → 「제한된 설정 허용」\n② 접근성 → 설치된 앱 → 건강 기록 → 켜기\n\n①을 먼저 하지 않으면 ②가 흐리게 막혀 있어요.")
                 .setPositiveButton("① 앱 정보", (d, w) -> {

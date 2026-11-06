@@ -202,7 +202,10 @@ function lockPhone() { store.set('life_lock', '1'); store.del('life_lock_fail');
 function unlockPhone() { clearInterval(lockTimer); store.del('life_lock'); if (phone) try { phone.unlock(); } catch (e) {} }
 let unlockAsked = false;
 window.lifeUnpinned = () => { if (store.get('life_lock') === '1' && !unlockAsked) { unlockAsked = true; if (state) render(); } };
-window.lifeLockFailed = () => { if (store.get('life_lock') === '1') { store.set('life_lock_fail', '1'); if (state) render(); } };
+window.lifeLockFailed = () => {
+  if (store.get('life_lock') !== '1' || store.get('life_lock_fail') === '1') return;
+  store.set('life_lock_fail', '1'); if (state) render();
+};
 function unlockCard() {
   /* 잠금이 풀렸을 때: 사유 한 번 고르면 기록, 다시 잘 수 있다 */
   return `<div class="card" style="margin-top:16px;text-align:left"><strong>🔓 잠금을 풀어요. 왜요?</strong>
@@ -235,11 +238,11 @@ function keepLocked() {
     let on = false; try { on = phone.isLocked(); } catch (e) {}
     el.innerHTML = on ? '🔒 폰이 잠겼어요. 일어나면 「일어났어요」 <button type="button" id="unlockBtn" style="min-height:36px;font-size:13px;margin-left:6px;background:#f2f3ef;color:var(--sub)">해제하기</button>'
       : '🔓 아직 안 잠겼어요 <button type="button" id="relock" style="min-height:36px;font-size:13px;margin-left:6px">다시 잠그기</button>';
-    const b = document.getElementById('relock'); if (b) b.onclick = () => { store.set('life_lock', '1'); try { phone.lock(); } catch (e) {} };
+    const b = document.getElementById('relock'); if (b) b.onclick = () => { store.set('life_lock', '1'); store.del('life_lock_fail'); try { phone.lock(); } catch (e) {} };
     const u = document.getElementById('unlockBtn'); if (u) u.onclick = () => { unlockAsked = true; clearInterval(lockTimer); render(); };
   };
   let on = false; try { on = phone.isLocked(); } catch (e) {}
-  if (!on) try { phone.lock(); } catch (e) {}
+  if (!on && store.get('life_lock_fail') !== '1') try { phone.lock(); } catch (e) {}
   paint(); lockTimer = setInterval(paint, 2000);
 }
 function bindPinGuide() { const b = document.getElementById('pinSet'); if (b) b.onclick = () => { store.del('life_lock_fail'); try { phone.openPinSettings(); } catch (e) {} }; }
