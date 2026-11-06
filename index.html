@@ -37,6 +37,9 @@
   .ask .big { font-size: 56px; line-height: 1.1; }
   .ask h1 { margin-top: 12px; }
   .ask .card { margin-top: 20px; text-align: left; }
+  .why { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .why button { min-height: 48px; font-size: 14px; }
+  .why-td { font-size: 11px; color: var(--sub); white-space: nowrap; }
   .faces { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
   .faces button { background: #f2f3ef; font-size: 26px; padding: 0; min-height: 56px; }
   .faces button.on { background: var(--main-soft); outline: 2px solid var(--main); }
@@ -190,6 +193,35 @@ function timeOptions(startHour, selected) {
   }
   return h;
 }
+function nowHM() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+/* 취침 잠금(2026-11-06 룡 결정: 안드로이드 앱의 화면 고정). 「잘게요」 → 앱이 이 화면에 고정, 「일어났어요」 → 풀림.
+   풀어 버려도 막지 않고 사유만 기록한다. 브라우저에서는 잠금 없이 기록만. */
+const phone = window.LifeRoom || null;
+function lockPhone() { store.set('life_lock', '1'); store.del('life_lock_fail'); if (phone) try { phone.lock(); } catch (e) {} }
+function unlockPhone() { store.del('life_lock'); if (phone) try { phone.unlock(); } catch (e) {} }
+let unlockAsked = false;
+window.lifeUnpinned = () => { if (store.get('life_lock') === '1' && !unlockAsked) { unlockAsked = true; if (state) render(); } };
+window.lifeLockFailed = () => { if (store.get('life_lock') === '1') { store.set('life_lock_fail', '1'); if (state) render(); } };
+function unlockCard() {
+  /* 잠금이 풀렸을 때: 사유 한 번 고르면 기록, 다시 잘 수 있다 */
+  return `<div class="card" style="margin-top:16px;text-align:left"><strong>🔓 잠금이 풀렸어요. 왜 풀었어요?</strong>
+    <div class="why">${['연락할 게 있어서', '알람·시계', '급한 일', '그냥'].map(w => `<button type="button" data-why="${w}">${w}</button>`).join('')}</div>
+    <div class="err" id="err"></div></div>`;
+}
+function bindUnlock(onDone) {
+  $app.querySelectorAll('[data-why]').forEach(b => b.onclick = async () => {
+    $app.querySelectorAll('[data-why]').forEach(x => x.disabled = true);
+    try { state = await rpc('life_unlock', { p_token: token, p_note: b.dataset.why }); store.del('life_lock'); unlockAsked = false; onDone(); }
+    catch (x) { const e = document.getElementById('err'); if (e) e.textContent = x.message; $app.querySelectorAll('[data-why]').forEach(x => x.disabled = false); }
+  });
+}
+function pinGuide() {
+  if (!phone || store.get('life_lock_fail') !== '1') return '';
+  return `<div class="card" style="margin-top:12px;text-align:left;font-size:14px">📌 폰이 고정되지 않았어요. 설정 &gt; 보안 및 개인정보 보호 &gt; 기타 보안 설정 &gt; <b>앱 고정</b>을 켠 뒤 다시 「잘게요」를 눌러 주세요.
+    <button type="button" id="pinSet" style="width:100%;margin-top:8px">설정 열기</button></div>`;
+}
+function bindPinGuide() { const b = document.getElementById('pinSet'); if (b) b.onclick = () => { store.del('life_lock_fail'); try { phone.openPinSettings(); } catch (e) {} }; }
 function nowRounded() {
   const d = new Date(); const m = Math.round((d.getHours() * 60 + d.getMinutes()) / 30) * 30 % 1440;
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
@@ -251,24 +283,64 @@ function renderBedYesterday() {
 function renderWake() {
   $tabs.innerHTML = '';
   faceSel = null;
+  const locked = store.get('life_lock') === '1';
+  if (locked && unlockAsked) {
+    /* 자다가 잠금을 풀었다: 사유만 적고, 다시 자거나 일어난다 */
+    $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>자는 중${state.yesterday_bed ? ' · 취침 ' + hm(state.yesterday_bed) : ''}</h1>${unlockCard()}</div>`;
+    bindUnlock(() => renderWake());
+    return;
+  }
+  const t = nowHM();
   $app.innerHTML = `<div class="ask"><div class="big">☀️</div><h1>좋은 아침이에요!</h1>
-    <p class="sub">오늘은 모두 0개에서 다시 시작해요</p>
+    <p class="sub">지금 ${t}에 일어난 걸로 적어요 · <a href="#" id="fixT">시간 고치기</a></p>${pinGuide()}
     <div class="card">
-      <label class="f" style="margin-top:0">몇 시에 일어나셨어요?</label>
-      <select id="t" style="margin-top:6px">${timeOptions(4, nowRounded())}</select>
-      <label class="f">오늘 컨디션은요?</label>
+      <div id="tBox" hidden><label class="f" style="margin-top:0">몇 시에 일어나셨어요?</label>
+      <select id="t" style="margin-top:6px">${timeOptions(4, nowRounded())}</select></div>
+      <label class="f" style="margin-top:0">오늘 컨디션은요?</label>
       <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" aria-label="컨디션 ${i + 1}">${f}</button>`).join('')}</div>
       <div class="err" id="err"></div>
-      <button class="main" id="go">오늘 시작</button>
+      <button class="main" id="go">일어났어요 ☀️</button>
+      ${locked ? '' : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}
     </div></div>`;
+  bindPinGuide();
+  let fixed = false;
+  document.getElementById('fixT').onclick = e => { e.preventDefault(); fixed = true; document.getElementById('tBox').hidden = false; };
   document.querySelectorAll('.faces button').forEach(b => b.onclick = () => {
     faceSel = +b.dataset.v;
     document.querySelectorAll('.faces button').forEach(x => x.classList.toggle('on', x === b));
   });
   document.getElementById('go').onclick = () => {
     if (!faceSel) { document.getElementById('err').textContent = '컨디션을 골라 주세요.'; return; }
-    act('life_wake', { p_token: token, p_time: document.getElementById('t').value, p_condition: faceSel });
+    unlockPhone();
+    act('life_wake', { p_token: token, p_time: fixed ? document.getElementById('t').value : t, p_condition: faceSel });
   };
+  const rb = document.getElementById('reBed');
+  if (rb) rb.onclick = () => { /* 어제 줄의 취침 시각을 지금으로 바꾸고 다시 잠근다 */
+    unlockAsked = false; lockPhone();
+    act('life_bed', { p_token: token, p_which: 'yesterday', p_time: nowHM() }, '잘 자요 🌙');
+  };
+}
+
+/* 오늘 취침을 적은 뒤(새벽 4시 전): 「일어났어요」 하나만 보이는 화면. 앱은 여기에 고정된다 */
+function renderSleeping() {
+  $tabs.innerHTML = '';
+  const d = state.day;
+  if (unlockAsked) {
+    $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>자는 중 · 취침 ${hm(d.bed)}</h1>${unlockCard()}</div>`;
+    bindUnlock(() => renderSleeping());
+    return;
+  }
+  $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>자는 중 · 취침 ${hm(d.bed)}</h1>
+    <p class="sub">잘 자요. 일어나면 눌러 주세요</p>${pinGuide()}
+    <div class="card"><button class="main" id="go">일어났어요 ☀️</button>
+    ${store.get('life_lock') === '1' ? '' : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}</div></div>`;
+  bindPinGuide();
+  document.getElementById('go').onclick = () => {
+    /* 새벽 4시 전에 일어나면 기상은 4시 뒤 화면에서 적힌다. 지금은 잠금만 푼다 */
+    unlockPhone(); store.set('life_awake', state.today); render();
+  };
+  const rb = document.getElementById('reBed');
+  if (rb) rb.onclick = () => { unlockAsked = false; lockPhone(); act('life_bed', { p_token: token, p_which: 'today', p_time: nowHM() }, '잘 자요 🌙'); };
 }
 
 async function act(fn, args, cheer) {
@@ -327,6 +399,11 @@ function renderToday() {
   });
   $app.querySelectorAll('[data-photo]').forEach(b => b.onclick = () => { pendingKind = b.dataset.photo; $file.click(); });
   document.getElementById('bedBtn').onclick = () => {
+    if (!d.bed) { /* 버튼 하나: 지금 시각으로 취침, 앱이면 폰 고정 */
+      store.del('life_awake'); unlockAsked = false; lockPhone();
+      act('life_bed', { p_token: token, p_which: 'today', p_time: nowHM() }, pick(CHEERS.bed));
+      return;
+    }
     document.getElementById('bedBox').innerHTML = `<div class="card" style="margin-top:8px">
       <label class="f" style="margin-top:0">몇 시에 주무세요?</label>
       <select id="t" style="margin-top:6px">${timeOptions(18, d.bed ? hm(d.bed) : nowRounded())}</select>
@@ -413,9 +490,10 @@ async function renderHistory() {
 
 /* 내 기록·리더 */
 function recordTable(rows) {
-  return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th></tr>
+  return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th><th>해제</th></tr>
     ${rows.map(r => `<tr><td>${r.day.slice(5).replace('-', '/')}</td><td>${hm(r.wake)}</td><td>${hm(r.bed)}</td>
-      <td>${r.condition ? FACES[r.condition - 1] : '-'}</td><td>${r.exercise ? '✅' : '-'}</td><td>${r.diet ? '✅' : '-'}</td></tr>`).join('')}</table>`;
+      <td>${r.condition ? FACES[r.condition - 1] : '-'}</td><td>${r.exercise ? '✅' : '-'}</td><td>${r.diet ? '✅' : '-'}</td>
+      <td class="why-td">${(r.unlocks || []).map(u => esc(u.at + ' ' + u.note)).join('<br>') || '-'}</td></tr>`).join('')}</table>`;
 }
 async function renderMine() {
   $app.innerHTML = '<div class="loading">불러오는 중…</div>';
@@ -450,6 +528,7 @@ function render() {
   if (state.me.must_change_pw) forcePw();
   if (state.need === 'bed_yesterday') return renderBedYesterday();
   if (state.need === 'wake') return renderWake();
+  if (state.day && state.day.bed && store.get('life_awake') !== state.today) return renderSleeping();
   renderTabs();
   if (tab === 'history') return renderHistory();
   if (tab === 'mine') return renderMine();

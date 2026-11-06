@@ -2,6 +2,11 @@ package app.liferoom;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
+import android.webkit.JavascriptInterface;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
@@ -21,7 +26,7 @@ import android.widget.FrameLayout;
 import java.io.File;
 
 // 생활개선방 앱(2026-11-01 사장님: 가족 안에서 앱으로). 앱 화면 = 사이트를 그대로 띄운다.
-// 사이트를 고치면 앱도 바로 바뀐다. 앱은 사진 고르기·찍기와 아침·밤 알림만 맡는다.
+// 사이트를 고치면 앱도 바로 바뀐다. 앱은 사진 고르기·찍기, 아침·밤 알림, 취침 잠금(화면 고정)만 맡는다.
 public class MainActivity extends Activity {
     static final String BASE = "https://ggorotls-prog.github.io/life-room/";
     private static final int PICK = 7;
@@ -96,9 +101,73 @@ public class MainActivity extends Activity {
             }
         });
 
+        web.addJavascriptInterface(new Bridge(), "LifeRoom");
         web.loadUrl(BASE);
         Reminder.schedule(this);
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+    }
+
+    // 취침 잠금(2026-11-06 룡 결정): 「잘게요」를 누르면 앱을 화면에 고정해 「일어났어요」만 보인다.
+    // 뒤로+최근 버튼을 길게 눌러 풀면 막지 않고 사이트에 알려 사유만 적는다. 설정에서 「앱 고정」을 켜 둬야 한다.
+    private boolean wantLock = false, wasLocked = false;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable watch = new Runnable() {
+        @Override
+        public void run() {
+            if (!wantLock) return;
+            if (isPinned()) {
+                wasLocked = true;
+            } else if (wasLocked) {
+                wantLock = false; wasLocked = false;
+                js("window.lifeUnpinned && lifeUnpinned()");
+                return;
+            }
+            handler.postDelayed(this, 1500);
+        }
+    };
+    private final Runnable lockCheck = () -> {
+        if (wantLock && !wasLocked && !isPinned()) {
+            wantLock = false;
+            js("window.lifeLockFailed && lifeLockFailed()");
+        }
+    };
+
+    private boolean isPinned() {
+        try {
+            return getSystemService(ActivityManager.class).getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE;
+        } catch (Exception e) { return false; }
+    }
+
+    private void js(String code) { runOnUiThread(() -> web.evaluateJavascript(code, null)); }
+
+    private class Bridge {
+        @JavascriptInterface
+        public void lock() {
+            runOnUiThread(() -> {
+                wantLock = true; wasLocked = false;
+                try { startLockTask(); } catch (Exception ignored) {}
+                handler.removeCallbacks(watch); handler.removeCallbacks(lockCheck);
+                handler.postDelayed(watch, 1500);
+                handler.postDelayed(lockCheck, 8000);
+            });
+        }
+
+        @JavascriptInterface
+        public void unlock() {
+            runOnUiThread(() -> {
+                wantLock = false; wasLocked = false;
+                handler.removeCallbacks(watch); handler.removeCallbacks(lockCheck);
+                try { stopLockTask(); } catch (Exception ignored) {}
+            });
+        }
+
+        @JavascriptInterface
+        public boolean isLocked() { return isPinned(); }
+
+        @JavascriptInterface
+        public void openPinSettings() {
+            try { startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS)); } catch (Exception ignored) {}
+        }
     }
 
     private Intent cameraIntent() {
