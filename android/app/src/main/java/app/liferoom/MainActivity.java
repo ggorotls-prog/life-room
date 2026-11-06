@@ -2,9 +2,6 @@ package app.liferoom;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.ActivityManager;
-import android.os.Handler;
-import android.os.Looper;
 import android.provider.Settings;
 import android.app.AlertDialog;
 import android.webkit.JavascriptInterface;
@@ -27,7 +24,7 @@ import android.widget.FrameLayout;
 import java.io.File;
 
 // 생활개선방 앱(2026-11-01 사장님: 가족 안에서 앱으로). 앱 화면 = 사이트를 그대로 띄운다.
-// 사이트를 고치면 앱도 바로 바뀐다. 앱은 사진 고르기·찍기, 아침·밤 알림, 취침 잠금(화면 고정)만 맡는다.
+// 사이트를 고치면 앱도 바로 바뀐다. 앱은 사진 고르기·찍기, 아침·밤 알림, 취침 잠금(접근성 서비스 LockService)만 맡는다.
 public class MainActivity extends Activity {
     static final String BASE = "https://ggorotls-prog.github.io/life-room/";
     private static final int PICK = 7;
@@ -105,59 +102,31 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "LifeRoom");
         web.loadUrl(BASE);
         Reminder.schedule(this);
-        askPinSetting(false);
+        askAccessibility(false);
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
     }
 
-    // 취침 잠금(2026-11-06 룡 결정): 「잘게요」를 누르면 앱을 화면에 고정해 「일어났어요」만 보인다.
-    // 뒤로+최근 버튼을 길게 눌러 풀면 막지 않고 사이트에 알려 사유만 적는다. 설정에서 「앱 고정」을 켜 둬야 한다.
-    private boolean wantLock = false, wasLocked = false;
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Runnable watch = new Runnable() {
-        @Override
-        public void run() {
-            if (!wantLock) return;
-            if (isPinned()) {
-                wasLocked = true;
-            } else if (wasLocked) {
-                wantLock = false; wasLocked = false;
-                js("window.lifeUnpinned && lifeUnpinned()");
-                return;
-            }
-            handler.postDelayed(this, 1500);
-        }
-    };
-    private final Runnable lockCheck = () -> {
-        if (wantLock && !wasLocked && !isPinned()) {
-            wantLock = false;
-            js("window.lifeLockFailed && lifeLockFailed()");
-        }
-    };
-
-    // 앱은 폰의 「앱 고정」 설정을 스스로 켤 수 없다(안드로이드가 막음). 대신 꺼져 있으면 앱을 열 때 설정 화면으로 보낸다.
-    private boolean pinSettingOn() {
-        try { return Settings.Secure.getInt(getContentResolver(), "lock_to_app_enabled", 0) == 1; }
-        catch (Exception e) { return true; } // 읽지 못하는 폰이면 켜진 것으로 보고 넘어간다
+    // 취침 잠금(2026-11-06 룡 결정: 접근성 서비스로 「확실하게」). 실제 막기는 LockService가 한다.
+    // 여기서는 잠금 켜기·끄기와, 접근성이 꺼져 있을 때 설정으로 보내는 일만.
+    private boolean accessibilityOn() {
+        try {
+            String on = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            return on != null && on.contains(getPackageName() + "/");
+        } catch (Exception e) { return false; }
     }
 
-    private void askPinSetting(boolean force) {
-        if (pinSettingOn()) return;
-        if (!force && getSharedPreferences("life", MODE_PRIVATE).getBoolean("pin_asked", false)) return;
-        getSharedPreferences("life", MODE_PRIVATE).edit().putBoolean("pin_asked", true).apply();
+    private void askAccessibility(boolean force) {
+        if (accessibilityOn()) return;
+        if (!force && getSharedPreferences(LockService.PREFS, MODE_PRIVATE).getBoolean("acc_asked", false)) return;
+        getSharedPreferences(LockService.PREFS, MODE_PRIVATE).edit().putBoolean("acc_asked", true).apply();
         new AlertDialog.Builder(this)
-                .setTitle("앱 고정을 켜 주세요")
-                .setMessage("「잘게요」를 누르면 일어날 때까지 폰이 이 앱에 고정됩니다. 그러려면 폰 설정에서 「앱 고정」을 한 번 켜야 해요.\n\n설정 > 보안 및 개인정보 보호 > 기타 보안 설정 > 앱 고정 (안 보이면 설정 검색창에 「앱 고정」)")
+                .setTitle("취침 잠금을 켜 주세요")
+                .setMessage("「잘게요」를 누르면 일어날 때까지 다른 앱을 못 쓰게 하려면 폰 설정에서 이 앱의 접근성을 한 번 켜야 해요.\n\n설정 열기 → 설치된 앱(또는 다운로드한 앱) → 건강 기록 → 켜기")
                 .setPositiveButton("설정 열기", (d, w) -> {
-                    try { startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS)); } catch (Exception ignored) {}
+                    try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); } catch (Exception ignored) {}
                 })
                 .setNegativeButton("나중에", null)
                 .show();
-    }
-
-    private boolean isPinned() {
-        try {
-            return getSystemService(ActivityManager.class).getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE;
-        } catch (Exception e) { return false; }
     }
 
     private void js(String code) { runOnUiThread(() -> web.evaluateJavascript(code, null)); }
@@ -166,38 +135,23 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void lock() {
             runOnUiThread(() -> {
-                if (!pinSettingOn()) { // 설정이 꺼져 있으면 고정을 시도하지 않고 바로 안내한다
+                if (!accessibilityOn()) {
                     js("window.lifeLockFailed && lifeLockFailed()");
-                    askPinSetting(true);
+                    askAccessibility(true);
                     return;
                 }
-                wantLock = true; wasLocked = false;
-                try { startLockTask(); } catch (Exception ignored) {}
-                handler.removeCallbacks(watch); handler.removeCallbacks(lockCheck);
-                handler.postDelayed(watch, 1500);
-                handler.postDelayed(lockCheck, 8000);
+                LockService.setLocked(MainActivity.this, true);
             });
         }
 
         @JavascriptInterface
-        public void unlock() {
-            runOnUiThread(() -> {
-                wantLock = false; wasLocked = false;
-                handler.removeCallbacks(watch); handler.removeCallbacks(lockCheck);
-                try { stopLockTask(); } catch (Exception ignored) {}
-            });
-        }
+        public void unlock() { LockService.setLocked(MainActivity.this, false); }
 
         @JavascriptInterface
-        public boolean isLocked() { return isPinned(); }
+        public boolean isLocked() { return accessibilityOn() && LockService.isLocked(MainActivity.this); }
 
         @JavascriptInterface
-        public void openPinSettings() {
-            runOnUiThread(() -> {
-                if (!pinSettingOn()) askPinSetting(true);
-                else try { startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS)); } catch (Exception ignored) {}
-            });
-        }
+        public void openPinSettings() { runOnUiThread(() -> askAccessibility(true)); }
     }
 
     private Intent cameraIntent() {
@@ -213,6 +167,12 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (LockService.isLocked(this)) return;
+        super.onBackPressed();
     }
 
     @Override
