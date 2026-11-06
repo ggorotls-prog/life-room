@@ -199,7 +199,7 @@ function nowHM() { const d = new Date(); return String(d.getHours()).padStart(2,
    풀어 버려도 막지 않고 사유만 기록한다. 브라우저에서는 잠금 없이 기록만. */
 const phone = window.LifeRoom || null;
 function lockPhone() { store.set('life_lock', '1'); store.del('life_lock_fail'); if (phone) try { phone.lock(); } catch (e) {} }
-function unlockPhone() { store.del('life_lock'); if (phone) try { phone.unlock(); } catch (e) {} }
+function unlockPhone() { clearInterval(lockTimer); store.del('life_lock'); if (phone) try { phone.unlock(); } catch (e) {} }
 let unlockAsked = false;
 window.lifeUnpinned = () => { if (store.get('life_lock') === '1' && !unlockAsked) { unlockAsked = true; if (state) render(); } };
 window.lifeLockFailed = () => { if (store.get('life_lock') === '1') { store.set('life_lock_fail', '1'); if (state) render(); } };
@@ -220,6 +220,25 @@ function pinGuide() {
   if (!phone || store.get('life_lock_fail') !== '1') return '';
   return `<div class="card" style="margin-top:12px;text-align:left;font-size:14px">📌 폰이 고정되지 않았어요. 설정 &gt; 보안 및 개인정보 보호 &gt; 기타 보안 설정 &gt; <b>앱 고정</b>을 켠 뒤 다시 「잘게요」를 눌러 주세요.
     <button type="button" id="pinSet" style="width:100%;margin-top:8px">설정 열기</button></div>`;
+}
+function lockLine() {
+  if (!phone || store.get('life_lock') !== '1') return '';
+  return `<p class="sub" id="lockLine" style="margin-top:10px">…</p>`;
+}
+let lockTimer = null;
+function keepLocked() {
+  clearInterval(lockTimer);
+  if (!phone || store.get('life_lock') !== '1' || unlockAsked) return;
+  const paint = () => {
+    const el = document.getElementById('lockLine'); if (!el) { clearInterval(lockTimer); return; }
+    let on = false; try { on = phone.isLocked(); } catch (e) {}
+    el.innerHTML = on ? '🔒 폰이 잠겼어요. 일어나면 「일어났어요」를 눌러 주세요'
+      : '🔓 아직 안 잠겼어요 <button type="button" id="relock" style="min-height:36px;font-size:13px;margin-left:6px">다시 잠그기</button>';
+    const b = document.getElementById('relock'); if (b) b.onclick = () => { try { phone.lock(); } catch (e) {} };
+  };
+  let on = false; try { on = phone.isLocked(); } catch (e) {}
+  if (!on) try { phone.lock(); } catch (e) {}
+  paint(); lockTimer = setInterval(paint, 2000);
 }
 function bindPinGuide() { const b = document.getElementById('pinSet'); if (b) b.onclick = () => { store.del('life_lock_fail'); try { phone.openPinSettings(); } catch (e) {} }; }
 function nowRounded() {
@@ -292,7 +311,7 @@ function renderWake() {
   }
   const t = nowHM();
   $app.innerHTML = `<div class="ask"><div class="big">☀️</div><h1>좋은 아침이에요!</h1>
-    <p class="sub">지금 ${t}에 일어난 걸로 적어요 · <a href="#" id="fixT">시간 고치기</a></p>${pinGuide()}
+    <p class="sub">지금 ${t}에 일어난 걸로 적어요 · <a href="#" id="fixT">시간 고치기</a></p>${lockLine()}${pinGuide()}
     <div class="card">
       <div id="tBox" hidden><label class="f" style="margin-top:0">몇 시에 일어나셨어요?</label>
       <select id="t" style="margin-top:6px">${timeOptions(4, nowRounded())}</select></div>
@@ -302,7 +321,7 @@ function renderWake() {
       <button class="main" id="go">일어났어요 ☀️</button>
       ${locked ? '' : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}
     </div></div>`;
-  bindPinGuide();
+  bindPinGuide(); keepLocked();
   let fixed = false;
   document.getElementById('fixT').onclick = e => { e.preventDefault(); fixed = true; document.getElementById('tBox').hidden = false; };
   document.querySelectorAll('.faces button').forEach(b => b.onclick = () => {
@@ -331,10 +350,10 @@ function renderSleeping() {
     return;
   }
   $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>자는 중 · 취침 ${hm(d.bed)}</h1>
-    <p class="sub">잘 자요. 일어나면 눌러 주세요</p>${pinGuide()}
+    <p class="sub">잘 자요. 일어나면 눌러 주세요</p>${lockLine()}${pinGuide()}
     <div class="card"><button class="main" id="go">일어났어요 ☀️</button>
     ${store.get('life_lock') === '1' ? '' : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}</div></div>`;
-  bindPinGuide();
+  bindPinGuide(); keepLocked();
   document.getElementById('go').onclick = () => {
     /* 새벽 4시 전에 일어나면 기상은 4시 뒤 화면에서 적힌다. 지금은 잠금만 푼다 */
     unlockPhone(); store.set('life_awake', state.today); render();
