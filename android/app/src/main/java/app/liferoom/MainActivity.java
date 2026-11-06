@@ -6,6 +6,7 @@ import android.app.ActivityManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.app.AlertDialog;
 import android.webkit.JavascriptInterface;
 import android.content.Intent;
 import android.graphics.Color;
@@ -104,6 +105,7 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "LifeRoom");
         web.loadUrl(BASE);
         Reminder.schedule(this);
+        askPinSetting(false);
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
     }
 
@@ -132,6 +134,26 @@ public class MainActivity extends Activity {
         }
     };
 
+    // 앱은 폰의 「앱 고정」 설정을 스스로 켤 수 없다(안드로이드가 막음). 대신 꺼져 있으면 앱을 열 때 설정 화면으로 보낸다.
+    private boolean pinSettingOn() {
+        try { return Settings.Secure.getInt(getContentResolver(), "lock_to_app_enabled", 0) == 1; }
+        catch (Exception e) { return true; } // 읽지 못하는 폰이면 켜진 것으로 보고 넘어간다
+    }
+
+    private void askPinSetting(boolean force) {
+        if (pinSettingOn()) return;
+        if (!force && getSharedPreferences("life", MODE_PRIVATE).getBoolean("pin_asked", false)) return;
+        getSharedPreferences("life", MODE_PRIVATE).edit().putBoolean("pin_asked", true).apply();
+        new AlertDialog.Builder(this)
+                .setTitle("앱 고정을 켜 주세요")
+                .setMessage("「잘게요」를 누르면 일어날 때까지 폰이 이 앱에 고정됩니다. 그러려면 폰 설정에서 「앱 고정」을 한 번 켜야 해요.\n\n설정 > 보안 및 개인정보 보호 > 기타 보안 설정 > 앱 고정 (안 보이면 설정 검색창에 「앱 고정」)")
+                .setPositiveButton("설정 열기", (d, w) -> {
+                    try { startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS)); } catch (Exception ignored) {}
+                })
+                .setNegativeButton("나중에", null)
+                .show();
+    }
+
     private boolean isPinned() {
         try {
             return getSystemService(ActivityManager.class).getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE;
@@ -144,6 +166,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void lock() {
             runOnUiThread(() -> {
+                if (!pinSettingOn()) { // 설정이 꺼져 있으면 고정을 시도하지 않고 바로 안내한다
+                    js("window.lifeLockFailed && lifeLockFailed()");
+                    askPinSetting(true);
+                    return;
+                }
                 wantLock = true; wasLocked = false;
                 try { startLockTask(); } catch (Exception ignored) {}
                 handler.removeCallbacks(watch); handler.removeCallbacks(lockCheck);
@@ -166,7 +193,10 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void openPinSettings() {
-            try { startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS)); } catch (Exception ignored) {}
+            runOnUiThread(() -> {
+                if (!pinSettingOn()) askPinSetting(true);
+                else try { startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS)); } catch (Exception ignored) {}
+            });
         }
     }
 
