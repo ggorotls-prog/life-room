@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:label="건강 기록"
@@ -42,6 +43,9 @@
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/lock_service" />
         </service>
+
+        <!-- 스스로 업데이트 결과(업무·영성·재정 기록 앱과 같은 방식, 2026-11-07 룡) -->
+        <receiver android:name=".UpdateReceiver" android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

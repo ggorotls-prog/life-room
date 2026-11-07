@@ -36,6 +36,10 @@ android {
         }
     }
 
+    buildFeatures {
+        buildConfig true   // Updater가 BuildConfig.VERSION_CODE로 새 버전을 비교한다
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17

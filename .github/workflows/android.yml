@@ -85,6 +85,9 @@ jobs:
         run: |
           mkdir -p app
           cp dist/app-release.apk app/life-room.apk
+          # 폰의 앱이 app/version.json을 보고 새 버전이면 스스로 받아서 업데이트한다(업무·영성·재정 기록 앱과 같음, 2026-11-07)
+          SHA=$(sha256sum app/life-room.apk | cut -d' ' -f1)
+          printf '{"versionCode":%s,"apk":"/app/life-room.apk","sha256":"%s"}\n' "$GITHUB_RUN_NUMBER" "$SHA" > app/version.json
           git config user.name "life-room-bot"
           git config user.email "life-room-bot@users.noreply.github.com"
           git add -f app

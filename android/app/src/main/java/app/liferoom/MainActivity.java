@@ -177,14 +177,60 @@ public class MainActivity extends Activity {
     }
 
     private long pausedAt = 0;
+    static volatile boolean visible; // 업데이트 확인 화면을 바로 띄울지
+    private boolean backFromSecurity = false;
 
     @Override
-    protected void onPause() { super.onPause(); pausedAt = System.currentTimeMillis(); }
+    protected void onPause() { super.onPause(); visible = false; pausedAt = System.currentTimeMillis(); }
 
     @Override
     protected void onResume() {
         super.onResume();
+        visible = true;
         if (pausedAt > 0 && System.currentTimeMillis() - pausedAt > 10 * 60 * 1000) web.reload();
+        // 앱을 열 때마다 새 버전이 있나 본다(업무·영성·재정 기록 앱과 같은 방식, 2026-11-07 룡: 모든 기록 앱 동일).
+        // 자는 중(잠금)에는 묻지 않는다: 보안 설정 화면이 잠금에 막힌다
+        boolean retry = backFromSecurity;
+        backFromSecurity = false;
+        if (LockService.isLocked(this)) return;
+        new Thread(() -> {
+            int latest = Updater.latest(getApplicationContext());
+            if (latest <= BuildConfig.VERSION_CODE) return;
+            if (!Updater.canInstall(this)) { runOnUiThread(this::askInstallPermission); return; }
+            if (retry) { Updater.checkAndInstall(getApplicationContext(), true, true); return; }
+            if (!Updater.askedRecently(getApplicationContext(), latest)) runOnUiThread(this::askUpdate);
+        }).start();
+    }
+
+    // 새 버전이 있을 때: 「업데이트」를 누르면 보안 화면을 연다. 자동 차단을 끄고 돌아오면 설치가 시작된다.
+    private void askUpdate() {
+        if (isFinishing()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("새 버전이 있어요")
+                .setMessage("업데이트하려면 삼성 「자동 차단」을 잠깐 꺼야 해요.\n\n「업데이트」를 누르면 보안 화면이 열려요. 「자동 차단」을 끄고 뒤로 오면 업데이트가 시작돼요.\n(자동 차단은 30분 뒤 저절로 다시 켜져요)")
+                .setPositiveButton("업데이트", (d, w) -> {
+                    backFromSecurity = true;
+                    for (String action : new String[]{Settings.ACTION_SECURITY_SETTINGS, Settings.ACTION_SETTINGS}) {
+                        try { startActivity(new Intent(action)); return; } catch (Exception ignored) {}
+                    }
+                })
+                .setNegativeButton("나중에", null)
+                .show();
+    }
+
+    // 처음 한 번: 이 앱이 스스로 업데이트할 수 있게 「이 출처 허용」을 켜 달라고 한다
+    private void askInstallPermission() {
+        if (isFinishing()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("새 버전이 있어요")
+                .setMessage("앞으로 저절로 업데이트되게, 다음 화면에서 「이 출처 허용」을 켜 주세요. 한 번만 하면 돼요.")
+                .setPositiveButton("켜러 가기", (d, w) -> {
+                    try {
+                        startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
+                    } catch (Exception ignored) {}
+                })
+                .setNegativeButton("나중에", null)
+                .show();
     }
 
     @Override
