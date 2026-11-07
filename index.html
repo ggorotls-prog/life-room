@@ -351,8 +351,8 @@ function renderWake() {
   };
   const rb = document.getElementById('reBed');
   if (rb) rb.onclick = () => { /* 어제 줄의 취침 시각을 지금으로 바꾸고 다시 잠근다 */
-    unlockAsked = false; lockPhone();
-    act('life_bed', { p_token: token, p_which: 'yesterday', p_time: nowHM() }, '잘 자요 🌙');
+    unlockAsked = false;
+    bedAndLock({ p_token: token, p_which: 'yesterday', p_time: nowHM() }, '잘 자요 🌙');
   };
 }
 
@@ -375,7 +375,7 @@ function renderSleeping() {
     unlockPhone(); store.set('life_awake', state.today); render();
   };
   const rb = document.getElementById('reBed');
-  if (rb) rb.onclick = () => { unlockAsked = false; lockPhone(); act('life_bed', { p_token: token, p_which: 'today', p_time: nowHM() }, '잘 자요 🌙'); };
+  if (rb) rb.onclick = () => { unlockAsked = false; bedAndLock({ p_token: token, p_which: 'today', p_time: nowHM() }, '잘 자요 🌙'); };
 }
 
 async function act(fn, args, cheer) {
@@ -386,12 +386,16 @@ async function act(fn, args, cheer) {
     historyItems = []; historyDone = false;
     if (cheer) toast(cheer);
     render();
+    return true;
   } catch (x) {
     const err = document.getElementById('err');
     if (err) err.textContent = x.message; else toast(x.message);
     if (go) go.disabled = false;
+    return false;
   }
 }
+/* 「잘게요」 저장이 안 되면(인터넷 끊김 등) 먼저 건 잠금을 바로 푼다. 안 풀면 기록 없이 폰만 잠긴 채 남는다(2026-11-07 점검) */
+function bedAndLock(args, cheer) { lockPhone(); act('life_bed', args, cheer).then(ok => { if (!ok) unlockPhone(); }); }
 
 /* 오늘 */
 const SLOTS = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']];
@@ -476,8 +480,8 @@ function renderToday() {
   };
   document.getElementById('bedBtn').onclick = () => {
     if (!d.bed) { /* 버튼 하나: 지금 시각으로 취침, 앱이면 폰 고정 */
-      store.del('life_awake'); unlockAsked = false; lockPhone();
-      act('life_bed', { p_token: token, p_which: 'today', p_time: nowHM() }, pick(CHEERS.bed));
+      store.del('life_awake'); unlockAsked = false;
+      bedAndLock({ p_token: token, p_which: 'today', p_time: nowHM() }, pick(CHEERS.bed));
       return;
     }
     document.getElementById('bedBox').innerHTML = `<div class="card" style="margin-top:8px">
@@ -556,10 +560,15 @@ async function renderHistory() {
     if (tab !== 'history') return;
     $app.innerHTML = historyHtml();
     const more = document.getElementById('more');
-    if (more) more.onclick = async () => { more.disabled = true; await loadHistory(); renderHistory(); };
+    if (more) more.onclick = async () => {
+      more.disabled = true;
+      try { await loadHistory(); renderHistory(); } catch (x) { toast(x.message); more.disabled = false; }
+    };
     $app.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
       if (!confirm('이 기록을 지울까요?')) return;
-      state = await rpc('life_delete_post', { p_token: token, p_id: +b.dataset.del });
+      b.disabled = true;
+      try { state = await rpc('life_delete_post', { p_token: token, p_id: +b.dataset.del }); }
+      catch (x) { toast(x.message); b.disabled = false; return; }
       historyItems = []; historyDone = false;
       renderHistory();
     });
