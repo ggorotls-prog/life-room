@@ -23,7 +23,7 @@ import android.widget.FrameLayout;
 
 import java.io.File;
 
-// 생활개선방 앱(2026-11-01 사장님: 가족 안에서 앱으로). 앱 화면 = 사이트를 그대로 띄운다.
+// 건강 기록 앱(옛 이름 생활개선방, 2026-11-01 사장님: 가족 안에서 앱으로). 앱 화면 = 사이트를 그대로 띄운다.
 // 사이트를 고치면 앱도 바로 바뀐다. 앱은 사진 고르기·찍기, 아침·밤 알림, 취침 잠금(접근성 서비스 LockService)만 맡는다.
 public class MainActivity extends Activity {
     static final String BASE = "https://ggorotls-prog.github.io/life-room/";
