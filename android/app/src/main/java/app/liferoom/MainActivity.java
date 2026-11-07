@@ -125,7 +125,7 @@ public class MainActivity extends Activity {
         getSharedPreferences(LockService.PREFS, MODE_PRIVATE).edit().putBoolean("acc_asked", true).apply();
         accDialog = new AlertDialog.Builder(this)
                 .setTitle("취침 잠금을 켜 주세요 (한 번만)")
-                .setMessage("「잘게요」 뒤 일어날 때까지 다른 앱을 못 쓰게 하려면 폰 설정 두 곳을 켜야 해요.\n\n① 앱 정보 → 오른쪽 위 ⋮ → 「제한된 설정 허용」\n② 접근성 → 설치된 앱 → 건강 기록 → 켜기\n\n①을 먼저 하지 않으면 ②가 흐리게 막혀 있어요.")
+                .setMessage("「잘게요」 뒤 일어날 때까지 다른 앱을 못 쓰게 하려면 이 순서로 한 번만 해 주세요.\n\n① 접근성 → 설치된 앱 → 건강 기록 눌러 보기 (「제한된 설정」 창이 뜨면 확인)\n② 앱 정보 → 오른쪽 위 ⋮ → 「제한된 설정 허용」 (①을 해야 ⋮에 나와요)\n③ 다시 접근성 → 건강 기록 → 켜기")
                 .setPositiveButton("② 앱 정보", (d, w) -> {
                     try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
                 })
