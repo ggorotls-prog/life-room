@@ -6,6 +6,9 @@ on:
     paths: ['android/**', '.github/workflows/android.yml']
   workflow_dispatch:
 
+# 연달아 올리면 「사이트에 올리기」끼리 부딪혀 실패 메일이 왔다(2026-11-07). 한 번에 하나씩 차례로 돈다
+concurrency: android-apk
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -67,6 +70,14 @@ jobs:
             adb shell pidof app.liferoom || { echo "앱이 꺼져 있어요"; exit 1; }
             echo "앱이 켜져 있어요"
             adb shell dumpsys alarm | grep -c "app.liferoom" || { echo "알림이 안 걸렸어요"; exit 1; }
+            # 취침 잠금 서비스가 폰과 실제로 이어지는지 본다(2026-11-08)
+            adb shell settings put secure enabled_accessibility_services app.liferoom/app.liferoom.LockService
+            adb shell settings put secure accessibility_enabled 1
+            sleep 5
+            adb shell dumpsys accessibility > acc.txt || true
+            grep -i -E "liferoom|Bound services" acc.txt || true
+            grep "Bound services" acc.txt | grep -q "취침 잠금" || { echo "잠금 서비스가 안 이어졌어요"; exit 1; }
+            echo "잠금 서비스 이어짐"
 
   # main에서 가상 폰 확인까지 통과하면 APK를 사이트 app/에 올린다. 가족은 이 주소에서 받아 깐다.
   publish:

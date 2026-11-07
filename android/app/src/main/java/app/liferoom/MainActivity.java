@@ -116,16 +116,19 @@ public class MainActivity extends Activity {
         } catch (Exception e) { return false; }
     }
 
+    // 설정에 켜져 있고, 서비스가 실제로 폰과 이어져 있어야 잠긴다(2026-11-08: 켜짐으로 보이는데 안 잠긴 일)
+    private boolean lockReady() { return accessibilityOn() && LockService.running(); }
+
     private AlertDialog accDialog;
 
     private void askAccessibility(boolean force) {
-        if (accessibilityOn()) return;
+        if (lockReady()) return;
         if (accDialog != null && accDialog.isShowing()) return;
         if (!force && getSharedPreferences(LockService.PREFS, MODE_PRIVATE).getBoolean("acc_asked", false)) return;
         getSharedPreferences(LockService.PREFS, MODE_PRIVATE).edit().putBoolean("acc_asked", true).apply();
         accDialog = new AlertDialog.Builder(this)
                 .setTitle("취침 잠금을 켜 주세요 (한 번만)")
-                .setMessage("「잘게요」 뒤 일어날 때까지 다른 앱을 못 쓰게 하려면 이 순서로 한 번만 해 주세요.\n\n① 접근성 → 설치된 앱 → 건강 기록 눌러 보기 (「제한된 설정」 창이 뜨면 확인)\n② 앱 정보 → 오른쪽 위 ⋮ → 「제한된 설정 허용」 (①을 해야 ⋮에 나와요)\n③ 다시 접근성 → 건강 기록 → 켜기")
+                .setMessage("「잘게요」 뒤 일어날 때까지 다른 앱을 못 쓰게 하려면 이 순서로 한 번만 해 주세요.\n\n① 접근성 → 설치된 앱 → 건강 기록 눌러 보기 (「제한된 설정」 창이 뜨면 확인)\n② 앱 정보 → 오른쪽 위 ⋮ → 「제한된 설정 허용」 (①을 해야 ⋮에 나와요)\n③ 다시 접근성 → 건강 기록 → 켜기\n\n이미 켜져 있는데 안 잠기면: 접근성 → 건강 기록을 껐다가 다시 켜 주세요.")
                 .setPositiveButton("② 앱 정보", (d, w) -> {
                     try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
                 })
@@ -142,7 +145,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void lock() {
             runOnUiThread(() -> {
-                if (!accessibilityOn()) {
+                if (!lockReady()) {
                     js("window.lifeLockFailed && lifeLockFailed()");
                     askAccessibility(true);
                     return;
@@ -155,7 +158,7 @@ public class MainActivity extends Activity {
         public void unlock() { LockService.setLocked(MainActivity.this, false); }
 
         @JavascriptInterface
-        public boolean isLocked() { return accessibilityOn() && LockService.isLocked(MainActivity.this); }
+        public boolean isLocked() { return lockReady() && LockService.isLocked(MainActivity.this); }
 
         @JavascriptInterface
         public void openPinSettings() { runOnUiThread(() -> askAccessibility(true)); }
