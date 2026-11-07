@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.inputmethod.InputMethodInfo;
+import android.view.inputmethod.InputMethodManager;
 
 // 취침 잠금(2026-11-06 룡 결정: 「확실하게」 접근성 서비스로).
 // 「잘게요」 뒤에는 다른 앱이 화면에 올라오는 순간 이 앱을 다시 앞으로 끌어온다. 「일어났어요」나 「해제하기」(사유 기록)로만 풀린다.
@@ -48,10 +50,19 @@ public class LockService extends AccessibilityService {
         String pkg = e.getPackageName().toString();
         if (pkg.equals(getPackageName())) return;
         for (String a : ALLOW) if (pkg.equals(a)) return;
+        if (isKeyboard(pkg)) return; // 긴급 해제 사유를 적을 때 키보드가 뜬다(2026-11-07)
         // 다른 앱이 올라왔다: 이 앱을 다시 앞으로
         Intent i = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         try { startActivity(i); } catch (Exception ignored) {}
+    }
+
+    private boolean isKeyboard(String pkg) {
+        try {
+            InputMethodManager imm = getSystemService(InputMethodManager.class);
+            for (InputMethodInfo i : imm.getEnabledInputMethodList()) if (pkg.equals(i.getPackageName())) return true;
+        } catch (Exception ignored) {}
+        return false;
     }
 
     @Override
