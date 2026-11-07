@@ -18,14 +18,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: 이번 빌드용 서명 열쇠 만들기
+      # 서명 열쇠는 하나로 고정한다(2026-11-07). 빌드마다 새 열쇠면 폰에서 지우고 다시 깔아야 해서 접근성 설정이 꺼졌다.
+      # 원본은 드라이브 ★개인\_맥락\비밀키\life-room\, 여기엔 GitHub 비밀값으로 들어 있다.
+      - name: 서명 열쇠 꺼내기
+        env:
+          KS_B64: ${{ secrets.LIFE_KEYSTORE_B64 }}
+          KS_PW: ${{ secrets.LIFE_KEYSTORE_PASSWORD }}
         run: |
-          PW=$(openssl rand -hex 24)
-          echo "::add-mask::$PW"
-          keytool -genkeypair -alias lifeapp -keyalg RSA -keysize 2048 -validity 10950 -dname "CN=life-room" \
-            -storetype pkcs12 -keystore "$RUNNER_TEMP/life.p12" -storepass "$PW" -keypass "$PW"
+          if [ -z "$KS_B64" ]; then echo "서명 열쇠 비밀값이 없어요"; exit 1; fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/life.p12"
+          keytool -list -storetype pkcs12 -keystore "$RUNNER_TEMP/life.p12" -storepass "$KS_PW" -alias lifeapp > /dev/null
           echo "KEYSTORE_FILE=$RUNNER_TEMP/life.p12" >> "$GITHUB_ENV"
-          echo "KEYSTORE_PASSWORD=$PW" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=$KS_PW" >> "$GITHUB_ENV"
       - name: APK 만들기
         run: gradle -p android assembleRelease --no-daemon
       - uses: actions/upload-artifact@v4
