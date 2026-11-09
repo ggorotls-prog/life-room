@@ -233,10 +233,7 @@ public class MainActivity extends Activity {
         batteryAsked = true;
         new AlertDialog.Builder(this)
                 .setTitle("배터리 「제한 없음」으로 해 주세요")
-                .setMessage("배터리 제한이 걸려 있으면 폰이 밤에 취침 잠금을 꺼 버려요.
-
-「켜기」를 누르고 다음 창에서 「허용」을 눌러 주세요.
-(창이 안 뜨면: 앱 정보 → 배터리 → 「제한 없음」)")
+                .setMessage("배터리 제한이 걸려 있으면 폰이 밤에 취침 잠금을 꺼 버려요.\n\n「켜기」를 누르고 다음 창에서 「허용」을 눌러 주세요.\n(창이 안 뜨면: 앱 정보 → 배터리 → 「제한 없음」)")
                 .setPositiveButton("켜기", (d, w) -> {
                     try {
                         startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
