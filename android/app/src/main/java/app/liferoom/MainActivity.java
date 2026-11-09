@@ -226,9 +226,12 @@ public class MainActivity extends Activity {
     private static boolean batteryAsked = false;
 
     private void askBattery() {
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        android.util.Log.i("LifeRoom", "battery check: finishing=" + isFinishing() + " asked=" + batteryAsked
+                + " locked=" + LockService.isLocked(this) + " accDialog=" + (accDialog != null && accDialog.isShowing())
+                + " ignoring=" + (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName())));
         if (isFinishing() || batteryAsked || LockService.isLocked(this)) return;
         if (accDialog != null && accDialog.isShowing()) return;
-        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
         if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) return;
         batteryAsked = true;
         new AlertDialog.Builder(this)
