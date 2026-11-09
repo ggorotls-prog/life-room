@@ -78,6 +78,14 @@ jobs:
             grep -i -E "liferoom|Bound services" acc.txt || true
             grep "Bound services" acc.txt | grep -q "취침 잠금" || { echo "잠금 서비스가 안 이어졌어요"; exit 1; }
             echo "잠금 서비스 이어짐"
+            # 앱을 다시 열면 배터리 「제한 없음」 안내가 뜨는지 본다(2026-11-09). 화면 읽기는 접근성 서비스를 끄므로 맨 끝에
+            adb shell am force-stop app.liferoom
+            adb shell am start -W -n app.liferoom/.MainActivity
+            sleep 15
+            adb shell uiautomator dump /sdcard/u.xml || true
+            adb shell cat /sdcard/u.xml > u.xml || true
+            grep -q "제한 없음" u.xml || { echo "배터리 안내가 안 떴어요"; grep -o 'text="[^"]*"' u.xml | head -20; exit 1; }
+            echo "배터리 안내 뜸"
 
   # main에서 가상 폰 확인까지 통과하면 APK를 사이트 app/에 올린다. 가족은 이 주소에서 받아 깐다.
   publish:

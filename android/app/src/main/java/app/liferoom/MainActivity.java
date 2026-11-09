@@ -198,7 +198,7 @@ public class MainActivity extends Activity {
         if (LockService.isLocked(this)) return;
         new Thread(() -> {
             int latest = Updater.latest(getApplicationContext());
-            if (latest <= BuildConfig.VERSION_CODE) return;
+            if (latest <= BuildConfig.VERSION_CODE) { runOnUiThread(this::askBattery); return; }
             if (!Updater.canInstall(this)) { runOnUiThread(this::askInstallPermission); return; }
             if (retry) { Updater.checkAndInstall(getApplicationContext(), true, true); return; }
             if (!Updater.askedRecently(getApplicationContext(), latest)) runOnUiThread(this::askUpdate);
@@ -215,6 +215,33 @@ public class MainActivity extends Activity {
                     backFromSecurity = true;
                     for (String action : new String[]{Settings.ACTION_SECURITY_SETTINGS, Settings.ACTION_SETTINGS}) {
                         try { startActivity(new Intent(action)); return; } catch (Exception ignored) {}
+                    }
+                })
+                .setNegativeButton("나중에", null)
+                .show();
+    }
+
+    // 배터리 「제한 없음」(2026-11-08 룡: 늘 떠 있어야 하는 앱은 업데이트 흐름에 넣는다).
+    // 배터리 제한이 걸리면 폰이 잠금 서비스를 재워 「잘게요」가 풀린다. 새 버전이 없을 때, 앱을 열 때마다 한 번 묻는다
+    private static boolean batteryAsked = false;
+
+    private void askBattery() {
+        if (isFinishing() || batteryAsked || LockService.isLocked(this)) return;
+        if (accDialog != null && accDialog.isShowing()) return;
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) return;
+        batteryAsked = true;
+        new AlertDialog.Builder(this)
+                .setTitle("배터리 「제한 없음」으로 해 주세요")
+                .setMessage("배터리 제한이 걸려 있으면 폰이 밤에 취침 잠금을 꺼 버려요.
+
+「켜기」를 누르고 다음 창에서 「허용」을 눌러 주세요.
+(창이 안 뜨면: 앱 정보 → 배터리 → 「제한 없음」)")
+                .setPositiveButton("켜기", (d, w) -> {
+                    try {
+                        startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
+                    } catch (Exception e) {
+                        try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
                     }
                 })
                 .setNegativeButton("나중에", null)
