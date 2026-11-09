@@ -227,9 +227,6 @@ public class MainActivity extends Activity {
 
     private void askBattery() {
         android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
-        android.util.Log.i("LifeRoom", "battery check: finishing=" + isFinishing() + " asked=" + batteryAsked
-                + " locked=" + LockService.isLocked(this) + " accDialog=" + (accDialog != null && accDialog.isShowing())
-                + " ignoring=" + (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName())));
         if (isFinishing() || batteryAsked || LockService.isLocked(this)) return;
         if (accDialog != null && accDialog.isShowing()) return;
         if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) return;
@@ -246,6 +243,7 @@ public class MainActivity extends Activity {
                 })
                 .setNegativeButton("나중에", null)
                 .show();
+        android.util.Log.i("LifeRoom", "battery dialog shown"); // 가상 폰 시험이 이 줄을 본다
     }
 
     // 처음 한 번: 이 앱이 스스로 업데이트할 수 있게 「이 출처 허용」을 켜 달라고 한다
