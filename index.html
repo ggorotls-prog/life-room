@@ -618,6 +618,7 @@ function renderTabs() {
   if (state.me.is_leader) items.push(['leader', '조원']);
   $tabs.innerHTML = `<div class="tabs"><div>${items.map(([k, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
   $tabs.querySelectorAll('button').forEach(b => b.onclick = () => {
+    if (b.dataset.tab !== tab) tabTrail.push(tab);
     tab = b.dataset.tab; window.scrollTo(0, 0);
     if (tab === 'today') refresh().catch(x => toast(x.message)); else render();
   });
@@ -683,6 +684,24 @@ function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hid
 byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false; };
 byId('amClose').onclick = () => { byId('amBg').hidden = true; };
 byId('amBg').onclick = e => { if (e.target === byId('amBg') && !pwForced) byId('amBg').hidden = true; };
+// 앱의 뒤로 가기(2026-11-11 룡: 꺼지지 말고 전 단계로): 열린 계정 창 → 직전 탭 → 「오늘」 → 맨 위. 더 갈 데가 없을 때만 앱이 닫힌다.
+const tabTrail = [];
+window.appBack = () => {
+  if (!byId('amBg').hidden) {
+    if (pwForced) return true; // 비밀번호를 꼭 바꿔야 할 때는 안 닫힌다
+    if (!byId('pwForm').hidden) amView('set'); else if (!byId('amSetView').hidden) amView('main'); else byId('amBg').hidden = true;
+    return true;
+  }
+  if (!state || !token) return false;
+  if (tab !== 'today') {
+    tab = tabTrail.pop() || 'today'; if (tab === 'today') tabTrail.length = 0;
+    window.scrollTo(0, 0);
+    if (tab === 'today') refresh().catch(x => toast(x.message)); else render();
+    return true;
+  }
+  if (window.scrollY > 200) { window.scrollTo({ top: 0, behavior: 'smooth' }); return true; }
+  return false;
+};
 byId('amSet').onclick = () => amView('set');
 byId('amBack').onclick = () => amView('main');
 byId('pwBack').onclick = () => amView('set');
