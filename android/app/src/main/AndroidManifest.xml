@@ -47,6 +47,9 @@
         </service>
 
         <!-- 스스로 업데이트 결과(업무·영성·재정 기록 앱과 같은 방식, 2026-11-07 룡) -->
+        <!-- 15분마다 새 버전 확인 → 알림 (업무 기록 앱과 같음) -->
+        <service android:name=".UpdateJob" android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
         <receiver android:name=".UpdateReceiver" android:exported="false" />
 
         <provider
