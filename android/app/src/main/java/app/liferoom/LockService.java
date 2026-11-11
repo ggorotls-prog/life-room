@@ -101,12 +101,12 @@ public class LockService extends AccessibilityService {
             LinearLayout box = new LinearLayout(this);
             box.setOrientation(LinearLayout.VERTICAL);
             box.setGravity(Gravity.CENTER);
-            box.setBackgroundColor(Color.parseColor("#f7f4ee"));
+            box.setBackgroundColor(Color.parseColor("#f6f5f1"));
             int pad = (int) (32 * getResources().getDisplayMetrics().density);
             box.setPadding(pad, pad, pad, pad);
             TextView t = new TextView(this);
             t.setText("🌙\n자는 중이에요\n\n일어나면 건강 기록에서\n「일어났어요」를 눌러 주세요");
-            t.setTextColor(Color.parseColor("#2b2b2b"));
+            t.setTextColor(Color.parseColor("#1f1f1d"));
             t.setTextSize(20);
             t.setGravity(Gravity.CENTER);
             box.addView(t);

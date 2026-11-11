@@ -4,28 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#2f7d5b">
+<meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161615" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
 <title>🌱 건강 기록</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
 <link rel="preconnect" href="https://trlnatdkebjvgiqneulv.supabase.co" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
+  /* 기록 앱 공통 바탕(브랜드 가이드 「기록 앱 화면」, 2026-11-11): 바탕·카드·글자·선·글꼴은 네 기록 앱이 같고, 포인트 색(--main)만 앱마다 다르다. */
   :root {
-    --main: #2f7d5b; --main-soft: #e4f2ea; --sun: #f5a524; --ink: #1d2a24; --sub: #66736c;
-    --line: #dfe5e1; --bg: #f7f6f1; --card: #fff; --err: #c8452f;
+    --bg: #f6f5f1; --card: #ffffff; --ink: #1f1f1d; --sub: #6b6a64; --line: #e4e2db; --fill: #eceae4;
+    --main: #2f7d5b; --main-ink: #ffffff; --main-soft: #e4f2ea; --sun: #f5a524; --err: #d62d1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --card: #22221f; --ink: #ecebe6; --sub: #a3a29b; --line: #34332f; --fill: #2e2d29;
+      --main: #7cc7a2; --main-ink: #10201b; --main-soft: #1f2e27; --sun: #f0b350; --err: #ff6454; }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Noto Sans KR', sans-serif; font-weight: 500; font-size: 16px; line-height: 1.5; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Pretendard Variable", Pretendard, system-ui, sans-serif; font-weight: 500; font-size: 16px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
   #app { max-width: 480px; margin: 0 auto; padding: 16px 16px 96px; }
   h1 { font-size: 24px; font-weight: 900; margin: 0 0 4px; }
   h2 { font-size: 17px; font-weight: 900; margin: 24px 0 10px; }
   p { margin: 0; }
   .sub { color: var(--sub); font-size: 14px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
   button { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 12px; min-height: 48px; padding: 0 16px; background: var(--main-soft); color: var(--main); }
-  button.main { background: var(--main); color: #fff; width: 100%; font-size: 17px; min-height: 56px; }
+  button.main { background: var(--main); color: var(--main-ink); width: 100%; font-size: 17px; min-height: 56px; }
   button:disabled { opacity: .5; }
-  input, select { font: inherit; width: 100%; min-height: 52px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); }
+  input, select { font: inherit; width: 100%; min-height: 52px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); }
   select { font-size: 20px; font-weight: 700; text-align: center; }
   label.f { display: block; margin-top: 12px; font-size: 14px; font-weight: 700; }
   label.f input { margin-top: 4px; }
@@ -39,7 +46,7 @@
   .ask .card { margin-top: 20px; text-align: left; }
   .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
   .slots button { min-height: 48px; padding: 0 4px; font-size: 14px; }
-  .slots button.on { background: var(--main); color: #fff; }
+  .slots button.on { background: var(--main); color: var(--main-ink); }
   .list { margin-top: 8px; font-size: 14px; }
   .list div { padding: 6px 0; border-top: 1px solid var(--line); display: flex; gap: 8px; }
   .list div:first-child { border-top: 0; }
@@ -51,22 +58,22 @@
   .why button { min-height: 48px; font-size: 14px; }
   .why-td { font-size: 11px; color: var(--sub); white-space: nowrap; }
   .faces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
-  .faces button { background: #f2f3ef; font-size: 26px; padding: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .faces button { background: var(--fill); font-size: 26px; padding: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
   .faces button small { font-size: 12px; font-weight: 700; }
   .faces button.on { background: var(--main-soft); outline: 2px solid var(--main); }
   .week { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
   .week b { font-size: 22px; font-weight: 900; white-space: nowrap; }
-  .bar { flex: 1; height: 12px; border-radius: 6px; background: #e8e9e3; overflow: hidden; }
+  .bar { flex: 1; height: 12px; border-radius: 6px; background: var(--fill); overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--main); transition: width .3s; }
   .checks { display: grid; gap: 8px; margin-top: 16px; }
-  .check { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; min-height: 68px; }
+  .check { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-height: 68px; }
   .check .ico { font-size: 28px; }
   .check .txt { flex: 1; min-width: 0; }
   .check .txt strong { display: block; font-weight: 900; }
   .check.done { background: var(--main-soft); border-color: var(--main); }
   .check button { min-height: 44px; padding: 0 12px; font-size: 14px; white-space: nowrap; }
   .check .btns { display: flex; gap: 6px; }
-  .check .pick { background: var(--main); color: #fff; }
+  .check .pick { background: var(--main); color: var(--main-ink); }
   .row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
   .row:first-child { border-top: 0; }
   .row .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -97,7 +104,7 @@
   .tabs div { max-width: 480px; margin: 0 auto; display: flex; }
   .tabs button { flex: 1; background: none; color: var(--sub); border-radius: 0; min-height: 60px; padding: 0; font-size: 13px; }
   .tabs button.on { color: var(--main); font-weight: 900; }
-  #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 20px; font-size: 14px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 20px; font-size: 14px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s; }
   #toast.on { opacity: 1; }
   .loading { text-align: center; color: var(--sub); padding: 48px 0; }
 </style>
