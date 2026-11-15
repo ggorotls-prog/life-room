@@ -47,6 +47,6 @@ android {
 }
 
 dependencies {
-    // 카메라로 찍은 사진 파일 넘겨받기(FileProvider)
-    implementation 'androidx.core:core:1.13.1'
+    // 건강 기록 폰 기능 원본(취침 잠금·화면·알림). 라이프 RPG와 같이 쓴다
+    implementation project(':healthkit')
 }
