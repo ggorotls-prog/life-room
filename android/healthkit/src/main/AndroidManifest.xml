@@ -1,3 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 창·서비스 등록은 각 앱 manifest에서 한다(앱마다 클래스 이름을 지켜야 접근성 설정이 안 꺼진다) -->
-<manifest />
+<!-- 취침 잠금 창·서비스 등록은 각 앱 manifest에서 한다(앱마다 클래스 이름을 지켜야 접근성 설정이 안 꺼진다).
+     「그 순간에 먼저 묻기」·기상 알람(2026-11-16)은 여기 등록해서 건강 기록 앱과 라이프 RPG 🏠 집에 저절로 같이 들어간다. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 끼니 사진: 카메라로 새로 찍은 사진만 본다(버튼을 누른 사진만 올라감) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- 운동: Health Connect 운동 기록 읽기(쓰지 않음) + 앱이 꺼져 있을 때 읽기 -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+    <!-- 기상 알람: 자명종처럼 정확히 · 잠금 화면 위에 띄우기 · 진동 -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 안드로이드 13 이하에서 Health Connect 앱 찾기 -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+
+    <application>
+        <service android:name="app.recordkit.health.MomentJob" android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <receiver android:name="app.recordkit.health.MomentAction" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name="app.recordkit.health.WakeAlarm" android:exported="false" />
+
+        <!-- Health Connect 「데이터를 어떻게 쓰나」 화면: 안드로이드 13 이하 -->
+        <activity android:name="app.recordkit.health.HealthPrivacy" android:exported="true"
+            android:label="건강 기록이 읽는 것">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <!-- 안드로이드 14 이상 -->
+        <activity-alias android:name="app.recordkit.health.HealthPrivacyUsage" android:exported="true"
+            android:targetActivity="app.recordkit.health.HealthPrivacy"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+    </application>
+</manifest>

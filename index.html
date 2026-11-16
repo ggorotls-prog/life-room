@@ -56,6 +56,11 @@
   .exbox button { white-space: nowrap; }
   .why { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
   .why button { min-height: 48px; font-size: 14px; }
+  .mo-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .mo-row .txt { flex: 1; } .mo-row .txt small { display: block; color: var(--sub); font-size: 13px; font-weight: 400; margin-top: 2px; }
+  .mo-row button { min-height: 40px; white-space: nowrap; }
+  .mo-times { display: grid; grid-template-columns: 3em 1fr auto 1fr; gap: 6px; align-items: center; margin-top: 8px; font-size: 14px; }
+  .mo-times select { min-height: 40px; padding: 0 6px; }
   .why-td { font-size: 11px; color: var(--sub); white-space: nowrap; }
   .faces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
   .faces button { background: var(--fill); font-size: 26px; padding: 0; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
@@ -123,6 +128,11 @@
     <div id="amSetView" hidden>
       <button type="button" class="am-back" id="amBack">‹ 처음으로</button>
       <button type="button" class="am-item" id="amPw"><span>비밀번호 바꾸기</span><span class="am-go">›</span></button>
+      <button type="button" class="am-item" id="amMo" hidden><span>📲 앱이 먼저 묻기</span><span class="am-go">›</span></button>
+    </div>
+    <div id="amMoView" hidden>
+      <button type="button" class="am-back" id="moBack">‹ 설정으로</button>
+      <div id="moBody"><p class="sub">불러오는 중…</p></div>
     </div>
     <form id="pwForm" hidden>
       <button type="button" class="am-back" id="pwBack">‹ 설정으로</button>
@@ -277,6 +287,76 @@ function keepLocked() {
   if (!on && store.get('life_lock_fail') !== '1') try { phone.lock(); } catch (e) {}
   paint(); lockTimer = setInterval(paint, 2000);
 }
+/* ===== 그 순간에 앱이 먼저 묻기 · 기상 알람 (2026-11-16 룡) =====
+   앱(건강 기록 / 라이프 RPG 🏠 집)에서만. 폰이 알려 주는 상태는 lifeMoments(json)으로 온다 */
+let moState = {};
+const hasMoments = () => !!(phone && phone.moments);
+const hasAlarm = () => !!(phone && phone.setAlarm);
+window.lifeMoments = j => {
+  moState = j || {};
+  if (!byId('amMoView').hidden) paintMoments();
+  const ml = byId('moLine'); if (ml) { ml.outerHTML = momentsLine(); const m2 = byId('moLine'); if (m2) m2.onclick = openMoments; }
+  const al = byId('alarmLine'); if (al) al.outerHTML = alarmLine();
+};
+window.lifeAlarm = () => { if (token) refresh().catch(() => {}); };
+function tellPhone() {
+  if (!hasMoments() || !token || !state) return;
+  try { phone.setToken(token); phone.setMeals(state.today, ((state.day && state.day.meals) || []).join(',')); phone.moments(); } catch (e) {}
+}
+function wakeDone() { if (hasAlarm()) try { phone.wakeUp(); } catch (e) {} }
+function alarmOptions(sel) {
+  let h = '';
+  for (let m = 4 * 60; m < 12 * 60; m += 10) {
+    const v = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    h += `<option value="${v}"${v === sel ? ' selected' : ''}>${v}</option>`;
+  }
+  return h;
+}
+function alarmLine() {
+  if (!hasAlarm() || !moState.alarm) return '<span id="alarmLine"></span>';
+  return `<p class="sub" id="alarmLine" style="margin-top:6px">⏰ ${esc(moState.alarm)}에 깨워 드려요</p>`;
+}
+function momentsLine() {
+  if (!hasMoments()) return '';
+  const on = x => x === 'on' ? '켜짐' : '꺼짐';
+  return `<button type="button" class="switch" id="moLine" style="margin-top:12px">📲 앱이 먼저 묻기 · 📷 끼니 사진 ${on(moState.photo)} · 🏃 운동 ${on(moState.ex)} ›</button>`;
+}
+function openMoments() {
+  amView('mo'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false;
+  paintMoments(); try { phone.moments(); } catch (e) {}
+}
+function hourSel(id, v) {
+  let h = `<select id="${id}">`;
+  for (let i = 0; i < 24; i++) h += `<option value="${i}"${i === v ? ' selected' : ''}>${i}시</option>`;
+  return h + '</select>';
+}
+function paintMoments() {
+  const m = moState, body = byId('moBody');
+  const T = (m.times || '6-10,11-14,17-21').split(',').map(x => x.split('-').map(Number));
+  const photo = m.photo === 'on' ? ['켜짐', '끄기'] : m.photo === 'need' ? ['사진 허락이 필요해요 (「모두 허용」)', '허락하기'] : ['꺼짐', '켜기'];
+  const exMsg = { on: '켜짐', off: '꺼짐', need: '허락이 필요해요: 「운동」과 「백그라운드 액세스」를 켜 주세요',
+    no_hc: '이 폰에 Health Connect가 없어요', no_bg: '이 폰의 Health Connect가 앱이 꺼져 있을 때 읽기를 지원하지 않아요. Health Connect를 업데이트해 주세요' }[m.ex] || '확인 중…';
+  const exBtn = m.ex === 'on' ? '끄기' : m.ex === 'no_hc' ? '받기' : m.ex === 'need' ? '허락하기' : '켜기';
+  body.innerHTML = `
+    <p class="sub">기록할 순간에 앱이 먼저 알림으로 물어요. 알림 버튼만 누르면 앱을 안 열어도 올라가요.</p>
+    <div class="mo-row"><div class="txt"><b>📷 끼니 사진</b><small>끼니 시간에 폰 카메라로 찍으면 「점심 사진인가요?」(소리 없음). 끼니마다 한 번, 적은 끼니는 안 물어요. 간식은 앱에서.</small><small>지금: ${photo[0]}</small></div>
+      <button type="button" id="moPhoto">${photo[1]}</button></div>
+    <div class="mo-times">${['아침', '점심', '저녁'].map((n, i) => `<span>${n}</span>${hourSel('mt' + i + 'a', T[i][0])}<span>~</span>${hourSel('mt' + i + 'b', T[i][1])}`).join('')}</div>
+    <button type="button" id="moTimes" style="width:100%;margin-top:8px">끼니 시간 저장</button>
+    <div class="mo-row"><div class="txt"><b>🏃 운동 (삼성 헬스)</b><small>갤럭시 핏·워치로 한 운동이 삼성 헬스에 들어오면 「걷기 20분, 운동으로 적을까요?」. 저절로 저장하지 않아요.</small><small>지금: ${exMsg}</small>
+      ${m.ex === 'on' || m.ex === 'need' ? '<small>알림이 안 오면: 삼성 헬스 → 설정 → Health Connect에서 「운동」 공유 켜기</small>' : ''}</div>
+      <button type="button" id="moEx">${exBtn}</button></div>
+    ${m.fsi === false ? `<div class="mo-row"><div class="txt"><b>⏰ 기상 알람 화면</b><small>잠금 화면 위에 알람을 띄우려면 「전체 화면 알림」 허락이 필요해요.</small></div><button type="button" id="moFsi">허락하기</button></div>` : ''}
+    <p class="sub" style="margin-top:10px">건강 기록 앱과 라이프 RPG를 둘 다 쓰면 한 곳에서만 켜 주세요(두 번 물어요).</p>`;
+  byId('moPhoto').onclick = () => { try { phone.setPhoto(m.photo !== 'on'); } catch (e) {} };
+  byId('moEx').onclick = () => { try { if (m.ex === 'no_hc') phone.getHealthConnect(); else phone.setEx(m.ex !== 'on'); } catch (e) {} };
+  byId('moTimes').onclick = () => {
+    const v = [0, 1, 2].map(i => [+byId('mt' + i + 'a').value, +byId('mt' + i + 'b').value]);
+    if (v.some(([a, b]) => a >= b)) { toast('시작이 끝보다 빨라야 해요.'); return; }
+    try { phone.setTimes(v.map(x => x.join('-')).join(',')); toast('끼니 시간을 저장했어요'); } catch (e) {}
+  };
+  const f = byId('moFsi'); if (f) f.onclick = () => { try { phone.openAlarmSettings(); } catch (e) {} };
+}
 function bindPinGuide() { const b = document.getElementById('pinSet'); if (b) b.onclick = () => { store.del('life_lock_fail'); try { phone.openPinSettings(); } catch (e) {} }; }
 function nowRounded() {
   const d = new Date(); const m = Math.round((d.getHours() * 60 + d.getMinutes()) / 30) * 30 % 1440;
@@ -348,7 +428,7 @@ function renderWake() {
   }
   const t = nowHM();
   $app.innerHTML = `<div class="ask"><div class="big">☀️</div><h1>좋은 아침이에요!</h1>
-    <p class="sub">지금 ${t}에 일어난 걸로 적어요 · <a href="#" id="fixT">시간 고치기</a></p>${lockLine()}${pinGuide()}
+    <p class="sub">지금 ${t}에 일어난 걸로 적어요 · <a href="#" id="fixT">시간 고치기</a></p>${alarmLine()}${lockLine()}${pinGuide()}
     <div class="card">
       <div id="tBox" hidden><label class="f" style="margin-top:0">몇 시에 일어나셨어요?</label>
       <select id="t" style="margin-top:6px">${timeOptions(4, nowRounded())}</select></div>
@@ -367,7 +447,7 @@ function renderWake() {
   });
   document.getElementById('go').onclick = () => {
     if (!faceSel) { document.getElementById('err').textContent = '컨디션을 골라 주세요.'; return; }
-    unlockPhone();
+    unlockPhone(); wakeDone();
     act('life_wake', { p_token: token, p_time: fixed ? document.getElementById('t').value : t, p_condition: faceSel });
   };
   const rb = document.getElementById('reBed');
@@ -384,13 +464,13 @@ function renderSleeping() {
     return;
   }
   $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>자는 중 · 취침 ${hm(d.bed)}</h1>
-    <p class="sub">잘 자요. 일어나면 눌러 주세요</p>${lockLine()}${pinGuide()}
+    <p class="sub">잘 자요. 일어나면 눌러 주세요</p>${alarmLine()}${lockLine()}${pinGuide()}
     <div class="card"><button class="main" id="go">일어났어요 ☀️</button>
     ${store.get('life_lock') === '1' ? emergencyBtn() : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}</div></div>`;
   bindPinGuide(); keepLocked(); bindEmergency();
   document.getElementById('go').onclick = () => {
     /* 새벽 4시 전에 일어나면 기상은 4시 뒤 화면에서 적힌다. 지금은 잠금만 푼다 */
-    unlockPhone(); store.set('life_awake', state.today); render();
+    unlockPhone(); wakeDone(); store.set('life_awake', state.today); render();
   };
   const rb = document.getElementById('reBed');
   if (rb) rb.onclick = reLock;
@@ -469,7 +549,8 @@ function renderToday() {
     </div>
     <div id="bedBox"></div>
     <h2>오늘 우리 조</h2>
-    <div class="card" style="padding:4px 16px">${board}</div>`;
+    <div class="card" style="padding:4px 16px">${board}</div>${momentsLine()}`;
+  const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
     pendingKind = 'diet'; pendingSlot = b.dataset.slot; $file.click();
   });
@@ -501,8 +582,20 @@ function renderToday() {
   };
   document.getElementById('bedBtn').onclick = () => {
     if (!d.bed) { /* 버튼 하나: 지금 시각으로 취침, 앱이면 폰 고정 */
-      store.del('life_awake'); unlockAsked = false;
-      bedAndLock({ p_token: token, p_which: 'today', p_time: nowHM() }, pick(CHEERS.bed));
+      const sleep = () => { store.del('life_awake'); unlockAsked = false; bedAndLock({ p_token: token, p_which: 'today', p_time: nowHM() }, pick(CHEERS.bed)); };
+      if (!hasAlarm()) return sleep();
+      /* 기상 알람(2026-11-16 룡): 「잘게요」를 누르면 일어날 시각을 고르고, 그 시각에 앱이 깨운다 */
+      const box = byId('bedBox');
+      if (box.innerHTML) { box.innerHTML = ''; return; }
+      box.innerHTML = `<div class="card" style="margin-top:8px">
+        <label class="f" style="margin-top:0">⏰ 몇 시에 깨워 드릴까요?</label>
+        <select id="alarmT" style="margin-top:6px">${alarmOptions(moState.lastAlarm || store.get('life_alarm') || '06:30')}</select>
+        <div class="err" id="err"></div>
+        <button class="main" id="go">⏰ 맞추고 잘게요</button>
+        <button class="switch" type="button" id="noAlarm">알람 없이 잘게요</button></div>`;
+      byId('go').onclick = () => { const v = byId('alarmT').value; store.set('life_alarm', v); try { phone.setAlarm(v); } catch (e) {} sleep(); };
+      byId('noAlarm').onclick = () => { try { phone.cancelAlarm(); } catch (e) {} sleep(); };
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     document.getElementById('bedBox').innerHTML = `<div class="card" style="margin-top:8px">
@@ -639,6 +732,7 @@ function renderTabs() {
 }
 function render() {
   byId('myName').textContent = state.me.nickname; byId('menuBtn').hidden = false;
+  tellPhone();
   if (state.me.must_change_pw) forcePw();
   if (state.need === 'bed_yesterday') return renderBedYesterday();
   if (state.need === 'wake') return renderWake();
@@ -694,7 +788,7 @@ function unforcePw() {
   byId('amClose').hidden = byId('pwBack').hidden = false; byId('pwMust').hidden = byId('pwConsent').hidden = true;
   byId('pwGo').textContent = '바꾸기';
 }
-function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; }
+function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; byId('amMoView').hidden = v !== 'mo'; if (v === 'set') byId('amMo').hidden = !hasMoments(); }
 byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false; };
 byId('amClose').onclick = () => { byId('amBg').hidden = true; };
 byId('amBg').onclick = e => { if (e.target === byId('amBg') && !pwForced) byId('amBg').hidden = true; };
@@ -703,7 +797,7 @@ const tabTrail = [];
 window.appBack = () => {
   if (!byId('amBg').hidden) {
     if (pwForced) return true; // 비밀번호를 꼭 바꿔야 할 때는 안 닫힌다
-    if (!byId('pwForm').hidden) amView('set'); else if (!byId('amSetView').hidden) amView('main'); else byId('amBg').hidden = true;
+    if (!byId('pwForm').hidden || !byId('amMoView').hidden) amView('set'); else if (!byId('amSetView').hidden) amView('main'); else byId('amBg').hidden = true;
     return true;
   }
   if (!state || !token) return false;
@@ -717,6 +811,8 @@ window.appBack = () => {
   return false;
 };
 byId('amSet').onclick = () => amView('set');
+byId('amMo').onclick = openMoments;
+byId('moBack').onclick = () => amView('set');
 byId('amBack').onclick = () => amView('main');
 byId('pwBack').onclick = () => amView('set');
 byId('amPw').onclick = () => { byId('pwForm').reset(); byId('pwErr').textContent = ''; amView('pw'); };

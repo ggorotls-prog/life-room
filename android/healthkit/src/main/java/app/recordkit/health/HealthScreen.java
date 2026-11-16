@@ -28,7 +28,7 @@ import java.io.File;
 // 접근성·배터리 안내, 뒤로 가기만 맡는다. 새 버전 확인(건강 기록 앱)·자동 로그인(라이프 RPG)처럼 앱마다 다른 것은 이어받는 쪽에서.
 public abstract class HealthScreen extends Activity {
     public static final String BASE = "https://ggorotls-prog.github.io/life-room/";
-    private static final int PICK = 7;
+    private static final int PICK = 7, PHOTO_PERM = 8, HC_REQ = 9;
 
     protected WebView web;
     private ValueCallback<Uri[]> pickCallback;
@@ -116,6 +116,50 @@ public abstract class HealthScreen extends Activity {
         web.addJavascriptInterface(new Bridge(), "LifeRoom");
         web.loadUrl(BASE);
         askAccessibility(false);
+        // 「그 순간에 먼저 묻기」(Moments)·기상 알람이 알림을 누르면 이 화면을 연다(건강 기록 앱 / 라이프 RPG 🏠 집)
+        getSharedPreferences(SleepLock.PREFS, MODE_PRIVATE).edit().putString("m_screen", getClass().getName()).apply();
+        Moments.schedule(this);
+        alarmWindow(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        setIntent(i);
+        alarmWindow(i);
+    }
+
+    /** 기상 알람이 울리며 열었으면 잠금 화면 위에 켜서 보인다 */
+    private void alarmWindow(Intent i) {
+        if (i == null || !i.getBooleanExtra("wake_alarm", false)) return;
+        setShowWhenLocked(true);
+        setTurnScreenOn(true);
+        js("window.lifeAlarm && lifeAlarm()");
+    }
+
+    /** 사이트에 지금 상태를 알린다: 사진 묻기·운동 묻기·끼니 시간·알람(Health Connect 확인이 느려서 따로 줄에서) */
+    private void pushMoments() {
+        new Thread(() -> {
+            String photo = !Moments.photoOn(this) ? "off" : Moments.photoAllowed(this) ? "on" : "need";
+            String ex;
+            if (!HcReader.available(this)) ex = "no_hc";
+            else if (!Moments.exOn(this)) ex = "off";
+            else if (!HcReader.granted(this)) ex = HcReader.backgroundSupported(this) ? "need" : "no_bg";
+            else ex = "on";
+            boolean fsi = Build.VERSION.SDK_INT < 34 || getSystemService(android.app.NotificationManager.class).canUseFullScreenIntent();
+            String json = "{\"photo\":\"" + photo + "\",\"ex\":\"" + ex + "\",\"times\":\"" + Moments.times(this)
+                    + "\",\"alarm\":\"" + WakeAlarm.time(this) + "\",\"lastAlarm\":\"" + WakeAlarm.lastTime(this)
+                    + "\",\"fsi\":" + fsi + ",\"ringing\":" + WakeAlarm.ringing(this) + "}";
+            js("window.lifeMoments && lifeMoments(" + json + ")");
+        }).start();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(req, perms, res);
+        if (req != PHOTO_PERM) return;
+        if (Moments.photoAllowed(this)) Moments.setPhotoOn(this, true);
+        pushMoments();
     }
 
     // 취침 잠금(2026-11-06 룡 결정: 접근성 서비스로 「확실하게」). 실제 막기는 SleepLock이 한다.
@@ -178,6 +222,79 @@ public abstract class HealthScreen extends Activity {
         // 사이트 안내 글에 쓸 앱 이름(건강 기록 / 라이프 RPG)
         @JavascriptInterface
         public String appName() { return appLabel(); }
+
+        // ---- 그 순간에 먼저 묻기(2026-11-16 룡) ----
+        /** 로그인 열쇠: 알림 버튼이 앱을 열지 않고 저장할 때 쓴다 */
+        @JavascriptInterface
+        public void setToken(String t) { Moments.setToken(HealthScreen.this, t); }
+
+        /** 오늘 적은 끼니("breakfast,lunch"): 적은 끼니는 안 묻는다 */
+        @JavascriptInterface
+        public void setMeals(String day, String csv) { Moments.setMeals(HealthScreen.this, day, csv); }
+
+        /** 지금 상태를 lifeMoments(json)으로 돌려준다 */
+        @JavascriptInterface
+        public void moments() { pushMoments(); }
+
+        @JavascriptInterface
+        public void setPhoto(boolean on) {
+            runOnUiThread(() -> {
+                if (on && !Moments.photoAllowed(HealthScreen.this)) {
+                    requestPermissions(new String[]{Moments.photoPerm()}, PHOTO_PERM);
+                    return;
+                }
+                Moments.setPhotoOn(HealthScreen.this, on);
+                pushMoments();
+            });
+        }
+
+        @JavascriptInterface
+        public void setTimes(String v) { Moments.setTimes(HealthScreen.this, v); pushMoments(); }
+
+        @JavascriptInterface
+        public void setEx(boolean on) {
+            if (!on) { Moments.setExOn(HealthScreen.this, false); pushMoments(); return; }
+            new Thread(() -> {
+                if (!HcReader.available(HealthScreen.this)) { pushMoments(); return; }
+                if (HcReader.granted(HealthScreen.this)) { Moments.setExOn(HealthScreen.this, true); pushMoments(); return; }
+                runOnUiThread(() -> {
+                    try { startActivityForResult(HcReader.permissionIntent(HealthScreen.this), HC_REQ); }
+                    catch (Exception e) { pushMoments(); }
+                });
+            }).start();
+        }
+
+        /** Health Connect가 없을 때: 플레이 스토어에서 받기 */
+        @JavascriptInterface
+        public void getHealthConnect() {
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.healthdata"))); }
+                catch (Exception ignored) {}
+            });
+        }
+
+        // ---- 기상 알람 ----
+        @JavascriptInterface
+        public void setAlarm(String hm) { WakeAlarm.set(HealthScreen.this, hm); }
+
+        @JavascriptInterface
+        public void cancelAlarm() { WakeAlarm.cancel(HealthScreen.this); }
+
+        /** 「일어났어요」: 울리는 알람을 멈추고, 아직 안 울린 그날 알람도 지운다 */
+        @JavascriptInterface
+        public void wakeUp() { WakeAlarm.stop(HealthScreen.this); WakeAlarm.cancel(HealthScreen.this); }
+
+        /** 안드로이드 14+: 잠금 화면 위에 알람 화면을 띄우는 허락 */
+        @JavascriptInterface
+        public void openAlarmSettings() {
+            runOnUiThread(() -> {
+                String act = Build.VERSION.SDK_INT >= 34 ? Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT : Settings.ACTION_APPLICATION_DETAILS_SETTINGS;
+                try { startActivity(new Intent(act, Uri.parse("package:" + getPackageName()))); }
+                catch (Exception e) {
+                    try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
+                }
+            });
+        }
     }
 
     private Intent cameraIntent() {
@@ -246,6 +363,13 @@ public abstract class HealthScreen extends Activity {
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (req == HC_REQ) {
+            new Thread(() -> {
+                if (HcReader.granted(this)) Moments.setExOn(this, true);
+                pushMoments();
+            }).start();
+            return;
+        }
         if (req != PICK || pickCallback == null) return;
         Uri[] result = null;
         if (res == RESULT_OK) {
