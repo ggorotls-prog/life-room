@@ -20,6 +20,7 @@
     <!-- 안드로이드 13 이하에서 Health Connect 앱 찾기 -->
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
+        <package android:name="app.liferpg" />
     </queries>
 
     <application>

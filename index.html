@@ -297,7 +297,37 @@ window.lifeMoments = j => {
   if (!byId('amMoView').hidden) paintMoments();
   const ml = byId('moLine'); if (ml) { ml.outerHTML = momentsLine(); const m2 = byId('moLine'); if (m2) m2.onclick = openMoments; }
   const al = byId('alarmLine'); if (al) al.outerHTML = alarmLine();
+  const fx = byId('fixCard'); if (fx) { fx.outerHTML = fixCard(); bindFix(); }
 };
+/* 꺼진 것 안내(2026-11-16 룡 「켜져야 하는 것이 꺼져 있으면 계속 켜지도록 안내, 꺼 둔 것도」): 다 켜질 때까지 오늘 화면 맨 위 */
+function fixItems() {
+  const m = moState, L = [];
+  if (!hasMoments() || m.notif === undefined) return L;
+  if (!m.notif) L.push(['🔔 알림', '꺼져 있으면 앱이 먼저 묻지 못해요', '켜기', () => phone.askNotif()]);
+  if (m.twin) {
+    if (m.photo === 'on' || m.ex === 'on') L.push(['📲 두 번 묻기', '라이프 RPG가 이미 물어요. 여기서는 꺼 주세요', '여기서 끄기', () => { phone.setPhoto(false); phone.setEx(false); }]);
+  } else {
+    if (m.photo !== 'on') L.push(['📷 끼니 사진 묻기', m.photo === 'need' ? '사진 허락에서 「모두 허용」을 눌러 주세요' : '끼니 시간에 찍으면 「점심 사진인가요?」', '켜기', () => phone.setPhoto(true)]);
+    if (m.ex === 'no_hc' || m.ex === 'no_bg') L.push(['🏃 운동 묻기', m.ex === 'no_hc' ? 'Health Connect를 받아 주세요' : 'Health Connect를 업데이트해 주세요', '받기', () => phone.getHealthConnect()]);
+    else if (m.ex !== 'on') L.push(['🏃 운동 묻기', m.ex === 'need' ? '「운동」과 「백그라운드 액세스」를 켜 주세요' : '삼성 헬스 운동이 들어오면 「걷기 20분, 적을까요?」', '켜기', () => phone.setEx(true)]);
+  }
+  if (!m.acc && phone.openPinSettings) L.push(['🌙 취침 잠금', '「잘게요」 뒤 다른 앱을 막아요', '켜기', () => phone.openPinSettings()]);
+  if (!m.battery && phone.openBattery) L.push(['🔋 배터리 「제한 없음」', '제한이 걸리면 폰이 알림·잠금을 재워요', '켜기', () => phone.openBattery()]);
+  if (m.fsi === false) L.push(['⏰ 알람 화면', '잠금 화면 위에 알람을 띄워요', '켜기', () => phone.openAlarmSettings()]);
+  return L;
+}
+function fixCard() {
+  const L = fixItems();
+  if (!L.length) return '<span id="fixCard"></span>';
+  return `<div class="card" id="fixCard" style="border-color:#e0a800;margin-bottom:12px;padding:8px 16px">
+    <b>⚠ 켜 주세요 (${L.length}개)</b>
+    ${L.map((x, i) => `<div class="mo-row"><div class="txt"><b>${x[0]}</b><small>${x[1]}</small></div><button type="button" data-fix="${i}">${x[2]}</button></div>`).join('')}
+  </div>`;
+}
+function bindFix() {
+  const L = fixItems();
+  document.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => { try { L[+b.dataset.fix][3](); } catch (e) {} });
+}
 window.lifeAlarm = () => { if (token) refresh().catch(() => {}); };
 function tellPhone() {
   if (!hasMoments() || !token || !state) return;
@@ -537,6 +567,7 @@ function renderToday() {
     </div>`).join('');
   $app.innerHTML = `
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
+    ${fixCard()}
 
     <div class="checks">
       ${exerciseCard(d)}
@@ -551,6 +582,7 @@ function renderToday() {
     <h2>오늘 우리 조</h2>
     <div class="card" style="padding:4px 16px">${board}</div>${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
+  bindFix();
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
     pendingKind = 'diet'; pendingSlot = b.dataset.slot; $file.click();
   });

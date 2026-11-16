@@ -28,7 +28,7 @@ import java.io.File;
 // 접근성·배터리 안내, 뒤로 가기만 맡는다. 새 버전 확인(건강 기록 앱)·자동 로그인(라이프 RPG)처럼 앱마다 다른 것은 이어받는 쪽에서.
 public abstract class HealthScreen extends Activity {
     public static final String BASE = "https://ggorotls-prog.github.io/life-room/";
-    private static final int PICK = 7, PHOTO_PERM = 8, HC_REQ = 9;
+    private static final int PICK = 7, PHOTO_PERM = 8, HC_REQ = 9, NOTIF_PERM = 10;
 
     protected WebView web;
     private ValueCallback<Uri[]> pickCallback;
@@ -129,6 +129,10 @@ public abstract class HealthScreen extends Activity {
         alarmWindow(i);
     }
 
+    private boolean installed(String pkg) {
+        try { getPackageManager().getPackageInfo(pkg, 0); return true; } catch (Exception e) { return false; }
+    }
+
     /** 기상 알람이 울리며 열었으면 잠금 화면 위에 켜서 보인다 */
     private void alarmWindow(Intent i) {
         if (i == null || !i.getBooleanExtra("wake_alarm", false)) return;
@@ -147,9 +151,17 @@ public abstract class HealthScreen extends Activity {
             else if (!HcReader.granted(this)) ex = HcReader.backgroundSupported(this) ? "need" : "no_bg";
             else ex = "on";
             boolean fsi = Build.VERSION.SDK_INT < 34 || getSystemService(android.app.NotificationManager.class).canUseFullScreenIntent();
+            // 꺼진 것 안내(2026-11-16 룡 「꺼 둔 것도 안내하고 켜지도록」): 알림·배터리·취침 잠금
+            boolean notif = getSystemService(android.app.NotificationManager.class).areNotificationsEnabled();
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            boolean battery = pm == null || pm.isIgnoringBatteryOptimizations(getPackageName());
+            boolean acc = lockReady();
+            // 건강 기록 앱인데 라이프 RPG도 깔려 있으면 묻기는 라이프 RPG가 맡는다(두 번 묻지 않게)
+            boolean twin = "app.liferoom".equals(getPackageName()) && installed("app.liferpg");
             String json = "{\"photo\":\"" + photo + "\",\"ex\":\"" + ex + "\",\"times\":\"" + Moments.times(this)
                     + "\",\"alarm\":\"" + WakeAlarm.time(this) + "\",\"lastAlarm\":\"" + WakeAlarm.lastTime(this)
-                    + "\",\"fsi\":" + fsi + ",\"ringing\":" + WakeAlarm.ringing(this) + "}";
+                    + "\",\"fsi\":" + fsi + ",\"ringing\":" + WakeAlarm.ringing(this)
+                    + ",\"notif\":" + notif + ",\"battery\":" + battery + ",\"acc\":" + acc + ",\"twin\":" + twin + "}";
             js("window.lifeMoments && lifeMoments(" + json + ")");
         }).start();
     }
@@ -157,6 +169,7 @@ public abstract class HealthScreen extends Activity {
     @Override
     public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
         super.onRequestPermissionsResult(req, perms, res);
+        if (req == NOTIF_PERM) { pushMoments(); return; }
         if (req != PHOTO_PERM) return;
         if (Moments.photoAllowed(this)) Moments.setPhotoOn(this, true);
         pushMoments();
@@ -284,6 +297,38 @@ public abstract class HealthScreen extends Activity {
         @JavascriptInterface
         public void wakeUp() { WakeAlarm.stop(HealthScreen.this); WakeAlarm.cancel(HealthScreen.this); }
 
+        /** 알림 켜기: 처음이면 허락 창, 이미 거절했으면 이 앱의 알림 설정 */
+        @JavascriptInterface
+        public void askNotif() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33 && !shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)
+                        && !getSharedPreferences("moments", MODE_PRIVATE).getBoolean("notif_asked", false)) {
+                    getSharedPreferences("moments", MODE_PRIVATE).edit().putBoolean("notif_asked", true).apply();
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, NOTIF_PERM);
+                    return;
+                }
+                if (Build.VERSION.SDK_INT >= 33 && shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)) {
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, NOTIF_PERM);
+                    return;
+                }
+                try { startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())); }
+                catch (Exception e) {
+                    try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
+                }
+            });
+        }
+
+        /** 배터리 「제한 없음」 창 */
+        @JavascriptInterface
+        public void openBattery() {
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))); }
+                catch (Exception e) {
+                    try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
+                }
+            });
+        }
+
         /** 안드로이드 14+: 잠금 화면 위에 알람 화면을 띄우는 허락 */
         @JavascriptInterface
         public void openAlarmSettings() {
@@ -321,6 +366,7 @@ public abstract class HealthScreen extends Activity {
     protected void onResume() {
         super.onResume();
         if (pausedAt > 0 && System.currentTimeMillis() - pausedAt > 10 * 60 * 1000 && web != null) web.reload();
+        else if (pausedAt > 0) pushMoments(); // 설정에서 켜고 돌아오면 안내 칸을 바로 고친다
     }
 
     // 배터리 「제한 없음」(2026-11-08 룡: 늘 떠 있어야 하는 앱은 업데이트 흐름에 넣는다).
