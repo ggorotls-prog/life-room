@@ -35,8 +35,10 @@ public class MainActivity extends app.recordkit.health.HealthScreen {
         boolean retry = backFromSecurity;
         backFromSecurity = false;
         if (LockService.isLocked(this)) return;
+        Updater.askNotifications(this); // 알림이 꺼져 있으면 열 때마다 다시 묻기(2026-11-16)
         new Thread(() -> {
             int latest = Updater.latest(getApplicationContext());
+            if (latest > 0 && latest <= BuildConfig.VERSION_CODE) Updater.clearNotice(getApplicationContext());
             if (latest <= BuildConfig.VERSION_CODE) { runOnUiThread(this::askBattery); return; }
             if (!Updater.canInstall(this)) { runOnUiThread(this::askInstallPermission); return; }
             if (retry) { Updater.checkAndInstall(getApplicationContext(), true, true); return; }
