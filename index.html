@@ -112,6 +112,9 @@
   #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 20px; font-size: 14px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s; }
   #toast.on { opacity: 1; }
   .loading { text-align: center; color: var(--sub); padding: 48px 0; }
+  a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 700; border-radius: 12px; min-height: 48px; margin-top: 10px; background: var(--main-soft); color: var(--main); }
+  .tbl tr[data-day] { cursor: pointer; }
+  .tbl tr[data-day] td:first-child { color: var(--main); text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -129,7 +132,15 @@
       <button type="button" class="am-back" id="amBack">‹ 처음으로</button>
       <button type="button" class="am-item" id="amPw"><span>비밀번호 바꾸기</span><span class="am-go">›</span></button>
       <button type="button" class="am-item" id="amMo" hidden><span>📲 앱이 먼저 묻기</span><span class="am-go">›</span></button>
+      <button type="button" class="am-item danger" id="amDel"><span>탈퇴하고 내 기록 지우기</span><span class="am-go">›</span></button>
     </div>
+    <form id="delForm" hidden>
+      <button type="button" class="am-back" id="delBack">‹ 설정으로</button>
+      <p class="sub">내 기상·취침·컨디션·운동·식단 기록과 사진을 모두 지워요. <b>지우면 되돌릴 수 없어요.</b></p>
+      <label class="f">비밀번호를 한 번 더 적어 주세요<input id="delPw" type="password" autocomplete="current-password" required></label>
+      <div class="err" id="delErr"></div>
+      <button class="main" id="delGo" style="background:var(--err);color:#fff">탈퇴하고 지우기</button>
+    </form>
     <div id="amMoView" hidden>
       <button type="button" class="am-back" id="moBack">‹ 설정으로</button>
       <div id="moBody"><p class="sub">불러오는 중…</p></div>
@@ -168,7 +179,7 @@ const byId = id => document.getElementById(id);
 const $app = document.getElementById('app');
 const $tabs = document.getElementById('tabs');
 const $file = document.getElementById('file');
-let state = null, tab = 'today', pendingKind = null, pendingSlot = null, faceSel = null, historyItems = [], historyDone = false;
+let state = null, tab = 'today', pendingKind = null, pendingSlot = null, pendingDay = null, faceSel = null, historyItems = [], historyDone = false;
 
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -182,6 +193,8 @@ function hm(t) { return t ? t.slice(0, 5) : '-'; }
 /* DB의 life_today()와 같은 계산: 서울 시각 새벽 4시가 하루 경계 */
 function seoulToday() { return new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10); }
 
+const READS = ['life_state', 'life_history', 'life_mine', 'life_leader', 'life_day'];
+const APK_URL = 'https://ggorotls-prog.github.io/life-room/app/life-room.apk';
 async function rpc(fn, args) {
   let r;
   try {
@@ -198,7 +211,10 @@ async function rpc(fn, args) {
     if (d && ['need_wake', 'need_bed', 'not_needed'].includes(d.message)) {
       tab = 'today'; await refresh(); throw new Error('날이 바뀌었어요. 오늘 기록을 시작해 주세요.');
     }
-    throw new Error('저장하지 못했어요. 다시 해 주세요.');
+    /* 서버에 아직 없는 함수(새 기능을 화면만 먼저 올린 경우) */
+    if (r.status === 404 || (d && d.code === 'PGRST202')) throw new Error('아직 준비 중인 기능이에요. 관리자에게 말해 주세요.');
+    if (READS.includes(fn)) throw new Error('불러오지 못했어요. 다시 열어 주세요. 계속 안 되면 관리자에게 말해 주세요.');
+    throw new Error('저장이 안 됐어요. 다시 눌러 주세요. 계속 안 되면 관리자에게 말해 주세요.');
   }
   return d;
 }
@@ -213,12 +229,15 @@ function logout() { token = null; store.del('life_token'); state = null; tab = '
 
 /* 시간 고르기: 30분 단위 */
 function timeOptions(startHour, selected) {
-  let h = '';
+  let h = '', found = false;
   for (let i = 0; i < 48; i++) {
     const min = (startHour * 60 + i * 30) % 1440;
     const v = String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0');
+    if (v === selected) found = true;
     h += `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`;
   }
+  /* 적힌 시각이 30분 단위가 아니면(예: 07:13) 그 시각을 맨 앞에 두고 고른다 */
+  if (selected && !found) h = `<option value="${selected}" selected>${selected}</option>` + h;
   return h;
 }
 function nowHM() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
@@ -415,7 +434,15 @@ function renderAuth(mode) {
         <button class="main" id="go">${signup ? '동의하고 시작' : '들어가기'}</button>
       </form>
       <button class="switch" id="sw">${signup ? '이미 가입했어요' : '초대 코드로 가입하기'}</button>
-    </div>`;
+      ${signup ? '' : '<p class="sub" style="margin-top:8px;text-align:center">비밀번호를 잊었으면 초대한 사람(관리자)에게 말해 주세요. 새 비밀번호를 정해 줍니다.</p>'}
+    </div>
+    ${phone ? '' : `<div class="card" style="margin-top:12px;font-size:14px"><b>📲 앱으로 받기 (안드로이드)</b>
+      <ol style="margin:6px 0 0;padding-left:20px">
+        <li>아래 「앱 받기」를 눌러 설치 파일을 받아요.</li>
+        <li>「출처를 알 수 없는 앱」 창이 뜨면 허용을 켜요.</li>
+        <li>받은 파일을 눌러 설치해요.</li>
+      </ol>
+      <a class="btn" href="${APK_URL}">앱 받기</a></div>`}`;
   document.getElementById('sw').onclick = () => renderAuth(signup ? 'login' : 'signup');
   document.getElementById('f').onsubmit = async e => {
     e.preventDefault();
@@ -426,7 +453,7 @@ function renderAuth(mode) {
       const d = signup
         ? await rpc('life_signup', { p_code: document.getElementById('code').value, p_nick: nick, p_pw: pw, p_consent: true })
         : await rpc('life_login', { p_nick: nick, p_pw: pw });
-      if (d.error) { err.textContent = d.error; go.disabled = false; return; }
+      if (d.error) { err.textContent = /초대 코드/.test(d.error) ? '초대 코드를 다시 확인해 주세요. 코드는 초대한 사람에게 받아요.' : d.error; go.disabled = false; return; }
       token = d.token; store.set('life_token', token);
       await refresh();
     } catch (x) { err.textContent = x.message; go.disabled = false; }
@@ -574,7 +601,7 @@ function renderToday() {
       ${dietCard(d)}
       <div class="check${d.bed ? ' done' : ''}">
         <div class="ico">🌙</div>
-        <div class="txt"><strong>수면 ${d.bed ? '✅' : ''}</strong><span class="sub">기상 ${hm(d.wake)}${d.bed ? ' · 취침 ' + hm(d.bed) : ''}</span></div>
+        <div class="txt"><strong>수면 ${d.bed ? '✅' : ''}</strong><span class="sub">기상 ${hm(d.wake)}${d.condition ? ' ' + FACES[d.condition - 1] : ''}${d.bed ? ' · 취침 ' + hm(d.bed) : ''} <a href="#" id="wakeFix">기상 고치기</a></span></div>
         <div class="btns"><button class="${d.bed ? '' : 'pick'}" id="bedBtn">${d.bed ? '고치기' : '잘게요'}</button></div>
       </div>
     </div>
@@ -584,7 +611,7 @@ function renderToday() {
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
   bindFix();
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
-    pendingKind = 'diet'; pendingSlot = b.dataset.slot; $file.click();
+    pendingKind = 'diet'; pendingSlot = b.dataset.slot; pendingDay = null; $file.click();
   });
   document.getElementById('goalBtn').onclick = e => {
     e.preventDefault();
@@ -612,7 +639,31 @@ function renderToday() {
     document.getElementById('exGo').onclick = go;
     inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
   };
+  /* 이미 적은 기상 시각·컨디션 고치기(오늘). 기존 life_wake가 오늘 줄의 두 값만 바꾼다 */
+  byId('wakeFix').onclick = e => {
+    e.preventDefault();
+    const box = byId('bedBox');
+    if (box.dataset.k === 'wake' && box.innerHTML) { box.innerHTML = ''; return; }
+    box.dataset.k = 'wake';
+    let face = d.condition || null;
+    box.innerHTML = `<div class="card" style="margin-top:8px">
+      <label class="f" style="margin-top:0">몇 시에 일어나셨어요?</label>
+      <select id="t" style="margin-top:6px">${timeOptions(4, d.wake ? hm(d.wake) : nowRounded())}</select>
+      <label class="f">오늘 컨디션은요?</label>
+      <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" class="${face === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
+      <div class="err" id="err"></div><button class="main" id="go">고치기</button></div>`;
+    box.querySelectorAll('.faces button').forEach(b => b.onclick = () => {
+      face = +b.dataset.v; box.querySelectorAll('.faces button').forEach(x => x.classList.toggle('on', x === b));
+    });
+    byId('go').onclick = () => {
+      if (!face) { byId('err').textContent = '컨디션을 골라 주세요.'; return; }
+      act('life_wake', { p_token: token, p_time: byId('t').value, p_condition: face }, '고쳤어요');
+    };
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
   document.getElementById('bedBtn').onclick = () => {
+    if (byId('bedBox').dataset.k === 'wake') byId('bedBox').innerHTML = '';
+    byId('bedBox').dataset.k = 'bed';
     if (!d.bed) { /* 버튼 하나: 지금 시각으로 취침, 앱이면 폰 고정 */
       const sleep = () => { store.del('life_awake'); unlockAsked = false; bedAndLock({ p_token: token, p_which: 'today', p_time: nowHM() }, pick(CHEERS.bed)); };
       if (!hasAlarm()) return sleep();
@@ -666,12 +717,18 @@ function shrink(file) {
   });
 }
 $file.onchange = async () => {
-  const f = $file.files[0], kind = pendingKind, slot = pendingSlot;
-  $file.value = ''; pendingSlot = null;
+  const f = $file.files[0], kind = pendingKind, slot = pendingSlot, day = pendingDay;
+  $file.value = ''; pendingSlot = null; pendingDay = null;
   if (!f || !kind) return;
   toast('사진 올리는 중…');
   try {
     const data = await shrink(f);
+    if (day) { /* 지난 날 채우기(내 기록) */
+      await rpc('life_post_day', { p_token: token, p_day: day, p_kind: kind, p_photo: data, p_slot: slot, p_note: null });
+      historyItems = []; historyDone = false;
+      toast(pick(CHEERS[kind])); renderMine(day);
+      return;
+    }
     state = await rpc('life_post', { p_token: token, p_kind: kind, p_photo: data, p_slot: slot, p_note: null });
     historyItems = []; historyDone = false;
     toast(pick(CHEERS[kind]));
@@ -722,9 +779,9 @@ async function renderHistory() {
 }
 
 /* 내 기록·리더 */
-function recordTable(rows) {
+function recordTable(rows, mine) {
   return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th><th>해제</th></tr>
-    ${rows.map(r => `<tr><td>${r.day.slice(5).replace('-', '/')}</td><td>${hm(r.wake)}</td><td>${hm(r.bed)}</td>
+    ${rows.map(r => `<tr${mine ? ` data-day="${r.day}"` : ''}><td>${r.day.slice(5).replace('-', '/')}</td><td>${hm(r.wake)}</td><td>${hm(r.bed)}</td>
       <td>${r.condition ? FACES[r.condition - 1] : '-'}</td><td>${r.exercise ? '✅' : '-'}</td><td>${r.diet ? '✅' : '-'}</td>
       <td class="why-td">${unlockCell(r.unlocks)}</td></tr>`).join('')}</table>`;
 }
@@ -733,14 +790,86 @@ function unlockCell(list) {
   if (!list || !list.length) return '-';
   return `<details><summary>🚨 ${list.length}회</summary>${list.map(u => esc(u.at + ' ' + u.note)).join('<br>')}</details>`;
 }
-async function renderMine() {
+async function renderMine(openDay) {
   $app.innerHTML = '<div class="loading">불러오는 중…</div>';
   try {
     const rows = await rpc('life_mine', { p_token: token });
     if (tab !== 'mine') return;
-    $app.innerHTML = `<h1>내 기록</h1><p class="sub" style="margin-bottom:12px">최근 2주예요. 수면과 컨디션은 리더와 나만 봐요.</p>
-      <div class="card">${recordTable(rows)}</div>`;
+    $app.innerHTML = `<h1>내 기록</h1><p class="sub" style="margin-bottom:12px">최근 2주예요. 수면과 컨디션은 리더와 나만 봐요.<br>날짜를 누르면 그날 기록을 고치거나 빠진 것을 채울 수 있어요.</p>
+      <div id="dayBox"></div>
+      <div class="card">${recordTable(rows, true)}</div>`;
+    $app.querySelectorAll('tr[data-day]').forEach(tr => tr.onclick = e => {
+      if (e.target.closest('details')) return;
+      const day = tr.dataset.day;
+      /* 오늘은 「오늘」 화면에서 고친다 */
+      if (day === state.today) { tabTrail.push(tab); tab = 'today'; window.scrollTo(0, 0); refresh().catch(x => toast(x.message)); return; }
+      dayEditor(day);
+    });
+    if (openDay) dayEditor(openDay);
   } catch (x) { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+}
+/* 지난 날 고치기·채우기(최근 2주, 오늘 전). 서버 함수 life_day·life_fix_day·life_post_day(2026-11-17 SQL 파일) */
+function dayName(day) { const d = new Date(day + 'T00:00:00'); return `${d.getMonth() + 1}/${d.getDate()} (${'일월화수목금토'[d.getDay()]})`; }
+async function dayEditor(day) {
+  const box = byId('dayBox'); if (!box) return;
+  box.innerHTML = '<div class="card" style="margin-bottom:12px"><p class="sub">불러오는 중…</p></div>';
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  let d;
+  try { d = await rpc('life_day', { p_token: token, p_day: day }); }
+  catch (x) { if (byId('dayBox')) byId('dayBox').innerHTML = `<div class="card" style="margin-bottom:12px"><p class="err">${esc(x.message)}</p><button class="switch" type="button" id="dClose">닫기</button></div>`; const c = byId('dClose'); if (c) c.onclick = () => { byId('dayBox').innerHTML = ''; }; return; }
+  if (!byId('dayBox') || tab !== 'mine') return;
+  const posts = d.posts || [], slotName = Object.fromEntries(SLOTS);
+  const ex = posts.filter(p => p.kind === 'exercise'), diet = posts.filter(p => p.kind === 'diet');
+  const had = sl => diet.some(p => p.slot === sl);
+  const del = p => `<button type="button" class="del" data-pdel="${p.id}" style="background:none;color:var(--sub);min-height:32px;padding:0 4px;font-size:13px">지우기</button>`;
+  let face = d.condition || null, slotSel = null;
+  byId('dayBox').innerHTML = `<div class="card" style="margin-bottom:12px">
+    <b>${dayName(day)} 기록</b>
+    <label class="f">기상</label><select id="dWake" style="margin-top:4px"><option value="">비워 두기</option>${timeOptions(4, d.wake ? hm(d.wake) : '')}</select>
+    <label class="f">취침 (그날 밤)</label><select id="dBed" style="margin-top:4px"><option value="">비워 두기</option>${timeOptions(18, d.bed ? hm(d.bed) : '')}</select>
+    <label class="f">컨디션</label>
+    <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" class="${face === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
+    <div class="err" id="dErr"></div>
+    <button class="main" id="dSave" type="button">기상·취침·컨디션 저장</button>
+    <h2 style="margin-top:20px">🏃 운동</h2>
+    ${ex.length ? `<div class="list">${ex.map(p => `<div><span style="flex:1">${esc(p.note || '운동')}</span>${del(p)}</div>`).join('')}</div>` : '<p class="sub">적은 운동이 없어요.</p>'}
+    <div class="exbox"><input id="dEx" maxlength="60" placeholder="예: 걷기 30분" autocomplete="off"><button class="pick" id="dExGo" type="button">더하기</button></div>
+    <h2>🥗 식단</h2>
+    ${diet.length ? `<div class="list">${diet.map(p => `<div><span style="flex:1">${slotName[p.slot] || '식단'}${p.photo ? ' 📷' : ''}${p.note ? ' · ' + esc(p.note) : ''}</span>${del(p)}</div>`).join('')}</div>` : '<p class="sub">적은 끼니가 없어요.</p>'}
+    <div class="slots">${SLOTS.map(([k, n]) => `<button type="button" data-dslot="${k}" ${k !== 'snack' && had(k) ? 'disabled' : ''}>${n}${k !== 'snack' && had(k) ? ' ✓' : ''}</button>`).join('')}</div>
+    <div id="dSlotBox"></div>
+    <button class="switch" type="button" id="dClose">닫기</button></div>`;
+  const err = byId('dErr');
+  const busy = on => byId('dayBox').querySelectorAll('button').forEach(b => { if (on) { b.dataset.was = b.disabled ? '1' : ''; b.disabled = true; } else b.disabled = b.dataset.was === '1'; });
+  const run = async (fn, args, msg) => {
+    err.textContent = ''; busy(true);
+    try { await rpc(fn, args); historyItems = []; historyDone = false; toast(msg); renderMine(day); }
+    catch (x) { err.textContent = x.message; busy(false); }
+  };
+  byId('dClose').onclick = () => { byId('dayBox').innerHTML = ''; };
+  byId('dayBox').querySelectorAll('.faces button').forEach(b => b.onclick = () => {
+    const v = +b.dataset.v; face = face === v ? null : v;
+    byId('dayBox').querySelectorAll('.faces button').forEach(x => x.classList.toggle('on', +x.dataset.v === face));
+  });
+  byId('dSave').onclick = () => run('life_fix_day', { p_token: token, p_day: day, p_wake: byId('dWake').value || null, p_bed: byId('dBed').value || null, p_condition: face }, '고쳤어요');
+  byId('dExGo').onclick = () => {
+    const v = byId('dEx').value.trim();
+    if (!v) { err.textContent = '어떤 운동인지 적어 주세요.'; return; }
+    run('life_post_day', { p_token: token, p_day: day, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: v }, pick(CHEERS.exercise));
+  };
+  byId('dayBox').querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => {
+    if (!confirm('이 기록을 지울까요?')) return;
+    run('life_delete_post', { p_token: token, p_id: +b.dataset.pdel }, '지웠어요');
+  });
+  byId('dayBox').querySelectorAll('[data-dslot]').forEach(b => b.onclick = () => {
+    slotSel = b.dataset.dslot;
+    byId('dayBox').querySelectorAll('[data-dslot]').forEach(x => x.classList.toggle('on', x === b));
+    byId('dSlotBox').innerHTML = `<div style="display:flex;gap:6px;margin-top:8px">
+      <button type="button" class="pick" id="dPhoto" style="flex:1">📷 사진 올리기</button>
+      <button type="button" id="dNoPhoto" style="flex:1">사진 없이 적기</button></div>`;
+    byId('dPhoto').onclick = () => { pendingKind = 'diet'; pendingSlot = slotSel; pendingDay = day; $file.click(); };
+    byId('dNoPhoto').onclick = () => run('life_post_day', { p_token: token, p_day: day, p_kind: 'diet', p_photo: null, p_slot: slotSel, p_note: null }, pick(CHEERS.diet));
+  });
 }
 async function renderLeader() {
   $app.innerHTML = '<div class="loading">불러오는 중…</div>';
@@ -820,7 +949,7 @@ function unforcePw() {
   byId('amClose').hidden = byId('pwBack').hidden = false; byId('pwMust').hidden = byId('pwConsent').hidden = true;
   byId('pwGo').textContent = '바꾸기';
 }
-function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; byId('amMoView').hidden = v !== 'mo'; if (v === 'set') byId('amMo').hidden = !hasMoments(); }
+function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; byId('delForm').hidden = v !== 'del'; byId('amMoView').hidden = v !== 'mo'; if (v === 'set') byId('amMo').hidden = !hasMoments(); }
 byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false; };
 byId('amClose').onclick = () => { byId('amBg').hidden = true; };
 byId('amBg').onclick = e => { if (e.target === byId('amBg') && !pwForced) byId('amBg').hidden = true; };
@@ -829,7 +958,7 @@ const tabTrail = [];
 window.appBack = () => {
   if (!byId('amBg').hidden) {
     if (pwForced) return true; // 비밀번호를 꼭 바꿔야 할 때는 안 닫힌다
-    if (!byId('pwForm').hidden || !byId('amMoView').hidden) amView('set'); else if (!byId('amSetView').hidden) amView('main'); else byId('amBg').hidden = true;
+    if (!byId('pwForm').hidden || !byId('amMoView').hidden || !byId('delForm').hidden) amView('set'); else if (!byId('amSetView').hidden) amView('main'); else byId('amBg').hidden = true;
     return true;
   }
   if (!state || !token) return false;
@@ -862,6 +991,29 @@ byId('pwForm').onsubmit = async e => {
     byId('nick').value = nick;
     byId('err').textContent = '비밀번호를 바꿨어요. 모든 기기에서 나갔어요. 새 비밀번호로 들어와 주세요.';
   } catch (x) { byId('pwErr').textContent = x.message; } finally { btn.disabled = false; }
+};
+/* 탈퇴하고 내 기록 지우기(2026-11-17): 비밀번호 다시 확인 → 「되돌릴 수 없어요」 확인 한 번 → 서버 life_delete_me.
+   다른 앱(업무 기록·라이프 RPG)과 같이 쓰는 계정은 계정은 남기고 건강 기록만 지운다 */
+byId('amDel').onclick = () => { byId('delForm').reset(); byId('delErr').textContent = ''; amView('del'); };
+byId('delBack').onclick = () => amView('set');
+byId('delForm').onsubmit = async e => {
+  e.preventDefault();
+  byId('delErr').textContent = '';
+  if (!confirm('정말 지울까요? 지우면 되돌릴 수 없어요.')) return;
+  const btn = byId('delGo'); btn.disabled = true;
+  try {
+    const d = await rpc('life_delete_me', { p_token: token, p_pw: byId('delPw').value });
+    if (d.error) { byId('delErr').textContent = d.error; return; }
+    if (d.kept) {
+      byId('amBg').hidden = true; tab = 'today'; historyItems = []; historyDone = false;
+      alert('건강 기록을 모두 지웠어요. 이 계정은 다른 앱과 같이 써서 계정은 남겨 두었어요.');
+      await refresh();
+      return;
+    }
+    unlockPhone(); store.del('life_bed'); store.del('life_awake'); store.del('life_alarm');
+    logout();
+    byId('err').textContent = '탈퇴했어요. 내 기록을 모두 지웠어요.';
+  } catch (x) { byId('delErr').textContent = x.message; } finally { btn.disabled = false; }
 };
 if (token) refresh().catch(x => { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; });
 else renderAuth('login');
