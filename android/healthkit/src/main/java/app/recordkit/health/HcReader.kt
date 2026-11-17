@@ -32,6 +32,17 @@ object HcReader {
     fun permissionIntent(c: Context): Intent =
         PermissionController.createRequestPermissionResultContract().createIntent(c, PERMS)
 
+    /** 허락 창이 막혔을 때(두 번 거절하면 Health Connect가 창을 안 띄움, 2026-11-18): 이 앱의 Health Connect 권한 화면 → 안 되면 Health Connect 첫 화면 */
+    @JvmStatic
+    fun settingsIntents(c: Context): List<Intent> {
+        val list = ArrayList<Intent>()
+        if (android.os.Build.VERSION.SDK_INT >= 34)
+            list.add(Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS").putExtra(Intent.EXTRA_PACKAGE_NAME, c.packageName))
+        list.add(Intent("androidx.health.ACTION_MANAGE_HEALTH_PERMISSIONS").setPackage("com.google.android.apps.healthdata").putExtra(Intent.EXTRA_PACKAGE_NAME, c.packageName))
+        list.add(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
+        return list
+    }
+
     /** 운동 읽기 + 앱이 꺼져 있을 때 읽기, 둘 다 허락됐나 */
     @JvmStatic
     fun granted(c: Context): Boolean = try {
