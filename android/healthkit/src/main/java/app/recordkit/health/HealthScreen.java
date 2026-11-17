@@ -274,15 +274,11 @@ public abstract class HealthScreen extends Activity {
                 Moments.setExOn(HealthScreen.this, true);
                 if (HcReader.granted(HealthScreen.this)) { pushMoments(); return; }
                 runOnUiThread(() -> {
-                    try { hcAskedAt = System.currentTimeMillis(); startActivityForResult(HcReader.permissionIntent(HealthScreen.this), HC_REQ); }
-                    catch (Exception e) { openHcSettings(); }
+                    try { startActivityForResult(HcReader.permissionIntent(HealthScreen.this), HC_REQ); }
+                    catch (Exception e) { pushMoments(); }
                 });
             }).start();
         }
-
-        /** 「운동」·「백그라운드 액세스」를 직접 켜는 Health Connect 화면 */
-        @JavascriptInterface
-        public void openHcSettings() { runOnUiThread(HealthScreen.this::openHcSettings); }
 
         /** Health Connect가 없을 때: 플레이 스토어에서 받기 */
         @JavascriptInterface
@@ -347,21 +343,6 @@ public abstract class HealthScreen extends Activity {
                 }
             });
         }
-    }
-
-    private long hcAskedAt = 0;
-
-    /** Health Connect의 이 앱 권한 화면(안 열리면 다음 길로) */
-    private void openHcSettings() {
-        for (Intent i : HcReader.settingsIntents(this)) {
-            try { startActivity(i); return; } catch (Exception ignored) {}
-        }
-        getHealthConnectStore();
-    }
-
-    private void getHealthConnectStore() {
-        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.healthdata"))); }
-        catch (Exception ignored) {}
     }
 
     private Intent cameraIntent() {
@@ -432,12 +413,8 @@ public abstract class HealthScreen extends Activity {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == HC_REQ) {
-            // 허락 창이 1.5초 안에 그냥 닫혔으면 창이 막힌 것(두 번 거절한 폰). 권한 화면을 바로 연다(2026-11-18 룡 「운동 묻기 버튼이 작동 안 해」)
-            boolean blocked = System.currentTimeMillis() - hcAskedAt < 1500;
             new Thread(() -> {
-                boolean ok = HcReader.granted(this);
-                if (ok) Moments.setExOn(this, true);
-                if (!ok && blocked) runOnUiThread(this::openHcSettings);
+                if (HcReader.granted(this)) Moments.setExOn(this, true);
                 pushMoments();
             }).start();
             return;
