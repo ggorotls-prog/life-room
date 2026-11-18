@@ -211,6 +211,8 @@ async function rpc(fn, args) {
     if (d && ['need_wake', 'need_bed', 'not_needed'].includes(d.message)) {
       tab = 'today'; await refresh(); throw new Error('날이 바뀌었어요. 오늘 기록을 시작해 주세요.');
     }
+    /* 지난 기록 고치기 범위(지난 7일) 밖 */
+    if (d && d.message === 'day') throw new Error('지난 7일만 고칠 수 있어요.');
     /* 서버에 아직 없는 함수(새 기능을 화면만 먼저 올린 경우) */
     if (r.status === 404 || (d && d.code === 'PGRST202')) throw new Error('아직 준비 중인 기능이에요. 관리자에게 말해 주세요.');
     if (READS.includes(fn)) throw new Error('불러오지 못했어요. 다시 열어 주세요. 계속 안 되면 관리자에게 말해 주세요.');
@@ -780,9 +782,10 @@ async function renderHistory() {
 }
 
 /* 내 기록·리더 */
+/* mine = 누를 수 있는 첫 날(YYYY-MM-DD). 그날부터 오늘까지만 누른다 */
 function recordTable(rows, mine) {
   return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th><th>해제</th></tr>
-    ${rows.map(r => `<tr${mine ? ` data-day="${r.day}"` : ''}><td>${r.day.slice(5).replace('-', '/')}</td><td>${hm(r.wake)}</td><td>${hm(r.bed)}</td>
+    ${rows.map(r => `<tr${mine && r.day >= mine ? ` data-day="${r.day}"` : ''}><td>${r.day.slice(5).replace('-', '/')}</td><td>${hm(r.wake)}</td><td>${hm(r.bed)}</td>
       <td>${r.condition ? FACES[r.condition - 1] : '-'}</td><td>${r.exercise ? '✅' : '-'}</td><td>${r.diet ? '✅' : '-'}</td>
       <td class="why-td">${unlockCell(r.unlocks)}</td></tr>`).join('')}</table>`;
 }
@@ -796,9 +799,12 @@ async function renderMine(openDay) {
   try {
     const rows = await rpc('life_mine', { p_token: token });
     if (tab !== 'mine') return;
-    $app.innerHTML = `<h1>내 기록</h1><p class="sub" style="margin-bottom:12px">최근 2주예요. 수면과 컨디션은 리더와 나만 봐요.<br>날짜를 누르면 그날 기록을 고치거나 빠진 것을 채울 수 있어요.</p>
+    /* 지난 기록 고치기는 지난 7일(오늘 빼고). 서버도 같은 범위만 받는다 */
+    const t = new Date((state.today || seoulToday()) + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - 7);
+    const editFrom = t.toISOString().slice(0, 10);
+    $app.innerHTML = `<h1>내 기록</h1><p class="sub" style="margin-bottom:12px">최근 2주예요. 수면과 컨디션은 리더와 나만 봐요.<br>지난 7일은 날짜를 눌러 고칠 수 있어요.</p>
       <div id="dayBox"></div>
-      <div class="card">${recordTable(rows, true)}</div>`;
+      <div class="card">${recordTable(rows, editFrom)}</div>`;
     $app.querySelectorAll('tr[data-day]').forEach(tr => tr.onclick = e => {
       if (e.target.closest('details')) return;
       const day = tr.dataset.day;
@@ -809,7 +815,7 @@ async function renderMine(openDay) {
     if (openDay) dayEditor(openDay);
   } catch (x) { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
-/* 지난 날 고치기·채우기(최근 2주, 오늘 전). 서버 함수 life_day·life_fix_day·life_post_day(2026-11-17 SQL 파일) */
+/* 지난 날 고치기·채우기(지난 7일, 오늘 전). 서버 함수 life_day·life_fix_day·life_post_day(2026-11-17 SQL 파일) */
 function dayName(day) { const d = new Date(day + 'T00:00:00'); return `${d.getMonth() + 1}/${d.getDate()} (${'일월화수목금토'[d.getDay()]})`; }
 async function dayEditor(day) {
   const box = byId('dayBox'); if (!box) return;
