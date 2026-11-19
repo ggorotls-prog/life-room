@@ -84,6 +84,13 @@
   .row .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .row.mine .nm { font-weight: 900; color: var(--main); }
   .dots { font-size: 18px; letter-spacing: 2px; white-space: nowrap; }
+  /* 서로 응원·연속 기록·에너지(2026-11-19) */
+  .fire { font-size: 13px; font-weight: 700; color: var(--sun); margin-left: 4px; white-space: nowrap; }
+  .en { font-size: 13px; font-weight: 700; color: var(--sun); margin-left: 6px; white-space: nowrap; }
+  .cheer { display: flex; align-items: center; gap: 10px; padding: 0 14px 12px; }
+  .cheer button { min-height: 40px; padding: 0 14px; }
+  .cheer button.on { background: var(--main); color: var(--main-ink); }
+  .got { background: var(--main-soft); border-radius: 12px; padding: 10px 14px; margin: 0 0 12px; font-size: 15px; }
   .post { padding: 0; overflow: hidden; margin-bottom: 12px; }
   .post .head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
   .post .head .nm { flex: 1; font-weight: 900; overflow-wrap: anywhere; }
@@ -221,6 +228,49 @@ async function rpc(fn, args) {
   return d;
 }
 
+/* ⚡ 에너지: 운동 글에서 숫자를 뽑아 재미로 보는 점수. 칼로리가 아니다(2026-11-19 룡 「우리만의 용어로, 재미로」).
+   숫자+단위(분·km·개·세트…)를 더하고, 숫자가 없으면 5. 1~99 */
+function energyOf(note) {
+  const W = { '시간': 24, '분': 0.4, 'km': 5, '킬로미터': 5, '키로': 5, '킬로': 5, '세트': 3, '개': 0.2, '회': 0.2, '번': 0.2, '걸음': 0.003, '보': 0.003, '층': 0.5 };
+  const re = /(\d+(?:\.\d+)?)\s*(시간|분|km|킬로미터|키로|킬로|세트|개|회|번|걸음|보|층)/gi;
+  let e = 0, hit = false, m;
+  while ((m = re.exec(String(note || '')))) { e += parseFloat(m[1]) * (W[m[2].toLowerCase()] || 0); hit = true; }
+  if (!hit) e = 5;
+  return Math.max(1, Math.min(99, Math.round(e)));
+}
+/* 서로 응원·연속 기록(2026-11-19 룡 「서로가 서로 상호작용」). 서버 life_social을 불러 화면의 빈칸만 채운다(다시 그리지 않아 적던 글이 안 지워진다) */
+let social = null;
+function doneCount(st) { const d = st && st.day; return d ? (d.exercise ? 1 : 0) + (d.diet ? 1 : 0) + (d.wake && d.bed ? 1 : 0) : 0; }
+function paintSocial() {
+  if (!social) return;
+  const fire = Object.fromEntries((social.streaks || []).map(x => [x.nickname, x.streak]));
+  document.querySelectorAll('[data-fire]').forEach(el => { const n = fire[el.dataset.fire] || 0; el.textContent = n >= 2 ? '🔥 ' + n + '일째' : ''; });
+  const ch = Object.fromEntries((social.cheers || []).map(x => [x.post, x]));
+  document.querySelectorAll('[data-cheer]').forEach(b => {
+    const c = ch[b.dataset.cheer];
+    b.classList.toggle('on', !!(c && c.mine));
+    b.textContent = '👏 응원' + (c ? ' ' + c.n : '');
+    const who = b.parentNode.querySelector('.sub'); if (who) who.textContent = c ? c.names : '';
+  });
+  const got = byId('gotBox');
+  if (got) {
+    const kind = g => g.kind === 'diet' ? '식단' : '운동';
+    const names = [...new Set((social.got || []).map(g => g.nickname))];
+    got.innerHTML = names.length ? `<div class="got">👏 ${esc(names.join(', '))}님이 ${kind(social.got[0])} 기록을 응원했어요</div>` : '';
+  }
+}
+async function loadSocial() {
+  paintSocial();
+  try { social = await rpc('life_social', { p_token: token }); paintSocial(); } catch (e) {}
+}
+function bindCheers() {
+  document.querySelectorAll('[data-cheer]').forEach(b => b.onclick = async () => {
+    if (b.disabled || b.classList.contains('on')) return;
+    b.classList.add('on');
+    try { await rpc('life_cheer', { p_token: token, p_post: +b.dataset.cheer }); toast('응원을 보냈어요 👏'); loadSocial(); }
+    catch (x) { b.classList.remove('on'); toast(x.message); }
+  });
+}
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('on');
@@ -550,9 +600,11 @@ async function act(fn, args, cheer) {
   const go = document.getElementById('go');
   if (go) go.disabled = true;
   try {
+    const had = !!(state && state.day), before = doneCount(state); /* 로그인처럼 앞 상태가 없을 때는 축하하지 않는다 */
     state = await rpc(fn, args);
     historyItems = []; historyDone = false;
-    if (cheer) toast(cheer);
+    if (had && before < 3 && doneCount(state) === 3) toast('🎉 오늘 완성! 운동·식단·수면 3개를 다 채웠어요');
+    else if (cheer) toast(cheer);
     render();
     return true;
   } catch (x) {
@@ -571,12 +623,12 @@ function bedAndLock(args, cheer) { lockPhone(); act('life_bed', args, cheer).the
 /* 오늘 */
 const SLOTS = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']];
 function exerciseCard(d) {
-  const list = (d.exercises || []).map(e => `<div><span class="t">${e.at}</span><span>${esc(e.note || '운동')}</span></div>`).join('');
+  const list = (d.exercises || []).map(e => `<div><span class="t">${e.at}</span><span>${esc(e.note || '운동')}<span class="en">⚡${energyOf(e.note)}</span></span></div>`).join('');
   const wk = state.week, goal = state.me.goal;
   return `<div class="check${d.exercise ? ' done' : ''}" style="display:block">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="ico">🏃</div>
-      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''} <a href="#" id="goalBtn">수정</a></span></div>
+      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''}${(d.exercises || []).length ? ' · 오늘 ⚡' + (d.exercises || []).reduce((a, e) => a + energyOf(e.note), 0) : ''} <a href="#" id="goalBtn">수정</a></span></div>
       <div class="btns"><button class="pick" id="exBtn">운동 기록</button></div>
     </div>
     <div id="goalBox"></div>
@@ -602,11 +654,12 @@ function renderToday() {
   const s = state, d = s.day;
   const board = (s.board || []).map(b => `
     <div class="row${b.mine ? ' mine' : ''}">
-      <div class="nm">${esc(b.nickname)}</div>
+      <div class="nm">${esc(b.nickname)}<span class="fire" data-fire="${esc(b.nickname)}"></span></div>
       <div class="dots">${'✅'.repeat(b.count)}${'⬜'.repeat(3 - b.count)}</div>
     </div>`).join('');
   $app.innerHTML = `
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
+    <div id="gotBox"></div>
     ${fixCard()}
 
     <div class="checks">
@@ -622,6 +675,7 @@ function renderToday() {
     <h2>오늘 우리 조</h2>
     <div class="card" style="padding:4px 16px">${board}</div>${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
+  loadSocial();
   bindFix();
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
     pendingKind = 'diet'; pendingSlot = b.dataset.slot; pendingDay = null; $file.click();
@@ -762,8 +816,9 @@ function historyHtml() {
     <div class="card post">
       <div class="head"><div class="nm">${esc(p.nickname)}</div><span class="sub">${p.kind === 'diet' && p.slot ? '🥗 ' + slotName[p.slot] : label[p.kind]} · ${p.day.slice(5).replace('-', '/')}</span>
       ${p.mine ? `<button class="del" data-del="${p.id}">지우기</button>` : ''}</div>
-      ${p.note ? `<p style="padding:0 14px 12px;font-size:15px">${esc(p.note)}</p>` : ''}
+      ${p.note ? `<p style="padding:0 14px 12px;font-size:15px">${esc(p.note)}${p.kind === 'exercise' ? `<span class="en">⚡${energyOf(p.note)}</span>` : ''}</p>` : ''}
       ${p.photo ? `<img src="${esc(p.photo)}" alt="${label[p.kind]} 사진" loading="lazy">` : ''}
+      <div class="cheer"${p.photo ? ' style="padding-top:12px"' : ''}><button type="button" data-cheer="${p.id}"${p.mine ? ' disabled' : ''}>👏 응원</button><span class="sub"></span></div>
     </div>`).join('');
   return `<h1>우리 조 히스토리</h1><p class="sub" style="margin-bottom:12px">오늘 누가 뭘 먹고 뭘 했을까요?</p>
     ${items || '<p class="sub">아직 올라온 것이 없어요. 첫 번째로 올려 보세요!</p>'}
@@ -775,6 +830,7 @@ async function renderHistory() {
     if (!historyItems.length) await loadHistory();
     if (tab !== 'history') return;
     $app.innerHTML = historyHtml();
+    bindCheers(); loadSocial();
     const more = document.getElementById('more');
     if (more) more.onclick = async () => {
       more.disabled = true;
