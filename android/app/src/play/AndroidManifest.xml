@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 구글 플레이용 판에서 빼는 것(2026-11-19, 플레이 정책 원문 확인 뒤). 화면은 이 권한이 없으면 그 줄을 숨긴다(Moments.declared).
+     - 사진 전체 읽기: 사진은 카메라·선택기로 올린다(끼니 사진 자동 묻기는 이 판에 없음)
+     - Health Connect 운동 읽기: 첫 심사 뒤 신고를 붙여 다시 넣는다(운동 자동 묻기는 이 판에 없음)
+     - USE_EXACT_ALARM: 알람·타이머 앱 전용 → 사용자가 직접 켜는 SCHEDULE_EXACT_ALARM으로
+     - 배터리 제한 풀기 직접 요청: 앱 정보 화면으로 안내한다 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" tools:node="remove" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" tools:node="remove" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" tools:node="remove" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:remove="android:maxSdkVersion" />
+
+    <application>
+        <activity android:name="app.recordkit.health.HealthPrivacy" tools:node="remove" />
+        <activity-alias android:name="app.recordkit.health.HealthPrivacyUsage" tools:node="remove" />
+    </application>
+</manifest>

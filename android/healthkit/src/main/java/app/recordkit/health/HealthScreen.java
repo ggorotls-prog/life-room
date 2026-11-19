@@ -144,12 +144,15 @@ public abstract class HealthScreen extends Activity {
     /** 사이트에 지금 상태를 알린다: 사진 묻기·운동 묻기·끼니 시간·알람(Health Connect 확인이 느려서 따로 줄에서) */
     private void pushMoments() {
         new Thread(() -> {
-            String photo = !Moments.photoOn(this) ? "off" : Moments.photoAllowed(this) ? "on" : "need";
+            // "none" = 이 판에는 그 기능이 없다(구글 플레이용 판, 2026-11-19). 사이트가 그 줄을 숨긴다
+            String photo = !Moments.declared(this, Moments.photoPerm()) ? "none" : !Moments.photoOn(this) ? "off" : Moments.photoAllowed(this) ? "on" : "need";
             String ex;
-            if (!HcReader.available(this)) ex = "no_hc";
+            if (!Moments.declared(this, "android.permission.health.READ_EXERCISE")) ex = "none";
+            else if (!HcReader.available(this)) ex = "no_hc";
             else if (!Moments.exOn(this)) ex = "off";
             else if (!HcReader.granted(this)) ex = HcReader.backgroundSupported(this) ? "need" : "no_bg";
             else ex = "on";
+            boolean exact = Build.VERSION.SDK_INT < 31 || getSystemService(android.app.AlarmManager.class).canScheduleExactAlarms();
             boolean fsi = Build.VERSION.SDK_INT < 34 || getSystemService(android.app.NotificationManager.class).canUseFullScreenIntent();
             // 꺼진 것 안내(2026-11-16 룡 「꺼 둔 것도 안내하고 켜지도록」): 알림·배터리·취침 잠금
             boolean notif = getSystemService(android.app.NotificationManager.class).areNotificationsEnabled();
@@ -160,7 +163,7 @@ public abstract class HealthScreen extends Activity {
             boolean twin = "app.liferoom".equals(getPackageName()) && installed("app.liferpg");
             String json = "{\"photo\":\"" + photo + "\",\"ex\":\"" + ex + "\",\"times\":\"" + Moments.times(this)
                     + "\",\"alarm\":\"" + WakeAlarm.time(this) + "\",\"lastAlarm\":\"" + WakeAlarm.lastTime(this)
-                    + "\",\"fsi\":" + fsi + ",\"ringing\":" + WakeAlarm.ringing(this)
+                    + "\",\"fsi\":" + fsi + ",\"exact\":" + exact + ",\"ringing\":" + WakeAlarm.ringing(this)
                     + ",\"notif\":" + notif + ",\"battery\":" + battery + ",\"acc\":" + acc + ",\"twin\":" + twin + "}";
             js("window.lifeMoments && lifeMoments(" + json + ")");
         }).start();
@@ -252,6 +255,7 @@ public abstract class HealthScreen extends Activity {
         @JavascriptInterface
         public void setPhoto(boolean on) {
             runOnUiThread(() -> {
+                if (on && !Moments.declared(HealthScreen.this, Moments.photoPerm())) { pushMoments(); return; }
                 if (on && !Moments.photoAllowed(HealthScreen.this)) {
                     requestPermissions(new String[]{Moments.photoPerm()}, PHOTO_PERM);
                     return;
@@ -267,6 +271,7 @@ public abstract class HealthScreen extends Activity {
         @JavascriptInterface
         public void setEx(boolean on) {
             if (!on) { Moments.setExOn(HealthScreen.this, false); pushMoments(); return; }
+            if (!Moments.declared(HealthScreen.this, "android.permission.health.READ_EXERCISE")) { pushMoments(); return; }
             new Thread(() -> {
                 if (!HcReader.available(HealthScreen.this)) { pushMoments(); return; }
                 // 켜기를 누르면 먼저 켠다(2026-11-18). 허락이 다 와야 켜던 때는 「백그라운드」 하나만 빠져도
@@ -329,8 +334,24 @@ public abstract class HealthScreen extends Activity {
         @JavascriptInterface
         public void openBattery() {
             runOnUiThread(() -> {
-                try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))); }
-                catch (Exception e) {
+                try {
+                    // 구글 플레이용 판은 바로 묻는 창을 못 쓴다 → 앱 정보 화면으로 간다(2026-11-19)
+                    if (!Moments.declared(HealthScreen.this, "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")) throw new IllegalStateException();
+                    startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
+                    try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
+                }
+            });
+        }
+
+        /** 안드로이드 12+: 기상 알람을 제시간에 울리는 허락(구글 플레이용 판은 사용자가 직접 켠다, 2026-11-19) */
+        @JavascriptInterface
+        public void openExactAlarm() {
+            runOnUiThread(() -> {
+                try {
+                    if (Build.VERSION.SDK_INT < 31) return;
+                    startActivity(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
                     try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
                 }
             });
@@ -401,11 +422,16 @@ public abstract class HealthScreen extends Activity {
         if (accDialog != null && accDialog.isShowing()) return;
         if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) return;
         batteryAsked = true;
+        // 구글 플레이용 판은 바로 묻는 창을 못 쓴다 → 앱 정보 화면으로 안내한다(2026-11-19)
+        boolean direct = Moments.declared(this, "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS");
         new AlertDialog.Builder(this)
                 .setTitle("배터리 「제한 없음」으로 해 주세요")
-                .setMessage("배터리 제한이 걸려 있으면 폰이 밤에 취침 잠금을 꺼 버려요.\n\n「켜기」를 누르고 다음 창에서 「허용」을 눌러 주세요.\n(창이 안 뜨면: 앱 정보 → 배터리 → 「제한 없음」)")
+                .setMessage(direct
+                        ? "배터리 제한이 걸려 있으면 폰이 밤에 취침 잠금을 꺼 버려요.\n\n「켜기」를 누르고 다음 창에서 「허용」을 눌러 주세요.\n(창이 안 뜨면: 앱 정보 → 배터리 → 「제한 없음」)"
+                        : "배터리 제한이 걸려 있으면 폰이 밤에 취침 잠금을 꺼 버려요.\n\n「켜기」를 누르면 앱 정보 화면이 열려요. 「배터리」에서 「제한 없음」을 골라 주세요.")
                 .setPositiveButton("켜기", (d, w) -> {
                     try {
+                        if (!direct) throw new IllegalStateException();
                         startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
                     } catch (Exception e) {
                         try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}

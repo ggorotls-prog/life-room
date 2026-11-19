@@ -97,6 +97,15 @@ public final class Moments {
     // ---------- 켜기·끄기 ----------
     static String photoPerm() { return Build.VERSION.SDK_INT >= 33 ? Manifest.permission.READ_MEDIA_IMAGES : Manifest.permission.READ_EXTERNAL_STORAGE; }
 
+    /** 이 판(매니페스트)에 그 권한이 들어 있나. 구글 플레이용 판은 사진·운동 읽기·배터리 직접 요청 권한을 뺐다(2026-11-19) */
+    static boolean declared(Context c, String perm) {
+        try {
+            String[] ps = c.getPackageManager().getPackageInfo(c.getPackageName(), PackageManager.GET_PERMISSIONS).requestedPermissions;
+            if (ps != null) for (String p : ps) if (perm.equals(p)) return true;
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     static boolean photoAllowed(Context c) { return c.checkSelfPermission(photoPerm()) == PackageManager.PERMISSION_GRANTED; }
 
     static boolean photoOn(Context c) { return p(c).getBoolean("m_photo", false); }

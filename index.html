@@ -328,13 +328,15 @@ function fixItems() {
   if (m.twin) {
     if (m.photo === 'on' || m.ex === 'on') L.push(['📲 두 번 묻기', '라이프 RPG가 이미 물어요. 여기서는 꺼 주세요', '여기서 끄기', () => { phone.setPhoto(false); phone.setEx(false); }]);
   } else {
-    if (m.photo !== 'on') L.push(['📷 끼니 사진 묻기', m.photo === 'need' ? '사진 허락에서 「모두 허용」을 눌러 주세요' : '끼니 시간에 찍으면 「점심 사진인가요?」', '켜기', () => phone.setPhoto(true)]);
-    if (m.ex === 'no_hc' || m.ex === 'no_bg') L.push(['🏃 운동 묻기', m.ex === 'no_hc' ? 'Health Connect를 받아 주세요' : 'Health Connect를 업데이트해 주세요', '받기', () => phone.getHealthConnect()]);
+    if (m.photo !== 'on' && m.photo !== 'none') L.push(['📷 끼니 사진 묻기', m.photo === 'need' ? '사진 허락에서 「모두 허용」을 눌러 주세요' : '끼니 시간에 찍으면 「점심 사진인가요?」', '켜기', () => phone.setPhoto(true)]);
+    if (m.ex === 'none') ; // 이 판에는 운동 읽기가 없다(구글 플레이용 판)
+    else if (m.ex === 'no_hc' || m.ex === 'no_bg') L.push(['🏃 운동 묻기', m.ex === 'no_hc' ? 'Health Connect를 받아 주세요' : 'Health Connect를 업데이트해 주세요', '받기', () => phone.getHealthConnect()]);
     else if (m.ex === 'need' && phone.openHcSettings) L.push(['🏃 운동 묻기', '열리는 화면에서 「운동」과 「백그라운드 액세스」를 켜 주세요', '켜기', () => phone.openHcSettings()]);
     else if (m.ex !== 'on') L.push(['🏃 운동 묻기', m.ex === 'need' ? '「운동」과 「백그라운드 액세스」를 켜 주세요' : '삼성 헬스 운동이 들어오면 「걷기 20분, 적을까요?」', '켜기', () => phone.setEx(true)]);
   }
   if (!m.acc && phone.openPinSettings) L.push(['🌙 취침 잠금', '「잘게요」 뒤 다른 앱을 막아요', '켜기', () => phone.openPinSettings()]);
   if (!m.battery && phone.openBattery) L.push(['🔋 배터리 「제한 없음」', '제한이 걸리면 폰이 알림·잠금을 재워요', '켜기', () => phone.openBattery()]);
+  if (m.exact === false && phone.openExactAlarm) L.push(['⏰ 알람 제시간에', '기상 알람이 제시간에 울리게 「알람 및 리마인더」를 켜 주세요', '켜기', () => phone.openExactAlarm()]);
   if (m.fsi === false) L.push(['⏰ 알람 화면', '잠금 화면 위에 알람을 띄워요', '켜기', () => phone.openAlarmSettings()]);
   return L;
 }
@@ -400,6 +402,9 @@ function paintMoments() {
       <button type="button" id="moEx">${exBtn}</button></div>
     ${m.fsi === false ? `<div class="mo-row"><div class="txt"><b>⏰ 기상 알람 화면</b><small>잠금 화면 위에 알람을 띄우려면 「전체 화면 알림」 허락이 필요해요.</small></div><button type="button" id="moFsi">허락하기</button></div>` : ''}
     <p class="sub" style="margin-top:10px">건강 기록 앱과 라이프 RPG를 둘 다 쓰면 한 곳에서만 켜 주세요(두 번 물어요).</p>`;
+  // 'none' = 이 판(구글 플레이용)에는 그 기능이 없다 → 줄을 숨긴다
+  if (m.photo === 'none') { byId('moPhoto').closest('.mo-row').style.display = 'none'; body.querySelector('.mo-times').style.display = 'none'; byId('moTimes').style.display = 'none'; }
+  if (m.ex === 'none') byId('moEx').closest('.mo-row').style.display = 'none';
   byId('moPhoto').onclick = () => { try { phone.setPhoto(m.photo !== 'on'); } catch (e) {} };
   byId('moEx').onclick = () => { try { if (m.ex === 'no_hc') phone.getHealthConnect(); else if (m.ex === 'need' && phone.openHcSettings) phone.openHcSettings(); else phone.setEx(m.ex !== 'on'); } catch (e) {} };
   byId('moTimes').onclick = () => {
