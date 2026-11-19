@@ -102,6 +102,8 @@ jobs:
             adb logcat -c
             adb shell am start -W -n app.liferoom.store/app.liferoom.MainActivity
             sleep 15
+            # 가상 폰은 켠 지 얼마 안 돼 구글 서비스(gms)가 스스로 다시 켜지고, 그때 글꼴을 빌려 쓰던 앱도 같이 꺼진다(2026-11-19 기록으로 확인: "depends on provider com.google.android.gms"). 앱 고장이 아니므로 한 번 더 켜 본다
+            adb shell pidof app.liferoom.store || { echo "한 번 더 켜 봄"; adb shell am start -W -n app.liferoom.store/app.liferoom.MainActivity; sleep 15; }
             adb logcat -d -b crash > crash-play.txt || true
             adb logcat -d > all-play.txt || true
             adb logcat -d -b events > ev-play.txt || true
