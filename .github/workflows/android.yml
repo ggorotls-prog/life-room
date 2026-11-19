@@ -96,14 +96,17 @@ jobs:
             adb logcat -d -s LifeRoom:I > bat.txt || true
             grep -q "battery dialog shown" bat.txt || { echo "배터리 안내가 안 떴어요"; exit 1; }
             echo "배터리 안내 뜸"
-            # 구글 플레이용 판도 깔아서 켜 본다(같은 열쇠라 위에 덮어 깔린다, 2026-11-19)
-            adb install -r app-play-release.apk
+            # 구글 플레이용 판도 켜 본다: 스토어에서 처음 받는 사람처럼 지우고 새로 깐다(2026-11-19)
+            adb uninstall app.liferoom
+            adb install app-play-release.apk
             adb logcat -c
             adb shell am start -W -n app.liferoom/.MainActivity
             sleep 15
             adb logcat -d -b crash > crash-play.txt || true
-            if grep -q "FATAL EXCEPTION" crash-play.txt; then cat crash-play.txt; exit 1; fi
-            adb shell pidof app.liferoom || { echo "플레이용 판이 꺼져 있어요"; exit 1; }
+            adb logcat -d -t 400 > all-play.txt || true
+            echo "===== play crash ====="; cat crash-play.txt
+            adb shell pidof app.liferoom || { echo "플레이용 판이 꺼져 있어요"; grep -i -E "liferoom|AndroidRuntime|ActivityManager.*(kill|died)" all-play.txt | tail -60; exit 1; }
+            if grep -q "FATAL EXCEPTION" crash-play.txt; then exit 1; fi
             echo "플레이용 판 켜짐"
 
   # main에서 가상 폰 확인까지 통과하면 APK를 사이트 app/에 올린다. 가족은 이 주소에서 받아 깐다.
