@@ -34,11 +34,21 @@ jobs:
           echo "KEYSTORE_FILE=$RUNNER_TEMP/life.p12" >> "$GITHUB_ENV"
           echo "KEYSTORE_PASSWORD=$KS_PW" >> "$GITHUB_ENV"
       - name: APK 만들기
-        run: gradle -p android assembleRelease --no-daemon
+        # direct = 사이트에서 받아 까는 판, play = 구글 플레이용 판(같이 만들어 빌드가 깨지지 않는지 본다, 2026-11-19)
+        run: |
+          gradle -p android assembleDirectRelease assemblePlayRelease bundlePlayRelease --no-daemon
+          mkdir -p out
+          cp android/app/build/outputs/apk/direct/release/app-direct-release.apk out/
+          cp android/app/build/outputs/apk/play/release/app-play-release.apk out/
       - uses: actions/upload-artifact@v4
         with:
           name: life-room-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: out/*.apk
+      # 구글 플레이에 올리는 묶음 파일(AAB). 사이트에는 올리지 않는다
+      - uses: actions/upload-artifact@v4
+        with:
+          name: life-room-play-aab
+          path: android/app/build/outputs/bundle/playRelease/app-play-release.aab
 
   # 가상 안드로이드 폰에 깔아서 실제로 켜 본다. 켜자마자 꺼지면 실패로 표시한다.
   smoke:
@@ -60,7 +70,7 @@ jobs:
           target: google_apis
           disable-animations: true
           script: |
-            adb install -r app-release.apk
+            adb install -r app-direct-release.apk
             adb logcat -c
             adb shell am start -W -n app.liferoom/.MainActivity
             sleep 20
@@ -86,6 +96,15 @@ jobs:
             adb logcat -d -s LifeRoom:I > bat.txt || true
             grep -q "battery dialog shown" bat.txt || { echo "배터리 안내가 안 떴어요"; exit 1; }
             echo "배터리 안내 뜸"
+            # 구글 플레이용 판도 깔아서 켜 본다(같은 열쇠라 위에 덮어 깔린다, 2026-11-19)
+            adb install -r app-play-release.apk
+            adb logcat -c
+            adb shell am start -W -n app.liferoom/.MainActivity
+            sleep 15
+            adb logcat -d -b crash > crash-play.txt || true
+            if grep -q "FATAL EXCEPTION" crash-play.txt; then cat crash-play.txt; exit 1; fi
+            adb shell pidof app.liferoom || { echo "플레이용 판이 꺼져 있어요"; exit 1; }
+            echo "플레이용 판 켜짐"
 
   # main에서 가상 폰 확인까지 통과하면 APK를 사이트 app/에 올린다. 가족은 이 주소에서 받아 깐다.
   publish:
@@ -103,7 +122,7 @@ jobs:
       - name: 사이트에 올리기
         run: |
           mkdir -p app
-          cp dist/app-release.apk app/life-room.apk
+          cp dist/app-direct-release.apk app/life-room.apk
           # 폰의 앱이 app/version.json을 보고 새 버전이면 스스로 받아서 업데이트한다(업무·영성·재정 기록 앱과 같음, 2026-11-07)
           SHA=$(sha256sum app/life-room.apk | cut -d' ' -f1)
           printf '{"versionCode":%s,"apk":"/app/life-room.apk","sha256":"%s"}\n' "$GITHUB_RUN_NUMBER" "$SHA" > app/version.json

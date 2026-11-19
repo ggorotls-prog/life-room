@@ -17,6 +17,13 @@ android {
         versionName "1.${System.getenv('GITHUB_RUN_NUMBER') ?: '0'}"
     }
 
+    // 판 두 가지(2026-11-19): direct = 지금처럼 사이트에서 받아 까는 판(스스로 업데이트), play = 구글 플레이용 판(스스로 업데이트 없음)
+    flavorDimensions 'dist'
+    productFlavors {
+        direct { dimension 'dist' }
+        play { dimension 'dist' }
+    }
+
     signingConfigs {
         release {
             if (ks) {
@@ -37,7 +44,7 @@ android {
     }
 
     buildFeatures {
-        buildConfig true   // Updater가 BuildConfig.VERSION_CODE로 새 버전을 비교한다
+        buildConfig true   // 직접 설치용 판의 Updater가 BuildConfig.VERSION_CODE로 새 버전을 비교한다
     }
 
     compileOptions {
