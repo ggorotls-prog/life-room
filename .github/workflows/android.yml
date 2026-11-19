@@ -100,13 +100,13 @@ jobs:
             adb uninstall app.liferoom
             adb install app-play-release.apk
             adb logcat -c
-            adb shell am start -W -n app.liferoom/.MainActivity
+            adb shell am start -W -n app.liferoom.store/app.liferoom.MainActivity
             sleep 15
             adb logcat -d -b crash > crash-play.txt || true
             adb logcat -d > all-play.txt || true
             adb logcat -d -b events > ev-play.txt || true
             echo "===== play crash ====="; cat crash-play.txt
-            adb shell pidof app.liferoom || { echo "플레이용 판이 꺼져 있어요"; grep -E "am_kill|am_proc_died|am_crash|am_anr|am_low_memory" ev-play.txt | tail -20; grep -i -E "liferoom|AndroidRuntime|Killing|has died|HealthConnect|healthdata" all-play.txt | tail -80; exit 1; }
+            adb shell pidof app.liferoom.store || { echo "플레이용 판이 꺼져 있어요"; grep -E "am_kill|am_proc_died|am_crash|am_anr|am_low_memory" ev-play.txt | tail -20; grep -i -E "liferoom|AndroidRuntime|Killing|has died|HealthConnect|healthdata" all-play.txt | tail -80; exit 1; }
             if grep -q "FATAL EXCEPTION" crash-play.txt; then exit 1; fi
             echo "플레이용 판 켜짐"
 
@@ -127,6 +127,8 @@ jobs:
         run: |
           mkdir -p app
           cp dist/app-direct-release.apk app/life-room.apk
+          # 건강 기록(스토어): 플레이에 올리기 전, 받아서 까는 주소(스스로 업데이트 없음, 2026-11-19)
+          cp dist/app-play-release.apk app/life-room-store.apk
           # 폰의 앱이 app/version.json을 보고 새 버전이면 스스로 받아서 업데이트한다(업무·영성·재정 기록 앱과 같음, 2026-11-07)
           SHA=$(sha256sum app/life-room.apk | cut -d' ' -f1)
           printf '{"versionCode":%s,"apk":"/app/life-room.apk","sha256":"%s"}\n' "$GITHUB_RUN_NUMBER" "$SHA" > app/version.json

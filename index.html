@@ -373,7 +373,12 @@ function alarmLine() {
 function momentsLine() {
   if (!hasMoments()) return '';
   const on = x => x === 'on' ? '켜짐' : '꺼짐';
-  return `<button type="button" class="switch" id="moLine" style="margin-top:12px">📲 앱이 먼저 묻기 · 📷 끼니 사진 ${on(moState.photo)} · 🏃 운동 ${on(moState.ex)} ›</button>`;
+  // 'none' = 이 판(구글 플레이용)에는 그 기능이 없다 → 그 말은 빼고, 둘 다 없으면 버튼도 없다
+  const parts = [];
+  if (moState.photo !== 'none') parts.push('📷 끼니 사진 ' + on(moState.photo));
+  if (moState.ex !== 'none') parts.push('🏃 운동 ' + on(moState.ex));
+  if (!parts.length) return '';
+  return `<button type="button" class="switch" id="moLine" style="margin-top:12px">📲 앱이 먼저 묻기 · ${parts.join(' · ')} ›</button>`;
 }
 function openMoments() {
   amView('mo'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false;

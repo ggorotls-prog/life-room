@@ -160,7 +160,7 @@ public abstract class HealthScreen extends Activity {
             boolean battery = pm == null || pm.isIgnoringBatteryOptimizations(getPackageName());
             boolean acc = lockReady();
             // 건강 기록 앱인데 라이프 RPG도 깔려 있으면 묻기는 라이프 RPG가 맡는다(두 번 묻지 않게)
-            boolean twin = "app.liferoom".equals(getPackageName()) && installed("app.liferpg");
+            boolean twin = getPackageName().startsWith("app.liferoom") && installed("app.liferpg");
             String json = "{\"photo\":\"" + photo + "\",\"ex\":\"" + ex + "\",\"times\":\"" + Moments.times(this)
                     + "\",\"alarm\":\"" + WakeAlarm.time(this) + "\",\"lastAlarm\":\"" + WakeAlarm.lastTime(this)
                     + "\",\"fsi\":" + fsi + ",\"exact\":" + exact + ",\"ringing\":" + WakeAlarm.ringing(this)
@@ -410,6 +410,8 @@ public abstract class HealthScreen extends Activity {
         super.onResume();
         if (pausedAt > 0 && System.currentTimeMillis() - pausedAt > 10 * 60 * 1000 && web != null) web.reload();
         else if (pausedAt > 0) pushMoments(); // 설정에서 켜고 돌아오면 안내 칸을 바로 고친다
+        // 「알람 및 리마인더」를 켜고 돌아오면, 이미 맞춘 알람을 정확한 알람으로 다시 건다(2026-11-19)
+        if (pausedAt > 0) WakeAlarm.rearm(this);
     }
 
     // 배터리 「제한 없음」(2026-11-08 룡: 늘 떠 있어야 하는 앱은 업데이트 흐름에 넣는다).
