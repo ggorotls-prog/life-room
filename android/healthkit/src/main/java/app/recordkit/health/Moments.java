@@ -66,6 +66,12 @@ public final class Moments {
 
     // ---------- 화면이 알려 주는 것 ----------
     static void setToken(Context c, String token) {
+        // 로그아웃하면 화면이 빈 글을 보낸다 → 열쇠를 지우고 조 소식 작업도 내린다(앞사람 알림이 남지 않게, 2026-11-20 점검)
+        if (token == null || token.isEmpty()) {
+            p(c).edit().remove("m_token").remove("m_feed_since").apply();
+            schedule(c);
+            return;
+        }
         boolean first = p(c).getString("m_token", null) == null;
         p(c).edit().putString("m_token", token).apply();
         if (first) schedule(c); // 처음 로그인하면 조 소식 알림을 건다
