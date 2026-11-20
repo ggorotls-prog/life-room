@@ -91,6 +91,13 @@
   .cheer button { min-height: 40px; padding: 0 14px; }
   .cheer button.on { background: var(--main); color: var(--main-ink); }
   .got { background: var(--main-soft); border-radius: 12px; padding: 10px 14px; margin: 0 0 12px; font-size: 15px; }
+  /* 3단계 셀체인지 캠프 조: 저녁 기록(2026-11-20) */
+  .eve-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .eve-row > span { flex: 1; font-weight: 700; }
+  .eve-row .sc { display: flex; gap: 4px; }
+  .eve-row .sc button { min-height: 40px; min-width: 40px; padding: 0; }
+  .eve-row .sc button.on { background: var(--main); color: var(--main-ink); }
+  .eve input { width: 100%; margin-top: 12px; }
   .post { padding: 0; overflow: hidden; margin-bottom: 12px; }
   .post .head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
   .post .head .nm { flex: 1; font-weight: 900; overflow-wrap: anywhere; }
@@ -259,6 +266,60 @@ function paintSocial() {
     got.innerHTML = names.length ? `<div class="got">👏 ${esc(names.join(', '))}님이 내 기록을 응원했어요</div>` : '';
   }
 }
+/* 3단계 = 셀체인지 캠프 조(2026-11-20 룡, 발표 자료 ver2 13번 「저녁 기록」): 캠프 조 사람에게만 보인다.
+   저녁에 식사·영양제·운동을 1~5로 누르고 한줄 감사를 적는다. 제품 이름·양은 앱에 없다. 점수로 순위를 매기지 않는다.
+   이정표(7·21·50·84일)에는 돌아볼 질문 하나를 띄운다. 식단 사진은 본인이 「조에 보이기」를 눌러야 조에 보인다 */
+let camp = null, eveSel = null;
+const CAMP_Q = { 7: '일주일 동안 쉽게 할 수 있었던 일은?', 21: '바쁜 날에도 이어갈 방법은?', 50: '내게 맞게 바꾼 실천은?', 84: '수료 뒤에도 이어가고 싶은 습관은?' };
+const sc = v => v == null ? '-' : v;
+function eveLine(e) { return '🔹' + e.nickname + '  ' + sc(e.meal) + '  ' + sc(e.supp) + '  ' + sc(e.move) + (e.thanks ? '  (한줄감사: ' + e.thanks + ')' : ''); }
+function paintCamp() {
+  const box = byId('campBox'); if (!box) return;
+  if (!camp || !camp.camp) { box.innerHTML = ''; return; }
+  const mine = camp.mine;
+  if (!eveSel) eveSel = mine ? { meal: mine.meal, supp: mine.supp, move: mine.move, thanks: mine.thanks || '' } : { meal: null, supp: null, move: null, thanks: '' };
+  const q = CAMP_Q[camp.day_no];
+  const row = (k, name) => `<div class="eve-row"><span>${name}</span><div class="sc" data-k="${k}">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-n="${n}" class="${eveSel[k] === n ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
+  const list = (camp.evenings || []).map(e => `<div class="row${e.mine ? ' mine' : ''}"><div class="nm">${esc(eveLine(e))}</div></div>`).join('');
+  box.innerHTML = `<h2>셀체인지 ${camp.day_no}일째</h2>
+    ${q ? `<div class="got">🚩 ${camp.day_no}일 이정표 · ${q}</div>` : ''}
+    <div class="card eve">
+      <strong>🌙 저녁 기록${mine ? ' ✅' : ''}</strong>
+      <p class="sub">오늘 하루를 돌아보고 1~5로 눌러 주세요. 빈 날이 있어도 오늘부터 다시 적으면 돼요.</p>
+      ${row('meal', '양질의 식사')}${row('supp', '영양제 섭취')}${row('move', '운동')}
+      <input id="eveThanks" maxlength="100" placeholder="한줄 감사: ~해서 감사" autocomplete="off">
+      <button class="pick" id="eveGo" style="width:100%;margin-top:8px">${mine ? '고쳐서 저장' : '저장'}</button>
+    </div>
+    ${list ? `<h2>오늘 우리 조 저녁 기록</h2><div class="card" style="padding:4px 16px">${list}</div>
+      <button type="button" id="eveShare" style="width:100%;margin-top:8px">📤 카톡으로 공유하기</button>` : ''}
+    <p class="sub" style="margin-top:8px">📷 식단 사진은 나만 봐요. 히스토리에서 「조에 보이기」를 누른 사진만 조에 보여요.</p>`;
+  const th = byId('eveThanks'); th.value = eveSel.thanks || ''; th.oninput = () => { eveSel.thanks = th.value; };
+  box.querySelectorAll('.sc button').forEach(b => b.onclick = () => {
+    const k = b.parentNode.dataset.k, n = +b.dataset.n;
+    eveSel[k] = eveSel[k] === n ? null : n;
+    paintCamp();
+  });
+  byId('eveGo').onclick = async () => {
+    if (eveSel.meal == null && eveSel.supp == null && eveSel.move == null && !(eveSel.thanks || '').trim()) { toast('점수를 누르거나 한줄 감사를 적어 주세요.'); return; }
+    byId('eveGo').disabled = true;
+    try {
+      camp = await rpc('life_evening', { p_token: token, p_meal: eveSel.meal, p_supp: eveSel.supp, p_move: eveSel.move, p_thanks: eveSel.thanks || null });
+      eveSel = null; toast('저녁 기록을 남겼어요 🌙'); paintCamp();
+    } catch (x) { toast(x.message); byId('eveGo').disabled = false; }
+  };
+  const sh = byId('eveShare');
+  if (sh) sh.onclick = async () => {
+    const text = '✅ 오늘 하루 돌아보기\n■양질의 식사 ■영양제 섭취 ■운동 ■한줄 감사\n' + (camp.evenings || []).map(eveLine).join('\n');
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else { await navigator.clipboard.writeText(text); toast('복사했어요. 카톡에 붙여 넣어 주세요.'); }
+    } catch (e) {}
+  };
+}
+async function loadCamp() {
+  paintCamp();
+  try { camp = await rpc('life_camp', { p_token: token }); paintCamp(); } catch (e) {}
+}
 /* 관리자 화면(2026-11-20 룡 「관리자는 앱에서 사이트 페이지를 다 볼 수 있게」): 관리하는 방이 있는 사람에게만 버튼이 보인다.
    앱 로그인으로 관리자 로그인 열쇠를 받아(lc_from_life) 같은 주소의 라이프 체인저 관리자 화면으로 간다. 두 번 로그인하지 않는다 */
 async function goAdmin() {
@@ -273,7 +334,21 @@ async function goAdmin() {
 }
 async function loadSocial() {
   paintSocial();
-  try { social = await rpc('life_social', { p_token: token }); paintSocial(); } catch (e) {}
+  try {
+    social = await rpc('life_social', { p_token: token }); paintSocial();
+    if (social.stage === 3) { if (byId('campBox')) loadCamp(); paintShare(); } else camp = null;
+  } catch (e) {}
+}
+/* 캠프 조: 내 사진마다 「조에 보이기 / 나만 보기」 */
+function paintShare() {
+  document.querySelectorAll('[data-share]').forEach(b => {
+    b.hidden = false;
+    b.onclick = async () => {
+      b.disabled = true;
+      try { await rpc('life_share_post', { p_token: token, p_id: +b.dataset.share, p_on: b.dataset.on === '1' }); historyItems = []; historyDone = false; renderHistory(); }
+      catch (x) { toast(x.message); b.disabled = false; }
+    };
+  });
 }
 function bindCheers() {
   document.querySelectorAll('[data-cheer]').forEach(b => b.onclick = async () => {
@@ -296,7 +371,7 @@ function dropKeys() {
     store.del('lc_token');
     fetch(SB_URL + '/rest/v1/rpc/lc_logout', { method: 'POST', headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_token: lt }) }).catch(() => {});
   }
-  social = null;
+  social = null; camp = null; eveSel = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
 function logout() { dropKeys(); token = null; store.del('life_token'); state = null; tab = 'today'; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
@@ -694,11 +769,13 @@ function renderToday() {
       </div>
     </div>
     <div id="bedBox"></div>
+    <div id="campBox"></div>
     <h2>오늘 우리 조</h2>
     <div class="card" style="padding:4px 16px">${board}</div>
     <button type="button" id="adminGo" hidden style="width:100%;margin-top:12px">🛠 관리자 화면</button>${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
   byId('adminGo').onclick = goAdmin;
+  if (camp) paintCamp(); /* 다시 그릴 때 캠프 칸이 비지 않게 */
   loadSocial();
   bindFix();
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
@@ -839,6 +916,7 @@ function historyHtml() {
   const items = historyItems.map(p => `
     <div class="card post">
       <div class="head"><div class="nm">${esc(p.nickname)}</div><span class="sub">${p.kind === 'diet' && p.slot ? '🥗 ' + slotName[p.slot] : label[p.kind]} · ${p.day.slice(5).replace('-', '/')}</span>
+      ${p.mine && p.photo ? `<button class="del" hidden data-share="${p.id}" data-on="${p.shared === false ? 1 : 0}">${p.shared === false ? '👀 조에 보이기' : '🔒 나만 보기'}</button>` : ''}
       ${p.mine ? `<button class="del" data-del="${p.id}">지우기</button>` : ''}</div>
       ${p.note ? `<p style="padding:0 14px 12px;font-size:15px">${esc(p.note)}${p.kind === 'exercise' ? `<span class="en">⚡${energyOf(p.note)}</span>` : ''}</p>` : ''}
       ${p.photo ? `<img src="${esc(p.photo)}" alt="${label[p.kind]} 사진" loading="lazy">` : ''}
@@ -855,6 +933,7 @@ async function renderHistory() {
     if (tab !== 'history') return;
     $app.innerHTML = historyHtml();
     bindCheers(); loadSocial();
+    if (social && social.stage === 3) paintShare();
     const more = document.getElementById('more');
     if (more) more.onclick = async () => {
       more.disabled = true;
