@@ -172,7 +172,7 @@ public final class Moments {
 
     /** 건강 기록 앱인데 라이프 RPG도 깔려 있으면 조 소식은 라이프 RPG가 알린다(두 번 알리지 않게) */
     static boolean feedTwin(Context c) {
-        if (!c.getPackageName().startsWith("app.liferoom")) return false;
+        if (!"app.liferoom".equals(c.getPackageName())) return false; // 건강 기록(스토어)는 참가자가 받는 그대로 혼자 알린다
         try { c.getPackageManager().getPackageInfo("app.liferpg", 0); return true; } catch (Exception e) { return false; }
     }
 

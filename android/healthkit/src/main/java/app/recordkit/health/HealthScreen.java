@@ -160,7 +160,7 @@ public abstract class HealthScreen extends Activity {
             boolean battery = pm == null || pm.isIgnoringBatteryOptimizations(getPackageName());
             boolean acc = lockReady();
             // 건강 기록 앱인데 라이프 RPG도 깔려 있으면 묻기는 라이프 RPG가 맡는다(두 번 묻지 않게)
-            boolean twin = getPackageName().startsWith("app.liferoom") && installed("app.liferpg");
+            boolean twin = "app.liferoom".equals(getPackageName()) && installed("app.liferpg");
             String json = "{\"photo\":\"" + photo + "\",\"ex\":\"" + ex + "\",\"times\":\"" + Moments.times(this)
                     + "\",\"alarm\":\"" + WakeAlarm.time(this) + "\",\"lastAlarm\":\"" + WakeAlarm.lastTime(this)
                     + "\",\"fsi\":" + fsi + ",\"exact\":" + exact + ",\"ringing\":" + WakeAlarm.ringing(this)
