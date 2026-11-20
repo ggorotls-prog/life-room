@@ -96,7 +96,7 @@
   .pi { position: relative; width: 30px; height: 30px; display: inline-block; }
   .pi svg { display: block; }
   .pi i { position: absolute; left: 0; top: 0; width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 13px; font-style: normal; }
-  .boardkey { font-size: 12px; margin: 6px 2px 0; }
+
   .post { padding: 0; overflow: hidden; margin-bottom: 12px; }
   .post .head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
   .post .head .nm { flex: 1; font-weight: 900; overflow-wrap: anywhere; }
@@ -262,8 +262,7 @@ function paintSocial() {
   /* 조 보드를 아이콘으로 */
   const isCamp = social.stage === 3, bd = Object.fromEntries((social.board || []).map(x => [x.nickname, x]));
   document.querySelectorAll('[data-board]').forEach(el => { const b = bd[el.dataset.board]; if (b) { el.classList.add('icons'); el.innerHTML = boardIcons(b, isCamp); } });
-  const key = byId('boardKey');
-  if (key && social.board) key.textContent = '🏃 운동 · ☀️🌙 기상(왼쪽 반)·취침(오른쪽 반) · 🥗 아침·점심·저녁' + (isCamp ? ' · 💊 영양제 아침·점심·저녁' : '');
+
   const got = byId('gotBox');
   if (got) {
     const names = [...new Set((social.got || []).map(g => g.nickname))];
@@ -772,7 +771,6 @@ function renderToday() {
     <div id="campBox"></div>
     <h2>오늘 우리 조</h2>
     <div class="card" style="padding:4px 16px">${board}</div>
-    <p class="sub boardkey" id="boardKey"></p>
     <button type="button" id="adminGo" hidden style="width:100%;margin-top:12px">🛠 관리자 화면</button>${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
   byId('adminGo').onclick = goAdmin;
