@@ -11,7 +11,7 @@ public class MomentJob extends JobService {
             try {
                 if (params.getJobId() == Moments.JOB_PHOTO) Moments.checkPhotos(getApplicationContext());
                 else if (params.getJobId() == Moments.JOB_EX) Moments.checkExercise(getApplicationContext());
-                else if (params.getJobId() == Moments.JOB_FEED) Moments.checkFeed(getApplicationContext());
+                else if (params.getJobId() == Moments.JOB_FEED) { Moments.checkMealTime(getApplicationContext()); Moments.checkFeed(getApplicationContext()); }
             } catch (Exception ignored) {
             } finally {
                 // 사진 지켜보기는 한 번 쓰면 끝나서 다시 건다

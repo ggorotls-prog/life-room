@@ -39,6 +39,21 @@ public class MomentAction extends BroadcastReceiver {
                         else Moments.setMeals(c, Moments.today(), slot);
                     }
                     Moments.info(c, err == null ? name + " 사진 올렸어요 🥗" : err, err == null);
+                } else if (a.endsWith(".meal_text")) {
+                    // 끼니 시간 알림에서 바로 적은 글(2026-11-20)
+                    android.os.Bundle r = android.app.RemoteInput.getResultsFromIntent(intent);
+                    CharSequence t = r == null ? null : r.getCharSequence("text");
+                    String note = t == null ? "" : t.toString().trim();
+                    if (note.isEmpty()) return;
+                    if (note.length() > 60) note = note.substring(0, 60);
+                    String name = "breakfast".equals(slot) ? "아침" : "lunch".equals(slot) ? "점심" : "저녁";
+                    String err = Moments.post(c, "diet", null, slot, note);
+                    if (err == null) {
+                        String meals = Moments.p(c).getString("m_meals", "");
+                        if (Moments.today().equals(Moments.p(c).getString("m_meals_day", ""))) Moments.setMeals(c, Moments.today(), meals.isEmpty() ? slot : meals + "," + slot);
+                        else Moments.setMeals(c, Moments.today(), slot);
+                    }
+                    Moments.info(c, err == null ? name + " 「" + note + "」 적었어요 🥗" : err, err == null);
                 } else if (a.endsWith(".ex_up")) {
                     String err = Moments.post(c, "exercise", null, null, data);
                     Moments.info(c, err == null ? "「" + data + "」 적었어요 💪" : err, err == null);

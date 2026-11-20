@@ -46,9 +46,9 @@ import java.util.Locale;
 public final class Moments {
     static final String SB = "https://trlnatdkebjvgiqneulv.supabase.co";
     static final String KEY = "sb_publishable_BqE1VCDg50oi9zCflCjMuw_wYF55CTj"; // 사이트에 공개된 키와 같음
-    static final String CH_MEAL = "moment_meal", CH_EX = "moment_ex", CH_INFO = "moment_info", CH_FEED = "moment_feed";
+    static final String CH_MEAL = "moment_meal", CH_EX = "moment_ex", CH_INFO = "moment_info", CH_FEED = "moment_feed", CH_ASK = "moment_mealask";
     static final int JOB_PHOTO = 7101, JOB_EX = 7102, JOB_FEED = 7103;
-    static final int N_MEAL = 7201, N_EX = 7202, N_INFO = 7204, N_FEED = 7205;
+    static final int N_MEAL = 7201, N_EX = 7202, N_INFO = 7204, N_FEED = 7205, N_ASK = 7206;
     static final String[] SLOTS = {"breakfast", "lunch", "dinner"};
     static final String[] SLOT_NAMES = {"아침", "점심", "저녁"};
     static final String DEFAULT_TIMES = "6-10,11-14,17-21"; // 룡 OK 2026-11-16, 화면에서 바꿀 수 있다
@@ -174,6 +174,41 @@ public final class Moments {
     static boolean feedTwin(Context c) {
         if (!"app.liferoom".equals(c.getPackageName())) return false; // 건강 기록(스토어)는 참가자가 받는 그대로 혼자 알린다
         try { c.getPackageManager().getPackageInfo("app.liferpg", 0); return true; } catch (Exception e) { return false; }
+    }
+
+    // ---------- 끼니 시간에 먼저 묻기 ----------
+    /** 끼니 시간이 끝나기 1시간 전인데 그 끼니를 아직 안 올렸으면 한 번 묻는다(2026-11-20 룡: 사진을 못 찍었어도 뭐 먹었는지는 남기게).
+     *  알림에서 바로 글로 적을 수 있다(앱을 열지 않는다). 사진 권한이 필요 없어 구글 플레이용 판에도 들어간다. 15분 작업(JOB_FEED)이 부른다 */
+    static void checkMealTime(Context c) {
+        SharedPreferences s = p(c);
+        if (s.getString("m_token", null) == null || feedTwin(c) || SleepLock.isLocked(c)) return;
+        try {
+            String[] ws = times(c).split(",");
+            int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            for (int i = 0; i < 3; i++) {
+                int end = Integer.parseInt(ws[i].split("-")[1]);
+                if (h != end - 1) continue;
+                if (mealDone(c, SLOTS[i])) return;
+                String key = today() + ":" + SLOTS[i];
+                if (key.equals(s.getString("m_mealask", ""))) return; // 끼니마다 하루 한 번
+                s.edit().putString("m_mealask", key).apply();
+                Intent ri = new Intent(c, MomentAction.class).setAction("app.recordkit.health.meal_text")
+                        .putExtra("slot", SLOTS[i]).putExtra("nid", N_ASK);
+                PendingIntent rp = PendingIntent.getBroadcast(c, 7450 + i, ri, PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                android.app.RemoteInput in = new android.app.RemoteInput.Builder("text").setLabel("예) 김치찌개, 밥 반 공기").build();
+                Notification.Action write = new Notification.Action.Builder(null, "✏️ 글로 적기", rp).addRemoteInput(in).build();
+                Notification.Builder b = new Notification.Builder(c, channel(c, CH_ASK))
+                        .setSmallIcon(icon(c))
+                        .setContentTitle(SLOT_NAMES[i] + " 드셨나요?")
+                        .setContentText("사진을 올리거나, 뭐 드셨는지 글로 적어 주세요")
+                        .setContentIntent(openApp(c, 6))
+                        .addAction(new Notification.Action.Builder(null, "📷 사진 올리기", openApp(c, 6)).build())
+                        .addAction(write)
+                        .setAutoCancel(true);
+                notify(c, N_ASK, b.build());
+                return;
+            }
+        } catch (Exception ignored) {}
     }
 
     // ---------- 조 소식 ----------
@@ -424,6 +459,7 @@ public final class Moments {
         if (id.equals(CH_MEAL)) nm.createNotificationChannel(new NotificationChannel(id, "끼니 사진 묻기(소리 없음)", NotificationManager.IMPORTANCE_LOW));
         else if (id.equals(CH_EX)) nm.createNotificationChannel(new NotificationChannel(id, "운동 묻기", NotificationManager.IMPORTANCE_DEFAULT));
         else if (id.equals(CH_FEED)) nm.createNotificationChannel(new NotificationChannel(id, "우리 조 소식·응원", NotificationManager.IMPORTANCE_DEFAULT));
+        else if (id.equals(CH_ASK)) nm.createNotificationChannel(new NotificationChannel(id, "끼니 시간에 묻기", NotificationManager.IMPORTANCE_DEFAULT));
         else nm.createNotificationChannel(new NotificationChannel(id, "올린 결과", NotificationManager.IMPORTANCE_LOW));
         return id;
     }

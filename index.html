@@ -738,12 +738,13 @@ function dietCard(d) {
   return `<div class="check${d.diet ? ' done' : ''}" style="display:block">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="ico">🥗</div>
-      <div class="txt"><strong>식단 ${d.diet ? '✅' : ''}</strong><span class="sub">끼니를 누르고 사진을 올려 주세요 📷</span></div>
+      <div class="txt"><strong>식단 ${d.diet ? '✅' : ''}</strong><span class="sub">끼니를 누르고 사진을 올려 주세요 📷 사진이 없으면 글로 적어도 돼요</span></div>
     </div>
     <div class="slots">${SLOTS.map(([k, name]) => {
       const c = n(k), done = c > 0 && k !== 'snack';
       return `<button type="button" data-slot="${k}" class="${c ? 'on' : ''}" ${done ? 'disabled' : ''}>${name}${k === 'snack' && c ? ' ' + c : ''}${done ? ' ✓' : ''}</button>`;
     }).join('')}</div>
+    <div id="mealBox"></div>
   </div>`;
 }
 function renderToday() {
@@ -777,7 +778,26 @@ function renderToday() {
   if (camp) paintCamp(); /* 다시 그릴 때 캠프 칸이 비지 않게 */
   loadSocial();
   bindFix();
+  /* 끼니를 누르면 「사진」 또는 「글로 적기」를 고른다(2026-11-20 룡: 사진을 못 찍었어도 뭐 먹었는지는 남기게) */
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
+    const slot = b.dataset.slot, box = byId('mealBox'), name = Object.fromEntries(SLOTS)[slot];
+    if (box.dataset.k === slot && box.innerHTML) { box.innerHTML = ''; return; }
+    box.dataset.k = slot;
+    box.innerHTML = `<div class="exbox" style="margin-top:10px"><button type="button" class="pick" id="mPhoto">📷 ${name} 사진</button></div>
+      <div class="exbox" style="margin-top:8px"><input id="mNote" maxlength="60" placeholder="사진이 없으면 글로: 예) 김치찌개, 밥 반 공기" autocomplete="off">
+      <button type="button" id="mGo">저장</button></div><div class="err" id="err"></div>`;
+    byId('mPhoto').onclick = () => { pendingKind = 'diet'; pendingSlot = slot; pendingDay = null; $file.click(); };
+    const inp = byId('mNote');
+    const go = () => {
+      const v = inp.value.trim();
+      if (!v) { byId('err').textContent = '무엇을 드셨는지 적어 주세요.'; return; }
+      byId('mGo').disabled = true;
+      act('life_post', { p_token: token, p_kind: 'diet', p_photo: null, p_slot: slot, p_note: v }, pick(CHEERS.diet));
+    };
+    byId('mGo').onclick = go;
+    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+  });
+  $app.querySelectorAll('[data-slot-old]').forEach(b => b.onclick = () => {
     pendingKind = 'diet'; pendingSlot = b.dataset.slot; pendingDay = null; $file.click();
   });
   document.getElementById('goalBtn').onclick = e => {
