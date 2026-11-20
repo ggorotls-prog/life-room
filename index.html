@@ -51,6 +51,15 @@
   .slots.meal button { min-height: 62px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); font-weight: 700; line-height: 1.25; }
   .slots.meal button b { display: block; font-size: 20px; }
   .slots.meal button.on, .slots.meal button.on:disabled { background: var(--main); color: var(--main-ink); border-color: var(--main); opacity: 1; }
+  /* 한 주 보고·피드백(2026-11-20 룡) */
+  .wk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+  .wk div { min-width: 0; } .wk small { display: block; color: var(--sub); font-size: 12px; } .wk b { font-size: 17px; }
+  .wk-why { margin: 10px 0 0; padding: 0; list-style: none; font-size: 14px; }
+  .wk-why li { padding: 4px 0; border-top: 1px solid var(--line); }
+  textarea.fb { font: inherit; width: 100%; min-height: 72px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); resize: vertical; box-sizing: border-box; }
+  .fb-pin { background: var(--main-soft); border: 1.5px solid var(--main); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+  .fb-pin .t { font-size: 12px; color: var(--sub); } .fb-pin p { margin: 4px 0 0; font-weight: 700; white-space: pre-wrap; word-break: break-word; }
+  .fb-pin details { margin-top: 6px; font-size: 13px; } .fb-pin details div { padding: 4px 0; border-top: 1px solid var(--line); white-space: pre-wrap; word-break: break-word; }
   .meal-chk { white-space: nowrap; font-size: 12px; letter-spacing: -0.5px; }
   .meal-chk span { color: var(--line); } .meal-chk span.y { color: var(--main); font-weight: 700; }
   .list { margin-top: 8px; font-size: 14px; }
@@ -212,7 +221,7 @@ function hm(t) { return t ? t.slice(0, 5) : '-'; }
 /* DB의 life_today()와 같은 계산: 서울 시각 새벽 4시가 하루 경계 */
 function seoulToday() { return new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10); }
 
-const READS = ['life_state', 'life_history', 'life_mine', 'life_leader', 'life_day'];
+const READS = ['life_state', 'life_history', 'life_mine', 'life_leader', 'life_day', 'life_my_feedback'];
 const APK_URL = 'https://ggorotls-prog.github.io/life-room/app/life-room.apk';
 async function rpc(fn, args) {
   let r;
@@ -767,6 +776,7 @@ function renderToday() {
     </div>`).join('');
   $app.innerHTML = `
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
+    ${feedbackPin(s.feedback, '내가 나에게 한 피드백')}
     <div id="gotBox"></div>
     ${fixCard()}
 
@@ -990,6 +1000,77 @@ function mealCell(r) {
   if (!r.meals) return r.diet ? '✅' : '-';
   return `<span class="meal-chk">${[['breakfast', '아'], ['lunch', '점'], ['dinner', '저']].map(([k, n]) => `<span class="${r.meals.includes(k) ? 'y' : ''}">${n}</span>`).join('')}</span>`;
 }
+/* 피드백 카드: 가장 최근 것 크게, 지난 것은 펼쳐 본다. 오늘 탭 맨 위·조장 화면에 같이 쓴다 */
+function feedbackPin(list, title) {
+  if (!list || !list.length) return '';
+  const [last, ...old] = list;
+  return `<div class="fb-pin"><div class="t">📌 ${title} · ${esc(last.at)}</div><p>${esc(last.note)}</p>
+    ${old.length ? `<details><summary>지난 피드백 ${old.length}개</summary>${old.map(f => `<div><span class="t">${esc(f.at)}</span> ${esc(f.note)}</div>`).join('')}</details>` : ''}</div>`;
+}
+/* 한 주 보고: 오늘 포함 최근 7일을 숫자로 요약한다(AI 없음) */
+function toMin(t) { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+function fromMin(x) { x = Math.round(x) % 1440; return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); }
+function avg(a) { return a.length ? a.reduce((p, c) => p + c, 0) / a.length : null; }
+function weekReport(rows) {
+  const w = rows.slice(0, 7), byDay = Object.fromEntries(rows.map(r => [r.day, r]));
+  const wake = w.map(r => toMin(r.wake)).filter(x => x != null);
+  /* 취침은 정오 전이면 다음 날로 쳐서 평균 낸다(새벽 1시 = 25시) */
+  const bed = w.map(r => toMin(r.bed)).filter(x => x != null).map(x => x < 720 ? x + 1440 : x);
+  /* 잠 = 전날 취침 → 그날 기상 */
+  const sleep = w.map(r => {
+    const prev = new Date(r.day + 'T00:00:00Z'); prev.setUTCDate(prev.getUTCDate() - 1);
+    const p = byDay[prev.toISOString().slice(0, 10)], b = p ? toMin(p.bed) : null, k = toMin(r.wake);
+    if (b == null || k == null) return null;
+    return (k + 1440 - b) % 1440;
+  }).filter(x => x != null && x > 0);
+  const sl = avg(sleep), ex = w.filter(r => r.exercise).length;
+  const meal = k => w.filter(r => (r.meals || []).includes(k)).length;
+  const cond = [0, 0, 0]; w.forEach(r => { if (r.condition) cond[r.condition - 1]++; });
+  const unlocks = w.reduce((a, r) => a + (r.unlocks || []).length, 0);
+  const why = w.filter(r => r.condition).map(r => `<li>${r.day.slice(5).replace('-', '/')} ${FACES[r.condition - 1]} ${esc(r.condition_note || '')}</li>`).join('');
+  return `<div class="card" style="margin-bottom:12px"><h2 style="margin:0 0 10px">📊 이번 한 주 보고 <span class="sub" style="font-weight:400">최근 7일</span></h2>
+    <div class="wk">
+      <div><small>평균 기상</small><b>${wake.length ? fromMin(avg(wake)) : '-'}</b></div>
+      <div><small>평균 취침</small><b>${bed.length ? fromMin(avg(bed)) : '-'}</b></div>
+      <div><small>평균 잠</small><b>${sl ? Math.floor(sl / 60) + '시간 ' + Math.round(sl % 60) + '분' : '-'}</b></div>
+      <div><small>운동</small><b>${ex}일</b> <span class="sub">/ 목표 ${state.me.goal}일</span></div>
+      <div><small>끼니(7일 중)</small><b>아 ${meal('breakfast')} · 점 ${meal('lunch')} · 저 ${meal('dinner')}</b></div>
+      <div><small>컨디션</small><b>😄${cond[2]} 😐${cond[1]} 😫${cond[0]}</b></div>
+      ${unlocks ? `<div><small>긴급 해제</small><b>🚨 ${unlocks}회</b></div>` : ''}
+    </div>
+    ${why ? `<details style="margin-top:8px"><summary class="sub">컨디션 이유 보기</summary><ul class="wk-why">${why}</ul></details>` : ''}
+    <label class="f" for="fbNote">이 보고를 보고, 나에게 피드백 한 줄</label>
+    <textarea class="fb" id="fbNote" maxlength="200" placeholder="예) 취침이 늦어 아침 컨디션이 나빴다 → 이번 주는 11시 전에 눕기"></textarea>
+    <div class="err" id="fbErr"></div><button class="main" id="fbGo" type="button">피드백 저장 · 오늘 탭 맨 위에 보여요</button>
+    <p class="sub" style="margin:6px 0 0">피드백은 나와 조장이 봐요.</p>
+    <div id="fbList" style="margin-top:12px"></div></div>`;
+}
+const FB_BTN = '피드백 저장 · 오늘 탭 맨 위에 보여요';
+function bindFeedback(list) {
+  let editId = null;
+  const paint = l => {
+    byId('fbList').innerHTML = l.length ? `<div class="sub" style="margin-bottom:4px">내가 쓴 피드백</div>` + l.map(f => `<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)">
+      <div style="flex:1;min-width:0;white-space:pre-wrap;word-break:break-word"><span class="sub">${esc(f.at)}</span> ${esc(f.note)}</div>
+      <a href="#" data-fbedit="${f.id}" style="flex:none;font-size:13px">고치기</a></div>`).join('') : '';
+    byId('fbList').querySelectorAll('[data-fbedit]').forEach(a => a.onclick = e => {
+      e.preventDefault(); const f = l.find(x => x.id === +a.dataset.fbedit);
+      editId = f.id; byId('fbNote').value = f.note; byId('fbGo').textContent = '피드백 고치기'; byId('fbNote').focus();
+    });
+  };
+  paint(list);
+  byId('fbGo').onclick = async () => {
+    const v = byId('fbNote').value.trim();
+    if (!v) { byId('fbErr').textContent = '피드백을 한 줄 적어 주세요.'; return; }
+    byId('fbGo').disabled = true; byId('fbErr').textContent = '';
+    const wasEdit = editId != null;
+    try {
+      const l = await rpc('life_feedback_save', { p_token: token, p_note: v, p_id: editId });
+      state.feedback = l; editId = null; byId('fbNote').value = ''; byId('fbGo').textContent = FB_BTN;
+      paint(l); toast(wasEdit ? '고쳤어요' : '저장했어요. 오늘 탭 맨 위에 보여요 📌');
+    } catch (x) { byId('fbErr').textContent = x.message; }
+    byId('fbGo').disabled = false;
+  };
+}
 function recordTable(rows, mine) {
   return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th>${mine ? '<th>해제</th>' : ''}</tr>
     ${rows.map(r => `<tr${mine && r.day >= mine ? ` data-day="${r.day}"` : ''}><td>${r.day.slice(5).replace('-', '/')}</td><td>${hm(r.wake)}</td><td>${hm(r.bed)}</td>
@@ -1004,14 +1085,16 @@ function unlockCell(list) {
 async function renderMine(openDay) {
   $app.innerHTML = '<div class="loading">불러오는 중…</div>';
   try {
-    const rows = await rpc('life_mine', { p_token: token });
+    const [rows, fb] = await Promise.all([rpc('life_mine', { p_token: token }), rpc('life_my_feedback', { p_token: token })]);
     if (tab !== 'mine') return;
     /* 지난 기록 고치기는 지난 7일(오늘 빼고). 서버도 같은 범위만 받는다 */
     const t = new Date((state.today || seoulToday()) + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - 7);
     const editFrom = t.toISOString().slice(0, 10);
     $app.innerHTML = `<h1>내 기록</h1><p class="sub" style="margin-bottom:12px">최근 2주예요. 수면과 컨디션은 리더와 나만 봐요.<br>지난 7일은 날짜를 눌러 고칠 수 있어요.</p>
+      ${weekReport(rows)}
       <div id="dayBox"></div>
       <div class="card">${recordTable(rows, editFrom)}</div>`;
+    bindFeedback(fb || []);
     $app.querySelectorAll('tr[data-day]').forEach(tr => tr.onclick = e => {
       if (e.target.closest('details')) return;
       const day = tr.dataset.day;
@@ -1091,7 +1174,7 @@ async function renderLeader() {
     const list = await rpc('life_leader', { p_token: token });
     if (tab !== 'leader') return;
     $app.innerHTML = `<h1>조원 살피기</h1><p class="sub">심방 때 참고해 주세요. 여기 내용은 다른 곳에 옮기지 않아요.</p>
-      ${list.map(m => `<h2>${esc(m.nickname)}</h2><div class="card">${recordTable(m.records)}</div>`).join('')}`;
+      ${list.map(m => `<h2>${esc(m.nickname)}</h2>${feedbackPin(m.feedback, '스스로 한 피드백')}<div class="card">${recordTable(m.records)}</div>`).join('')}`;
   } catch (x) { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 
