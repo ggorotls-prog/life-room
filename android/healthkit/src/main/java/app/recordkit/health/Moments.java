@@ -25,6 +25,7 @@ import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Size;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -45,9 +46,9 @@ import java.util.Locale;
 public final class Moments {
     static final String SB = "https://trlnatdkebjvgiqneulv.supabase.co";
     static final String KEY = "sb_publishable_BqE1VCDg50oi9zCflCjMuw_wYF55CTj"; // 사이트에 공개된 키와 같음
-    static final String CH_MEAL = "moment_meal", CH_EX = "moment_ex", CH_INFO = "moment_info";
-    static final int JOB_PHOTO = 7101, JOB_EX = 7102;
-    static final int N_MEAL = 7201, N_EX = 7202, N_INFO = 7204;
+    static final String CH_MEAL = "moment_meal", CH_EX = "moment_ex", CH_INFO = "moment_info", CH_FEED = "moment_feed";
+    static final int JOB_PHOTO = 7101, JOB_EX = 7102, JOB_FEED = 7103;
+    static final int N_MEAL = 7201, N_EX = 7202, N_INFO = 7204, N_FEED = 7205;
     static final String[] SLOTS = {"breakfast", "lunch", "dinner"};
     static final String[] SLOT_NAMES = {"아침", "점심", "저녁"};
     static final String DEFAULT_TIMES = "6-10,11-14,17-21"; // 룡 OK 2026-11-16, 화면에서 바꿀 수 있다
@@ -64,7 +65,11 @@ public final class Moments {
     }
 
     // ---------- 화면이 알려 주는 것 ----------
-    static void setToken(Context c, String token) { p(c).edit().putString("m_token", token).apply(); }
+    static void setToken(Context c, String token) {
+        boolean first = p(c).getString("m_token", null) == null;
+        p(c).edit().putString("m_token", token).apply();
+        if (first) schedule(c); // 처음 로그인하면 조 소식 알림을 건다
+    }
 
     static void setMeals(Context c, String day, String csv) { p(c).edit().putString("m_meals_day", day).putString("m_meals", csv == null ? "" : csv).apply(); }
 
@@ -145,6 +150,103 @@ public final class Moments {
                 } catch (Exception ignored) {}
             }
         } else js.cancel(JOB_EX);
+        // 조 소식(2026-11-20): 조원이 올리면·응원이 오면 알림. 로그인돼 있으면 15분마다 서버를 본다
+        if (p(c).getString("m_token", null) != null && !feedTwin(c)) {
+            if (js.getPendingJob(JOB_FEED) == null) {
+                try {
+                    js.schedule(new JobInfo.Builder(JOB_FEED, job)
+                            .setPeriodic(15 * 60 * 1000L)
+                            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                            .setPersisted(true)
+                            .build());
+                } catch (Exception ignored) {}
+            }
+        } else js.cancel(JOB_FEED);
+    }
+
+    /** 건강 기록 앱인데 라이프 RPG도 깔려 있으면 조 소식은 라이프 RPG가 알린다(두 번 알리지 않게) */
+    static boolean feedTwin(Context c) {
+        if (!c.getPackageName().startsWith("app.liferoom")) return false;
+        try { c.getPackageManager().getPackageInfo("app.liferpg", 0); return true; } catch (Exception e) { return false; }
+    }
+
+    // ---------- 조 소식 ----------
+    /** 서버 life_feed: 지난번 뒤에 조원이 올린 것과 내 기록에 온 응원을 알림 하나로 모아 보인다. 자는 중에는 알리지 않고 아침에 모아서 알린다 */
+    static void checkFeed(Context c) {
+        SharedPreferences s = p(c);
+        String token = s.getString("m_token", null);
+        if (token == null || feedTwin(c) || SleepLock.isLocked(c)) return;
+        try {
+            String since = s.getString("m_feed_since", null);
+            JSONObject body = new JSONObject().put("p_token", token).put("p_since", since == null ? JSONObject.NULL : since);
+            String res = call("life_feed", body);
+            if (res == null) return;
+            JSONObject d = new JSONObject(res);
+            s.edit().putString("m_feed_since", d.optString("now", since)).apply();
+            if (since == null) return; // 처음에는 기준 시각만 잡는다(깔자마자 지난 것을 쏟지 않는다)
+            JSONArray posts = d.optJSONArray("posts"), cheers = d.optJSONArray("cheers");
+            java.util.ArrayList<String> lines = new java.util.ArrayList<>();
+            for (int i = 0; cheers != null && i < cheers.length(); i++) {
+                JSONObject x = cheers.getJSONObject(i);
+                lines.add("👏 " + x.optString("nickname") + "님이 " + what(x) + " 기록을 응원했어요");
+            }
+            for (int i = 0; posts != null && i < posts.length(); i++) {
+                JSONObject x = posts.getJSONObject(i);
+                String note = x.isNull("note") ? "" : x.optString("note");
+                lines.add(x.optString("nickname") + "님이 " + what(x) + (note.isEmpty() ? "" : "(" + note + ")") + "을 올렸어요");
+            }
+            if (lines.isEmpty()) return;
+            String title = lines.size() == 1 ? lines.get(0) : "우리 조 소식 " + lines.size() + "개";
+            Notification.Builder b = new Notification.Builder(c, channel(c, CH_FEED))
+                    .setSmallIcon(icon(c))
+                    .setContentTitle(title)
+                    .setContentIntent(openApp(c, 5))
+                    .setAutoCancel(true);
+            if (lines.size() > 1) {
+                Notification.InboxStyle st = new Notification.InboxStyle();
+                for (int i = 0; i < Math.min(lines.size(), 6); i++) st.addLine(lines.get(i));
+                b.setContentText(lines.get(lines.size() - 1)).setStyle(st);
+            } else b.setContentText("눌러서 응원해 주세요");
+            notify(c, N_FEED, b.build());
+        } catch (Exception ignored) {}
+    }
+
+    /** "점심 식단" · "운동" */
+    static String what(JSONObject x) {
+        if (!"diet".equals(x.optString("kind"))) return "운동";
+        String slot = x.optString("slot");
+        String n = "breakfast".equals(slot) ? "아침 " : "lunch".equals(slot) ? "점심 " : "dinner".equals(slot) ? "저녁 " : "snack".equals(slot) ? "간식 " : "";
+        return n + "식단";
+    }
+
+    /** 서버 함수 부르기. 돌려주는 것: 응답 글, 안 되면 null */
+    static String call(String fn, JSONObject body) {
+        try {
+            HttpURLConnection h = (HttpURLConnection) new URL(SB + "/rest/v1/rpc/" + fn).openConnection();
+            h.setConnectTimeout(15000);
+            h.setReadTimeout(30000);
+            h.setRequestMethod("POST");
+            h.setDoOutput(true);
+            h.setRequestProperty("apikey", KEY);
+            h.setRequestProperty("Authorization", "Bearer " + KEY);
+            h.setRequestProperty("Content-Type", "application/json");
+            try (OutputStream o = h.getOutputStream()) { o.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
+            int code = h.getResponseCode();
+            String res = "";
+            try (InputStream in = code < 400 ? h.getInputStream() : h.getErrorStream()) {
+                if (in != null) {
+                    ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                    byte[] b = new byte[4096];
+                    int n;
+                    while ((n = in.read(b)) > 0) buf.write(b, 0, n);
+                    res = buf.toString("UTF-8");
+                }
+            }
+            h.disconnect();
+            return code < 400 ? res : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** 새 사진이 들어오면 한 번 깨운다(한 번 쓰면 다시 건다) */
@@ -315,6 +417,7 @@ public final class Moments {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (id.equals(CH_MEAL)) nm.createNotificationChannel(new NotificationChannel(id, "끼니 사진 묻기(소리 없음)", NotificationManager.IMPORTANCE_LOW));
         else if (id.equals(CH_EX)) nm.createNotificationChannel(new NotificationChannel(id, "운동 묻기", NotificationManager.IMPORTANCE_DEFAULT));
+        else if (id.equals(CH_FEED)) nm.createNotificationChannel(new NotificationChannel(id, "우리 조 소식·응원", NotificationManager.IMPORTANCE_DEFAULT));
         else nm.createNotificationChannel(new NotificationChannel(id, "올린 결과", NotificationManager.IMPORTANCE_LOW));
         return id;
     }
