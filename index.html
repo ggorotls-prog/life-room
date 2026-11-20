@@ -47,6 +47,12 @@
   .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
   .slots button { min-height: 48px; padding: 0 4px; font-size: 14px; }
   .slots button.on { background: var(--main); color: var(--main-ink); }
+  /* 오늘 끼니 버튼: 아침·점심·저녁이 한눈에 보이게 그림+이름 두 줄, 흰 바탕 테두리, 먹은 끼니는 진한 초록(2026-11-20 룡) */
+  .slots.meal button { min-height: 62px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); font-weight: 700; line-height: 1.25; }
+  .slots.meal button b { display: block; font-size: 20px; }
+  .slots.meal button.on, .slots.meal button.on:disabled { background: var(--main); color: var(--main-ink); border-color: var(--main); opacity: 1; }
+  .meal-chk { white-space: nowrap; font-size: 12px; letter-spacing: -0.5px; }
+  .meal-chk span { color: var(--line); } .meal-chk span.y { color: var(--main); font-weight: 700; }
   .list { margin-top: 8px; font-size: 14px; }
   .list div { padding: 6px 0; border-top: 1px solid var(--line); display: flex; gap: 8px; }
   .list div:first-child { border-top: 0; }
@@ -722,6 +728,7 @@ function bedAndLock(args, cheer) { lockPhone(); act('life_bed', args, cheer).the
 
 /* 오늘 */
 const SLOTS = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']];
+const SLOT_ICON = { breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍪' };
 function exerciseCard(d) {
   const list = (d.exercises || []).map(e => `<div><span class="t">${e.at}</span><span>${esc(e.note || '운동')}<span class="en">⚡${energyOf(e.note)}</span></span></div>`).join('');
   const wk = state.week, goal = state.me.goal;
@@ -744,9 +751,9 @@ function dietCard(d) {
       <div class="ico">🥗</div>
       <div class="txt"><strong>식단 ${d.diet ? '✅' : ''}</strong><span class="sub">끼니를 누르고 사진을 올려 주세요 📷 사진이 없으면 글로 적어도 돼요</span></div>
     </div>
-    <div class="slots">${SLOTS.map(([k, name]) => {
+    <div class="slots meal">${SLOTS.map(([k, name]) => {
       const c = n(k), done = c > 0 && k !== 'snack';
-      return `<button type="button" data-slot="${k}" class="${c ? 'on' : ''}" ${done ? 'disabled' : ''}>${name}${k === 'snack' && c ? ' ' + c : ''}${done ? ' ✓' : ''}</button>`;
+      return `<button type="button" data-slot="${k}" class="${c ? 'on' : ''}" ${done ? 'disabled' : ''}><b>${SLOT_ICON[k]}</b>${name}${k === 'snack' && c ? ' ' + c : ''}${done ? ' ✓' : ''}</button>`;
     }).join('')}</div>
     <div id="mealBox"></div>
   </div>`;
@@ -978,11 +985,16 @@ async function renderHistory() {
 
 /* 내 기록·리더 */
 /* mine = 누를 수 있는 첫 날(YYYY-MM-DD). 그날부터 오늘까지만 누른다 */
+/* 긴급 해제 칸은 내 기록에서만(조장 화면에는 서버도 안 보낸다, 2026-11-20 룡). 식단은 아침·점심·저녁 끼니 체크 */
+function mealCell(r) {
+  if (!r.meals) return r.diet ? '✅' : '-';
+  return `<span class="meal-chk">${[['breakfast', '아'], ['lunch', '점'], ['dinner', '저']].map(([k, n]) => `<span class="${r.meals.includes(k) ? 'y' : ''}">${n}</span>`).join('')}</span>`;
+}
 function recordTable(rows, mine) {
-  return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th><th>해제</th></tr>
+  return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th>${mine ? '<th>해제</th>' : ''}</tr>
     ${rows.map(r => `<tr${mine && r.day >= mine ? ` data-day="${r.day}"` : ''}><td>${r.day.slice(5).replace('-', '/')}</td><td>${hm(r.wake)}</td><td>${hm(r.bed)}</td>
-      <td>${r.condition ? FACES[r.condition - 1] : '-'}${r.condition_note ? `<br><small>${esc(r.condition_note)}</small>` : ''}</td><td>${r.exercise ? '✅' : '-'}</td><td>${r.diet ? '✅' : '-'}</td>
-      <td class="why-td">${unlockCell(r.unlocks)}</td></tr>`).join('')}</table>`;
+      <td>${r.condition ? FACES[r.condition - 1] : '-'}${r.condition_note ? `<br><small>${esc(r.condition_note)}</small>` : ''}</td><td>${r.exercise ? '✅' : '-'}</td><td>${mealCell(r)}</td>
+      ${mine ? `<td class="why-td">${unlockCell(r.unlocks)}</td>` : ''}</tr>`).join('')}</table>`;
 }
 /* 해제 칸: 횟수만 보이고, 누르면 사유가 펼쳐진다(2026-11-16 룡) */
 function unlockCell(list) {
