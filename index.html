@@ -650,6 +650,7 @@ function renderWake() {
       <select id="t" style="margin-top:6px">${timeOptions(4, nowRounded())}</select></div>
       <label class="f" style="margin-top:0">오늘 컨디션은요?</label>
       <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
+      <input id="why" maxlength="60" placeholder="왜 그런가요? 한 줄로 (예: 6시간 잠, 개운함) · 리더와 나만 봐요" autocomplete="off" style="margin-top:8px">
       <div class="err" id="err"></div>
       <button class="main" id="go">일어났어요 ☀️</button>
       ${locked ? emergencyBtn() : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}
@@ -663,8 +664,11 @@ function renderWake() {
   });
   document.getElementById('go').onclick = () => {
     if (!faceSel) { document.getElementById('err').textContent = '컨디션을 골라 주세요.'; return; }
+    /* 컨디션 이유 한 줄은 필수(2026-11-20 룡) */
+    const why = byId('why').value.trim();
+    if (!why) { document.getElementById('err').textContent = '컨디션이 왜 그런지 한 줄 적어 주세요.'; byId('why').focus(); return; }
     unlockPhone(); wakeDone();
-    act('life_wake', { p_token: token, p_time: fixed ? document.getElementById('t').value : t, p_condition: faceSel });
+    act('life_wake', { p_token: token, p_time: fixed ? document.getElementById('t').value : t, p_condition: faceSel, p_note: why });
   };
   const rb = document.getElementById('reBed');
   if (rb) rb.onclick = reLock;
@@ -764,7 +768,7 @@ function renderToday() {
       ${dietCard(d)}
       <div class="check${d.bed ? ' done' : ''}">
         <div class="ico">🌙</div>
-        <div class="txt"><strong>수면 ${d.bed ? '✅' : ''}</strong><span class="sub">기상 ${hm(d.wake)}${d.condition ? ' ' + FACES[d.condition - 1] : ''}${d.bed ? ' · 취침 ' + hm(d.bed) : ''} <a href="#" id="wakeFix">기상 고치기</a></span></div>
+        <div class="txt"><strong>수면 ${d.bed ? '✅' : ''}</strong><span class="sub">기상 ${hm(d.wake)}${d.condition ? ' ' + FACES[d.condition - 1] : ''}${d.condition_note ? ' ' + esc(d.condition_note) : ''}${d.bed ? ' · 취침 ' + hm(d.bed) : ''} <a href="#" id="wakeFix">기상 고치기</a></span></div>
         <div class="btns"><button class="${d.bed ? '' : 'pick'}" id="bedBtn">${d.bed ? '고치기' : '잘게요'}</button></div>
       </div>
     </div>
@@ -838,13 +842,16 @@ function renderToday() {
       <select id="t" style="margin-top:6px">${timeOptions(4, d.wake ? hm(d.wake) : nowRounded())}</select>
       <label class="f">오늘 컨디션은요?</label>
       <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" class="${face === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
+      <input id="why" maxlength="60" placeholder="왜 그런가요? 한 줄로 (예: 6시간 잠, 개운함) · 리더와 나만 봐요" autocomplete="off" value="${esc(d.condition_note || '')}" style="margin-top:8px">
       <div class="err" id="err"></div><button class="main" id="go">고치기</button></div>`;
     box.querySelectorAll('.faces button').forEach(b => b.onclick = () => {
       face = +b.dataset.v; box.querySelectorAll('.faces button').forEach(x => x.classList.toggle('on', x === b));
     });
     byId('go').onclick = () => {
       if (!face) { byId('err').textContent = '컨디션을 골라 주세요.'; return; }
-      act('life_wake', { p_token: token, p_time: byId('t').value, p_condition: face }, '고쳤어요');
+      const why = byId('why').value.trim();
+      if (!why) { box.querySelector('.err').textContent = '컨디션이 왜 그런지 한 줄 적어 주세요.'; byId('why').focus(); return; }
+      act('life_wake', { p_token: token, p_time: byId('t').value, p_condition: face, p_note: why }, '고쳤어요');
     };
     box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
@@ -974,7 +981,7 @@ async function renderHistory() {
 function recordTable(rows, mine) {
   return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th><th>해제</th></tr>
     ${rows.map(r => `<tr${mine && r.day >= mine ? ` data-day="${r.day}"` : ''}><td>${r.day.slice(5).replace('-', '/')}</td><td>${hm(r.wake)}</td><td>${hm(r.bed)}</td>
-      <td>${r.condition ? FACES[r.condition - 1] : '-'}</td><td>${r.exercise ? '✅' : '-'}</td><td>${r.diet ? '✅' : '-'}</td>
+      <td>${r.condition ? FACES[r.condition - 1] : '-'}${r.condition_note ? `<br><small>${esc(r.condition_note)}</small>` : ''}</td><td>${r.exercise ? '✅' : '-'}</td><td>${r.diet ? '✅' : '-'}</td>
       <td class="why-td">${unlockCell(r.unlocks)}</td></tr>`).join('')}</table>`;
 }
 /* 해제 칸: 횟수만 보이고, 누르면 사유가 펼쳐진다(2026-11-16 룡) */
