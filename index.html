@@ -24,6 +24,9 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Pretendard Variable", Pretendard, system-ui, sans-serif; font-weight: 500; font-size: 16px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
   #app { max-width: 480px; margin: 0 auto; padding: 16px 16px 96px; }
+  /* 태블릿·PC는 넓게(2026-11-20 룡), 폰(768px 아래)은 그대로 */
+  @media (min-width: 768px) { #app, .tabs div { max-width: 720px; } .wk { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { #app, .tabs div { max-width: 960px; } }
   h1 { font-size: 24px; font-weight: 900; margin: 0 0 4px; }
   h2 { font-size: 17px; font-weight: 900; margin: 24px 0 10px; }
   p { margin: 0; }
@@ -623,13 +626,7 @@ function renderAuth(mode) {
       <button class="switch" id="sw">${signup ? '이미 가입했어요' : '초대 코드로 가입하기'}</button>
       ${signup ? '' : '<p class="sub" style="margin-top:8px;text-align:center">비밀번호를 잊었으면 초대한 사람(관리자)에게 말해 주세요. 새 비밀번호를 정해 줍니다.</p>'}
     </div>
-    ${phone ? '' : `<div class="card" style="margin-top:12px;font-size:14px"><b>📲 앱으로 받기 (안드로이드)</b>
-      <ol style="margin:6px 0 0;padding-left:20px">
-        <li>아래 「앱 받기」를 눌러 설치 파일을 받아요.</li>
-        <li>「출처를 알 수 없는 앱」 창이 뜨면 허용을 켜요.</li>
-        <li>받은 파일을 눌러 설치해요.</li>
-      </ol>
-      <a class="btn" href="${APK_URL}">앱 받기</a></div>`}`;
+    `; /* 「앱으로 받기」 카드는 지움(2026-11-20 룡: 「아예 없애」) */
   document.getElementById('sw').onclick = () => renderAuth(signup ? 'login' : 'signup');
   if (signup) {
     const g0 = byId('go'), sync = () => { g0.disabled = !(byId('cHealth').checked && byId('cAge').checked); };
@@ -793,7 +790,7 @@ function renderToday() {
     </div>`).join('');
   $app.innerHTML = `
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
-    ${feedbackPin(s.feedback, '내가 나에게 한 피드백')}
+    ${feedbackPin(s.feedback, '이번 주 적용점 (내가 정함)')}
     <div id="gotBox"></div>
     ${fixCard()}
 
@@ -808,11 +805,21 @@ function renderToday() {
     </div>
     <div id="bedBox"></div>
     <div id="campBox"></div>
-    <h2>오늘 우리 조</h2>
-    <div class="card" style="padding:4px 16px">${board}</div>
+    ${s.in_group === false ? `<h2>오늘 우리 조</h2><div class="card"><p class="sub" style="margin:0 0 8px">지금 속한 조가 없어요. 관리자에게 받은 초대 코드를 넣으면 다시 들어가요.</p>
+      <div class="exbox"><input id="rjCode" maxlength="12" placeholder="초대 코드" autocomplete="off" style="text-transform:uppercase"><button class="pick" id="rjGo" type="button">들어가기</button></div><div class="err" id="rjErr"></div></div>`
+    : `<h2>오늘 우리 조</h2>
+    <div class="card" style="padding:4px 16px">${board}</div>`}
     <button type="button" id="adminGo" hidden style="width:100%;margin-top:12px">🛠 관리자 화면</button>${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
   byId('adminGo').onclick = goAdmin;
+  const rj = byId('rjGo');
+  if (rj) rj.onclick = async () => {
+    const v = byId('rjCode').value.trim();
+    if (!v) { byId('rjErr').textContent = '초대 코드를 넣어 주세요.'; return; }
+    rj.disabled = true;
+    try { state = await rpc('life_rejoin', { p_token: token, p_code: v }); toast('조에 들어갔어요 🌱'); render(); }
+    catch (x) { byId('rjErr').textContent = x.message; rj.disabled = false; }
+  };
   if (camp) paintCamp(); /* 다시 그릴 때 캠프 칸이 비지 않게 */
   loadSocial();
   bindFix();
@@ -1023,12 +1030,34 @@ function feedbackPin(list, title) {
   if (!list || !list.length) return '';
   const [last, ...old] = list;
   return `<div class="fb-pin"><div class="t">📌 ${title} · ${esc(last.at)}</div><p>${esc(last.note)}</p>
-    ${old.length ? `<details><summary>지난 피드백 ${old.length}개</summary>${old.map(f => `<div><span class="t">${esc(f.at)}</span> ${esc(f.note)}</div>`).join('')}</details>` : ''}</div>`;
+    ${old.length ? `<details><summary>지난 적용점 ${old.length}개</summary>${old.map(f => `<div><span class="t">${esc(f.at)}</span> ${esc(f.note)}</div>`).join('')}</details>` : ''}</div>`;
 }
 /* 한 주 보고: 오늘 포함 최근 7일을 숫자로 요약한다(AI 없음) */
 function toMin(t) { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
 function fromMin(x) { x = Math.round(x) % 1440; return String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); }
 function avg(a) { return a.length ? a.reduce((p, c) => p + c, 0) / a.length : null; }
+/* 한 주 보고 문장 3줄: 숫자만 보고 앱이 만든다(AI 아님). 적용점은 본인이 쓴다 */
+function weekLines(w, k) {
+  const n = w.filter(r => r.wake || r.exercise || r.diet || r.bed).length, goal = state.me.goal || 0;
+  const bedAvg = k.bed.length ? k.bed.reduce((a, c) => a + c, 0) / k.bed.length : null;
+  const bad = w.filter(r => r.condition === 1), bf = k.meal('breakfast');
+  const good = [], low = [], tryit = [];
+  if (goal && k.ex >= goal) good.push(`운동 목표 ${goal}일을 채웠어요 (${k.ex}일)`);
+  if (bf >= 6) good.push(`아침을 7일 중 ${bf}일 챙겼어요`);
+  if (k.cond[2] >= 4) good.push(`컨디션 😄가 ${k.cond[2]}번이에요`);
+  if (!good.length) good.push(`7일 중 ${n}일 기록했어요`);
+  if (bedAvg != null && bedAvg > 1440) { low.push(`평균 취침이 ${fromMin(bedAvg)}로 자정을 넘겨요`); tryit.push(`${fromMin(Math.max(1380, bedAvg - 30))} 전에 눕기`); }
+  if (bad.length >= 2) { const rs = bad.map(r => r.condition_note).filter(Boolean).slice(0, 3); low.push(`컨디션 😫가 ${bad.length}번${rs.length ? ' (' + rs.join(', ') + ')' : ''}`); }
+  if (bf <= 4) { low.push(`아침을 7일 중 ${bf}일만 먹었어요`); tryit.push('아침 거르지 않기'); }
+  if (goal && k.ex < goal) { low.push(`운동이 목표보다 ${goal - k.ex}일 모자라요`); tryit.push(`운동 ${goal}일 채우기`); }
+  if (!low.length) low.push('크게 아쉬운 곳이 없어요');
+  if (!tryit.length) tryit.push('지금처럼 이어 가기');
+  return `<div class="wk-why" style="margin-top:10px;list-style:none">
+    <div style="padding:4px 0">👍 잘한 것: ${esc(good[0])}</div>
+    <div style="padding:4px 0;border-top:1px solid var(--line)">🤔 아쉬운 것: ${esc(low[0])}</div>
+    <div style="padding:4px 0;border-top:1px solid var(--line)">👉 해 볼 것: ${esc(tryit[0])}</div>
+    <div class="sub" style="font-size:12px">앱이 숫자로 만든 문장이에요. 적용점은 아래에 내가 써요.</div></div>`;
+}
 function weekReport(rows) {
   const w = rows.slice(0, 7), byDay = Object.fromEntries(rows.map(r => [r.day, r]));
   const wake = w.map(r => toMin(r.wake)).filter(x => x != null);
@@ -1056,29 +1085,30 @@ function weekReport(rows) {
       <div><small>컨디션</small><b>😄${cond[2]} 😐${cond[1]} 😫${cond[0]}</b></div>
       ${unlocks ? `<div><small>긴급 해제</small><b>🚨 ${unlocks}회</b></div>` : ''}
     </div>
+    ${weekLines(w, { wake, bed, ex, meal, cond, unlocks })}
     ${why ? `<details style="margin-top:8px"><summary class="sub">컨디션 이유 보기</summary><ul class="wk-why">${why}</ul></details>` : ''}
-    <label class="f" for="fbNote">이 보고를 보고, 나에게 피드백 한 줄</label>
+    <label class="f" for="fbNote">다음 주 적용점 한 줄 <span class="sub" style="font-weight:400">(내가 써요)</span></label>
     <textarea class="fb" id="fbNote" maxlength="200" placeholder="예) 취침이 늦어 아침 컨디션이 나빴다 → 이번 주는 11시 전에 눕기"></textarea>
-    <div class="err" id="fbErr"></div><button class="main" id="fbGo" type="button">피드백 저장 · 오늘 탭 맨 위에 보여요</button>
-    <p class="sub" style="margin:6px 0 0">피드백은 나와 조장이 봐요.</p>
+    <div class="err" id="fbErr"></div><button class="main" id="fbGo" type="button">적용점 저장 · 오늘 탭 맨 위에 보여요</button>
+    <p class="sub" style="margin:6px 0 0">적용점은 나와 조장이 봐요.</p>
     <div id="fbList" style="margin-top:12px"></div></div>`;
 }
-const FB_BTN = '피드백 저장 · 오늘 탭 맨 위에 보여요';
+const FB_BTN = '적용점 저장 · 오늘 탭 맨 위에 보여요';
 function bindFeedback(list) {
   let editId = null;
   const paint = l => {
-    byId('fbList').innerHTML = l.length ? `<div class="sub" style="margin-bottom:4px">내가 쓴 피드백</div>` + l.map(f => `<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)">
+    byId('fbList').innerHTML = l.length ? `<div class="sub" style="margin-bottom:4px">내가 쓴 적용점</div>` + l.map(f => `<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)">
       <div style="flex:1;min-width:0;white-space:pre-wrap;word-break:break-word"><span class="sub">${esc(f.at)}</span> ${esc(f.note)}</div>
       <a href="#" data-fbedit="${f.id}" style="flex:none;font-size:13px">고치기</a></div>`).join('') : '';
     byId('fbList').querySelectorAll('[data-fbedit]').forEach(a => a.onclick = e => {
       e.preventDefault(); const f = l.find(x => x.id === +a.dataset.fbedit);
-      editId = f.id; byId('fbNote').value = f.note; byId('fbGo').textContent = '피드백 고치기'; byId('fbNote').focus();
+      editId = f.id; byId('fbNote').value = f.note; byId('fbGo').textContent = '적용점 고치기'; byId('fbNote').focus();
     });
   };
   paint(list);
   byId('fbGo').onclick = async () => {
     const v = byId('fbNote').value.trim();
-    if (!v) { byId('fbErr').textContent = '피드백을 한 줄 적어 주세요.'; return; }
+    if (!v) { byId('fbErr').textContent = '적용점을 한 줄 적어 주세요.'; return; }
     byId('fbGo').disabled = true; byId('fbErr').textContent = '';
     const wasEdit = editId != null;
     try {
@@ -1192,7 +1222,15 @@ async function renderLeader() {
     const list = await rpc('life_leader', { p_token: token });
     if (tab !== 'leader') return;
     $app.innerHTML = `<h1>조원 살피기</h1><p class="sub">심방 때 참고해 주세요. 여기 내용은 다른 곳에 옮기지 않아요.</p>
-      ${list.map(m => `<h2>${esc(m.nickname)}</h2>${feedbackPin(m.feedback, '스스로 한 피드백')}<div class="card">${recordTable(m.records)}</div>`).join('')}`;
+      ${list.map(m => `<h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px">${esc(m.nickname)}${m.leader || m.me ? '' : `<button type="button" class="switch" data-kick="${esc(m.nickname)}" style="width:auto;margin:0;font-size:13px;padding:6px 10px">내보내기</button>`}</h2>${feedbackPin(m.feedback, '스스로 정한 적용점')}<div class="card">${recordTable(m.records)}</div>`).join('')}`;
+    /* 잘못 들어온 사람 내보내기(2026-11-20 룡): 조에서만 빠지고 기록·계정은 본인에게 남는다 */
+    $app.querySelectorAll('[data-kick]').forEach(b => b.onclick = async () => {
+      const nick = b.dataset.kick;
+      if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '정말 내보내기'; return; }
+      b.disabled = true;
+      try { await rpc('life_leader_kick', { p_token: token, p_nick: nick }); toast(nick + '님을 조에서 내보냈어요'); renderLeader(); }
+      catch (x) { toast(x.message); b.disabled = false; }
+    });
   } catch (x) { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 
