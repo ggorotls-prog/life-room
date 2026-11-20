@@ -252,12 +252,26 @@ function paintSocial() {
     b.textContent = '👏 응원' + (c ? ' ' + c.n : '');
     const who = b.parentNode.querySelector('.sub'); if (who) who.textContent = c ? c.names : '';
   });
+  const ag = byId('adminGo'); if (ag) ag.hidden = !social.admin;
   const got = byId('gotBox');
   if (got) {
     const kind = g => g.kind === 'diet' ? '식단' : '운동';
     const names = [...new Set((social.got || []).map(g => g.nickname))];
     got.innerHTML = names.length ? `<div class="got">👏 ${esc(names.join(', '))}님이 ${kind(social.got[0])} 기록을 응원했어요</div>` : '';
   }
+}
+/* 관리자 화면(2026-11-20 룡 「관리자는 앱에서 사이트 페이지를 다 볼 수 있게」): 관리하는 방이 있는 사람에게만 버튼이 보인다.
+   앱 로그인으로 관리자 로그인 열쇠를 받아(lc_from_life) 같은 주소의 라이프 체인저 관리자 화면으로 간다. 두 번 로그인하지 않는다 */
+async function goAdmin() {
+  const b = byId('adminGo'); if (b) b.disabled = true;
+  try {
+    if (!store.get('lc_token')) {
+      const r = await rpc('lc_from_life', { p_token: token });
+      if (!r || !r.admin) { toast('관리하는 방이 없어요.'); if (b) b.disabled = false; return; }
+      store.set('lc_token', r.token);
+    }
+    location.href = '../life-changer/';
+  } catch (x) { toast(x.message); if (b) b.disabled = false; }
 }
 async function loadSocial() {
   paintSocial();
@@ -673,8 +687,10 @@ function renderToday() {
     </div>
     <div id="bedBox"></div>
     <h2>오늘 우리 조</h2>
-    <div class="card" style="padding:4px 16px">${board}</div>${momentsLine()}`;
+    <div class="card" style="padding:4px 16px">${board}</div>
+    <button type="button" id="adminGo" hidden style="width:100%;margin-top:12px">🛠 관리자 화면</button>${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
+  byId('adminGo').onclick = goAdmin;
   loadSocial();
   bindFix();
   $app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
