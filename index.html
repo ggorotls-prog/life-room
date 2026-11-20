@@ -1032,7 +1032,7 @@ function weekReport(rows) {
     <div class="wk">
       <div><small>평균 기상</small><b>${wake.length ? fromMin(avg(wake)) : '-'}</b></div>
       <div><small>평균 취침</small><b>${bed.length ? fromMin(avg(bed)) : '-'}</b></div>
-      <div><small>평균 잠</small><b>${sl ? Math.floor(sl / 60) + '시간 ' + Math.round(sl % 60) + '분' : '-'}</b></div>
+      <div><small>평균 잠</small><b>${sl ? Math.floor(Math.round(sl) / 60) + '시간 ' + (Math.round(sl) % 60) + '분' : '-'}</b></div>
       <div><small>운동</small><b>${ex}일</b> <span class="sub">/ 목표 ${state.me.goal}일</span></div>
       <div><small>끼니(7일 중)</small><b>아 ${meal('breakfast')} · 점 ${meal('lunch')} · 저 ${meal('dinner')}</b></div>
       <div><small>컨디션</small><b>😄${cond[2]} 😐${cond[1]} 😫${cond[0]}</b></div>
