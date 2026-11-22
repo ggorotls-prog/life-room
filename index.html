@@ -315,18 +315,24 @@ let camp = null;
 const CAMP_Q = { 7: '일주일 동안 쉽게 할 수 있었던 일은?', 21: '바쁜 날에도 이어갈 방법은?', 50: '내게 맞게 바꾼 실천은?', 84: '수료 뒤에도 이어가고 싶은 습관은?' };
 const MEAL3 = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁']];
 /* 영양제 = 캠프 카드 9장 시간표 5칸(2026-11-22 룡). 제품 이름은 줄임말만(이=이뮨·제=제놀·오=오메가3·데=데일리, 숫자 = 알 수) */
-const SUPP5 = [['am_pre', '아침 식전', '이2~3'], ['am_post', '아침 식후', '제1 오1 데1'], ['pm_post', '점심 식후', '제2 오1 데1'], ['eve_pre', '저녁 식전', '이2~3'], ['eve_post', '저녁 식후', '제1 오1']];
+/* 이뮨 알 수는 조원이 처음 한 번 고른 안을 따른다: 2안 = 한 번 2알, 3안 = 한 번 3알(12주 그대로, 1안은 없음, 2026-11-22 룡) */
+const SUPP5 = [['am_pre', '아침 식전', '이#'], ['am_post', '아침 식후', '제1 오1 데1'], ['pm_post', '점심 식후', '제2 오1 데1'], ['eve_pre', '저녁 식전', '이#'], ['eve_post', '저녁 식후', '제1 오1']];
 function paintCamp() {
   const box = byId('campBox'); if (!box) return;
   if (!camp || !camp.camp) { box.innerHTML = ''; return; }
-  const on = camp.supps || [], q = CAMP_Q[camp.day_no];
+  const on = camp.supps || [], q = CAMP_Q[camp.day_no], plan = camp.plan;
+  const body = plan ? `<div class="supp5">${SUPP5.map(([k, when, what]) => `<button type="button" data-supp="${k}" class="${on.includes(k) ? 'on' : ''}"><b>${when}${on.includes(k) ? ' ✓' : ''}</b><small>${what.replace('#', plan)}</small></button>`).join('')}</div>
+      <p class="sub" style="margin-top:6px;font-size:12px">${plan}안 · 이=이뮨 · 제=제놀 · 오=오메가3 · 데=데일리 · 숫자는 알 수</p>`
+    : `<p class="sub" style="margin-top:10px"><b>처음 한 번만 골라 주세요.</b> 12주 동안 그대로 가요.</p>
+      <div class="supp5" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <button type="button" data-plan="2"><b>2안</b><small>이뮨 한 번에 2알 · 하루 4알</small></button>
+        <button type="button" data-plan="3"><b>3안</b><small>이뮨 한 번에 3알 · 하루 6알</small></button></div>`;
   box.innerHTML = `<div class="check${on.length ? ' done' : ''}" style="display:block;margin-top:8px">
       <div style="display:flex;align-items:center;gap:12px">
         <div class="ico">💊</div>
-        <div class="txt"><strong>영양제 ${on.length}/${SUPP5.length} ${on.length === SUPP5.length ? '✅' : ''}</strong><span class="sub">셀체인지 ${camp.day_no}일째 · 먹은 때를 눌러 주세요</span></div>
+        <div class="txt"><strong>영양제 ${plan ? `${on.length}/${SUPP5.length} ${on.length === SUPP5.length ? '✅' : ''}` : ''}</strong><span class="sub">셀체인지 ${camp.day_no}일째 · ${plan ? '먹은 때를 눌러 주세요' : '내 안을 골라 주세요'}</span></div>
       </div>
-      <div class="supp5">${SUPP5.map(([k, when, what]) => `<button type="button" data-supp="${k}" class="${on.includes(k) ? 'on' : ''}"><b>${when}${on.includes(k) ? ' ✓' : ''}</b><small>${what}</small></button>`).join('')}</div>
-      <p class="sub" style="margin-top:6px;font-size:12px">이=이뮨 · 제=제놀 · 오=오메가3 · 데=데일리 · 숫자는 알 수</p>
+      ${body}
     </div>
     ${q ? `<div class="got" style="margin-top:8px">🚩 ${camp.day_no}일 이정표 · ${q}</div>` : ''}
     <p class="sub" style="margin-top:8px">📷 식단 사진은 나만 봐요. 히스토리에서 「조에 보이기」를 누른 사진만 조에 보여요.</p>`;
@@ -334,6 +340,13 @@ function paintCamp() {
     b.disabled = true;
     try { camp = await rpc('life_supp', { p_token: token, p_slot: b.dataset.supp, p_on: !b.classList.contains('on') }); paintCamp(); loadSocial(); }
     catch (x) { toast(x.message); b.disabled = false; }
+  });
+  box.querySelectorAll('[data-plan]').forEach(b => b.onclick = async () => {
+    const p = +b.dataset.plan;
+    if (!confirm(`${p}안으로 정할까요?\n이뮨을 한 번에 ${p}알, 하루 ${p * 2}알 먹어요.\n정하면 12주 동안 바꿀 수 없어요.`)) return;
+    b.disabled = true;
+    try { camp = await rpc('life_set_plan', { p_token: token, p_plan: p }); paintCamp(); }
+    catch (x) { toast(x.message === 'plan_set' ? '이미 안을 정했어요' : x.message); b.disabled = false; }
   });
 }
 async function loadCamp() {
