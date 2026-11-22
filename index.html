@@ -206,6 +206,17 @@
 const SB_URL = 'https://trlnatdkebjvgiqneulv.supabase.co';
 const SB_KEY = 'sb_publishable_BqE1VCDg50oi9zCflCjMuw_wYF55CTj';
 const FACES = ['😫','😐','😄'], FACE_NAMES = ['나쁨', '보통', '좋음'];
+/* 컨디션 이유 칸: 좋음·나쁨을 고르면 열린다. 보통은 이유 없이 저장(2026-11-22 룡) */
+function whyBox(v, open) {
+  return `<div class="whyBox"${open ? '' : ' hidden'} style="margin-top:8px">
+    <input id="why" maxlength="60" placeholder="예) 야식 먹고 늦게 잠" autocomplete="off" value="${esc(v)}">
+    <p class="sub" style="margin-top:4px;font-size:12px">왜 그런지 가볍게 한 줄 · 조장·관리자와 나만 봐요</p></div>`;
+}
+function showWhy(root, face) {
+  const w = root.querySelector('.whyBox'); if (!w) return;
+  w.hidden = face === 2;
+  if (!w.hidden) setTimeout(() => { const i = w.querySelector('input'); if (i) i.focus(); }, 0);
+}
 const CHEERS = {
   exercise: ['운동 완료! 몸이 고마워해요 💪','오늘도 해냈어요 🔥','한 걸음 더 건강해졌어요 🌱'],
   diet: ['식단 체크! 잘 챙기셨어요 🥗','먹는 것도 실력이에요 🍚','오늘 한 끼도 소중하게 👍'],
@@ -679,7 +690,7 @@ function renderWake() {
       <select id="t" style="margin-top:6px">${timeOptions(4, nowRounded())}</select></div>
       <label class="f" style="margin-top:0">오늘 컨디션은요?</label>
       <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
-      <input id="why" maxlength="60" placeholder="왜 그런가요? 한 줄로 (예: 6시간 잠, 개운함) · 리더와 나만 봐요" autocomplete="off" style="margin-top:8px">
+      ${whyBox('', false)}
       <div class="err" id="err"></div>
       <button class="main" id="go">일어났어요 ☀️</button>
       ${locked ? emergencyBtn() : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}
@@ -690,12 +701,13 @@ function renderWake() {
   document.querySelectorAll('.faces button').forEach(b => b.onclick = () => {
     faceSel = +b.dataset.v;
     document.querySelectorAll('.faces button').forEach(x => x.classList.toggle('on', x === b));
+    showWhy(document, faceSel);
   });
   document.getElementById('go').onclick = () => {
     if (!faceSel) { document.getElementById('err').textContent = '컨디션을 골라 주세요.'; return; }
-    /* 컨디션 이유 한 줄은 필수(2026-11-20 룡) */
-    const why = byId('why').value.trim();
-    if (!why) { document.getElementById('err').textContent = '컨디션이 왜 그런지 한 줄 적어 주세요.'; byId('why').focus(); return; }
+    /* 이유는 좋음·나쁨일 때만 필수, 보통은 없이 저장(2026-11-22 룡. 이전: 셋 다 필수 11-20) */
+    const why = faceSel === 2 ? '' : byId('why').value.trim();
+    if (faceSel !== 2 && !why) { document.getElementById('err').textContent = `왜 ${FACE_NAMES[faceSel - 1]}인지 한 줄 적어 주세요.`; byId('why').focus(); return; }
     unlockPhone(); wakeDone();
     act('life_wake', { p_token: token, p_time: fixed ? document.getElementById('t').value : t, p_condition: faceSel, p_note: why });
   };
@@ -883,15 +895,16 @@ function renderToday() {
       <select id="t" style="margin-top:6px">${timeOptions(4, d.wake ? hm(d.wake) : nowRounded())}</select>
       <label class="f">오늘 컨디션은요?</label>
       <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" class="${face === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
-      <input id="why" maxlength="60" placeholder="왜 그런가요? 한 줄로 (예: 6시간 잠, 개운함) · 리더와 나만 봐요" autocomplete="off" value="${esc(d.condition_note || '')}" style="margin-top:8px">
+      ${whyBox(d.condition_note || '', face === 1 || face === 3)}
       <div class="err" id="err"></div><button class="main" id="go">고치기</button></div>`;
     box.querySelectorAll('.faces button').forEach(b => b.onclick = () => {
       face = +b.dataset.v; box.querySelectorAll('.faces button').forEach(x => x.classList.toggle('on', x === b));
+      showWhy(box, face);
     });
     byId('go').onclick = () => {
       if (!face) { byId('err').textContent = '컨디션을 골라 주세요.'; return; }
-      const why = byId('why').value.trim();
-      if (!why) { box.querySelector('.err').textContent = '컨디션이 왜 그런지 한 줄 적어 주세요.'; byId('why').focus(); return; }
+      const why = face === 2 ? '' : byId('why').value.trim();
+      if (face !== 2 && !why) { box.querySelector('.err').textContent = `왜 ${FACE_NAMES[face - 1]}인지 한 줄 적어 주세요.`; byId('why').focus(); return; }
       act('life_wake', { p_token: token, p_time: byId('t').value, p_condition: face, p_note: why }, '고쳤어요');
     };
     box.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1174,6 +1187,7 @@ async function dayEditor(day) {
     <label class="f">취침 (그날 밤)</label><select id="dBed" style="margin-top:4px"><option value="">비워 두기</option>${timeOptions(18, d.bed ? hm(d.bed) : '')}</select>
     <label class="f">컨디션</label>
     <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" class="${face === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
+    ${whyBox(d.condition_note || '', face === 1 || face === 3)}
     <div class="err" id="dErr"></div>
     <button class="main" id="dSave" type="button">기상·취침·컨디션 저장</button>
     <h2 style="margin-top:20px">🏃 운동</h2>
@@ -1195,8 +1209,14 @@ async function dayEditor(day) {
   byId('dayBox').querySelectorAll('.faces button').forEach(b => b.onclick = () => {
     const v = +b.dataset.v; face = face === v ? null : v;
     byId('dayBox').querySelectorAll('.faces button').forEach(x => x.classList.toggle('on', +x.dataset.v === face));
+    showWhy(byId('dayBox'), face === 1 || face === 3 ? face : 2);
   });
-  byId('dSave').onclick = () => run('life_fix_day', { p_token: token, p_day: day, p_wake: byId('dWake').value || null, p_bed: byId('dBed').value || null, p_condition: face }, '고쳤어요');
+  byId('dSave').onclick = () => {
+    /* 좋음·나쁨은 이유 필수, 보통·빈 컨디션은 이유 없이(2026-11-22 룡) */
+    const why = face === 1 || face === 3 ? byId('why').value.trim() : '';
+    if ((face === 1 || face === 3) && !why) { err.textContent = `왜 ${FACE_NAMES[face - 1]}인지 한 줄 적어 주세요.`; byId('why').focus(); return; }
+    run('life_fix_day', { p_token: token, p_day: day, p_wake: byId('dWake').value || null, p_bed: byId('dBed').value || null, p_condition: face, p_note: why || null }, '고쳤어요');
+  };
   byId('dExGo').onclick = () => {
     const v = byId('dEx').value.trim();
     if (!v) { err.textContent = '어떤 운동인지 적어 주세요.'; return; }
