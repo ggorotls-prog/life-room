@@ -50,6 +50,10 @@
   .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
   .slots button { min-height: 48px; padding: 0 4px; font-size: 14px; }
   .slots button.on { background: var(--main); color: var(--main-ink); }
+  .supp5 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .supp5 button { background: var(--card); border: 1px solid var(--line); min-height: 56px; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; line-height: 1.2; }
+  .supp5 button b { font-size: 13px; white-space: normal; word-break: keep-all; } .supp5 button small { font-size: 11px; font-weight: 600; word-break: keep-all; }
+  .supp5 button.on { background: #c9822b; border-color: #c9822b; color: #fff; }
   /* 오늘 끼니 버튼: 아침·점심·저녁이 한눈에 보이게 그림+이름 두 줄, 흰 바탕 테두리, 먹은 끼니는 진한 초록(2026-11-20 룡) */
   .slots.meal button { min-height: 62px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); font-weight: 700; line-height: 1.25; }
   .slots.meal button b { display: block; font-size: 20px; }
@@ -310,6 +314,8 @@ function paintSocial() {
 let camp = null;
 const CAMP_Q = { 7: '일주일 동안 쉽게 할 수 있었던 일은?', 21: '바쁜 날에도 이어갈 방법은?', 50: '내게 맞게 바꾼 실천은?', 84: '수료 뒤에도 이어가고 싶은 습관은?' };
 const MEAL3 = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁']];
+/* 영양제 = 캠프 카드 9장 시간표 5칸(2026-11-22 룡). 제품 이름은 줄임말만(이=이뮨·제=제놀·오=오메가3·데=데일리, 숫자 = 알 수) */
+const SUPP5 = [['am_pre', '아침 식전', '이2~3'], ['am_post', '아침 식후', '제1 오1 데1'], ['pm_post', '점심 식후', '제2 오1 데1'], ['eve_pre', '저녁 식전', '이2~3'], ['eve_post', '저녁 식후', '제1 오1']];
 function paintCamp() {
   const box = byId('campBox'); if (!box) return;
   if (!camp || !camp.camp) { box.innerHTML = ''; return; }
@@ -317,9 +323,10 @@ function paintCamp() {
   box.innerHTML = `<div class="check${on.length ? ' done' : ''}" style="display:block;margin-top:8px">
       <div style="display:flex;align-items:center;gap:12px">
         <div class="ico">💊</div>
-        <div class="txt"><strong>영양제 ${on.length === 3 ? '✅' : ''}</strong><span class="sub">셀체인지 ${camp.day_no}일째 · 먹은 끼니를 눌러 주세요</span></div>
+        <div class="txt"><strong>영양제 ${on.length}/${SUPP5.length} ${on.length === SUPP5.length ? '✅' : ''}</strong><span class="sub">셀체인지 ${camp.day_no}일째 · 먹은 때를 눌러 주세요</span></div>
       </div>
-      <div class="slots">${MEAL3.map(([k, name]) => `<button type="button" data-supp="${k}" class="${on.includes(k) ? 'on' : ''}">${name}${on.includes(k) ? ' ✓' : ''}</button>`).join('')}</div>
+      <div class="supp5">${SUPP5.map(([k, when, what]) => `<button type="button" data-supp="${k}" class="${on.includes(k) ? 'on' : ''}"><b>${when}${on.includes(k) ? ' ✓' : ''}</b><small>${what}</small></button>`).join('')}</div>
+      <p class="sub" style="margin-top:6px;font-size:12px">이=이뮨 · 제=제놀 · 오=오메가3 · 데=데일리 · 숫자는 알 수</p>
     </div>
     ${q ? `<div class="got" style="margin-top:8px">🚩 ${camp.day_no}일 이정표 · ${q}</div>` : ''}
     <p class="sub" style="margin-top:8px">📷 식단 사진은 나만 봐요. 히스토리에서 「조에 보이기」를 누른 사진만 조에 보여요.</p>`;
@@ -352,7 +359,7 @@ function boardIcons(b, isCamp) {
   return `<span class="pi">${pieIcon([b.ex], 'var(--main)', '운동 ' + yn(b.ex))}<i>🏃</i></span>`
     + `<span class="pi">${pieIcon([b.wake, b.bed], ['var(--sun)', '#2b3a67'], '기상 ' + yn(b.wake) + ', 취침 ' + yn(b.bed))}<i>${b.wake && !b.bed ? '☀️' : b.bed ? '🌙' : '💤'}</i></span>`
     + `<span class="pi">${pieIcon(MEAL3.map(([k]) => has(meals, k)), 'var(--main)', '식단 ' + meals.length + '/3')}<i>🥗</i></span>`
-    + (isCamp ? `<span class="pi">${pieIcon(MEAL3.map(([k]) => has(supps, k)), '#c9822b', '영양제 ' + supps.length + '/3')}<i>💊</i></span>` : '');
+    + (isCamp ? `<span class="pi">${pieIcon(SUPP5.map(([k]) => has(supps, k)), '#c9822b', '영양제 ' + supps.length + '/' + SUPP5.length)}<i>💊</i></span>` : '');
 }
 /* 관리자 화면(2026-11-20 룡 「관리자는 앱에서 사이트 페이지를 다 볼 수 있게」): 관리하는 방이 있는 사람에게만 버튼이 보인다.
    앱 로그인으로 관리자 로그인 열쇠를 받아(lc_from_life) 같은 주소의 라이프 체인저 관리자 화면으로 간다. 두 번 로그인하지 않는다 */
