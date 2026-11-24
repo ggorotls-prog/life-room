@@ -257,6 +257,7 @@
   .tabs div { max-width: 480px; margin: 0 auto; display: flex; }
   .tabs button { flex: 1; background: none; color: var(--sub); border-radius: 0; min-height: 60px; padding: 0; font-size: 13px; }
   .tabs button.on { color: var(--main); font-weight: 900; }
+  .tabs .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--err); margin-left: 4px; vertical-align: 2px; }
   #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 20px; font-size: 14px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s; }
   #toast.on { opacity: 1; }
   .loading { text-align: center; color: var(--sub); padding: 48px 0; }
@@ -273,6 +274,17 @@
   <div class="am" style="max-width:320px;text-align:center;padding:22px 16px 16px">
     <p id="askMsg" style="margin:0 0 18px;font-size:16px;font-weight:700;line-height:1.5;white-space:pre-line"></p>
     <div style="display:flex;gap:8px"><button type="button" id="askNo" style="flex:1">취소</button><button type="button" id="askYes" class="main" style="flex:1;margin:0">확인</button></div>
+  </div>
+</div>
+<div class="am-bg" id="invBg" role="dialog" aria-modal="true" aria-labelledby="invTitle" style="z-index:20" hidden>
+  <div class="am" style="max-width:340px;text-align:center;padding:22px 16px 14px">
+    <div style="font-size:34px">📩</div>
+    <p id="invTitle" style="margin:6px 0 4px;font-size:17px;font-weight:700"></p>
+    <p class="sub" id="invBy" style="margin:0 0 10px"></p>
+    <p id="invWhat" style="margin:0 0 16px;font-size:14px;line-height:1.5"></p>
+    <div style="display:flex;gap:8px"><button type="button" id="invYes" class="main" style="flex:1;margin:0">들어갈게요</button><button type="button" id="invNo" style="flex:1">안 들어갈게요</button></div>
+    <button type="button" class="am-back" id="invLater" style="margin-top:8px">나중에 정할게요</button>
+    <p class="err" id="invErr" style="margin:6px 0 0"></p>
   </div>
 </div>
 <div id="cardArea" aria-hidden="true"></div>
@@ -597,7 +609,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
+function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -794,7 +806,7 @@ function nowRounded() {
    켤 때: 이 값을 true로 + 서버에서 life_apply를 열고(grant) life_signup을 닫는다 */
 const APPLY_ON = false;
 function renderAuth(mode) {
-  $tabs.innerHTML = '';
+  $tabs.innerHTML = ''; byId('invBg').hidden = true;
   const signup = mode === 'signup', apply = signup && APPLY_ON;
   $app.innerHTML = `
     <div class="ask"><div class="big">🌱</div><h1>건강 기록</h1>
@@ -803,6 +815,7 @@ function renderAuth(mode) {
       <form id="f">
         ${signup && !apply ? '<label class="f">조 코드 (조장에게 받아요)<input id="code" autocomplete="off" autocapitalize="characters" required></label>' : ''}
         <label class="f">${signup ? '닉네임 (꼭 4자 · 꾸미는 말 2자 + 이름 2자)' : '아이디'}<input id="nick" maxlength="${signup ? 4 : 12}" ${signup ? 'placeholder="예: 깐깐룡이, 깐깐귀룡"' : ''} autocomplete="username" required></label>
+        ${signup ? '<p id="nickHint" style="margin:-4px 0 8px;font-size:13px;color:var(--err)" hidden></p>' : ''}
         <label class="f">${signup ? '비밀번호 (6자 이상, 영어+숫자)' : '비밀번호'}<input id="pw" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></label>
         ${apply ? '<label class="f">누구와 함께하나요? (초대한 분의 앱 닉네임)<input id="withNick" maxlength="12" autocomplete="off" required></label><p class="sub" style="margin:6px 0 0;font-size:13px">본명이나 전화번호는 적지 마세요. 가입 신청을 하면 운영자가 확인하고 승인해요. 승인 전에는 기록할 수 없어요.</p>' : ''}
         ${signup ? `<div class="consent"><b>시작하기 전에</b>
@@ -826,6 +839,7 @@ function renderAuth(mode) {
     </div>
     `; /* 「앱으로 받기」 카드는 지움(2026-11-20 룡: 「아예 없애」) */
   document.getElementById('sw').onclick = () => renderAuth(signup ? 'login' : 'signup');
+  if (signup) nickHint(byId('nick'), byId('nickHint'));
   if (signup) {
     const g0 = byId('go'), sync = () => { g0.disabled = !(byId('cHealth').checked && byId('cAge').checked); };
     byId('cHealth').onchange = sync; byId('cAge').onchange = sync; sync();
@@ -850,7 +864,7 @@ function renderAuth(mode) {
 
 /* 어제 취침 → 오늘 기상 → 오늘 화면 */
 function renderBedYesterday() {
-  $tabs.innerHTML = '';
+  $tabs.innerHTML = ''; byId('invBg').hidden = true;
   $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>어제 몇 시에 주무셨어요?</h1>
     <p class="sub">기억이 안 나면 대략 골라 주세요</p>
     <div class="card"><select id="t">${timeOptions(0, store.get('life_bed') || '23:00')}</select>
@@ -862,7 +876,7 @@ function renderBedYesterday() {
   };
 }
 function renderWake() {
-  $tabs.innerHTML = '';
+  $tabs.innerHTML = ''; byId('invBg').hidden = true;
   faceSel = null;
   const locked = store.get('life_lock') === '1';
   if (locked && unlockAsked) {
@@ -906,7 +920,7 @@ function renderWake() {
 
 /* 오늘 취침을 적은 뒤(새벽 4시 전): 「일어났어요」 하나만 보이는 화면. 앱은 여기에 고정된다 */
 function renderSleeping() {
-  $tabs.innerHTML = '';
+  $tabs.innerHTML = ''; byId('invBg').hidden = true;
   const d = state.day;
   if (unlockAsked) {
     $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>자는 중 · 취침 ${hm(d.bed)}</h1>${unlockCard()}</div>`;
@@ -1753,9 +1767,10 @@ function paintGroups() {
     const rows = c.members.map(b => `<div class="row${b.mine ? ' mine' : ''}"><div class="nm">${esc(b.nickname)}<span class="fire">${b.streak >= 2 ? '🔥 ' + b.streak + '일째' : ''}</span></div>${b.roster ? '' : `<div class="dots icons">${boardIcons(b, !!b.camp)}</div>`}</div>`).join('');
     return `<h2>${esc(c.name)} <span class="sub" style="font-weight:400">${c.role === 'owner' ? '명단' : '오늘'}</span></h2>${al}<div class="card" style="padding:4px 16px">${rows || '<p class="sub" style="margin:12px 0">아직 조원이 없어요.</p>'}</div>`;
   };
+  setInvCount((v.invites || []).length);
   const inv = (v.invites || []).map(i => `<div class="card" style="margin:0 0 12px"><b>📩 ${esc(i.name)}</b> <span class="sub">${i.stage}단계${i.by ? ' · ' + esc(i.by) + '님이 초대했어요' : ''}</span>
-      <p class="sub" style="margin:4px 0 0">들어가면 내 운동·식단·영양제 기록을 이 조 사람들이 함께 봐요.</p>
-      <div class="exbox"><button type="button" data-inv="${i.group}" data-yes="1" style="flex:1">들어가기</button><button type="button" data-inv="${i.group}" style="flex:1;background:var(--card);border:1.5px solid var(--line);color:var(--ink)">거절</button></div></div>`).join('');
+      <p class="sub" style="margin:4px 0 0">${invWhat(i.stage)}</p>
+      <div class="exbox"><button type="button" data-inv="${i.group}" data-yes="1" style="flex:1">들어갈게요</button><button type="button" data-inv="${i.group}" style="flex:1;background:var(--card);border:1.5px solid var(--line);color:var(--ink)">안 들어갈게요</button></div></div>`).join('');
   /* 「조 코드 넣기」는 위쪽 작은 버튼(2026-11-24 룡 「아래에 너무 크게 있어서 불편」). 누르면 칸이 펴진다. 조가 하나도 없으면 처음부터 펴 둔다 */
   $app.innerHTML = `<h1>조</h1>
     <button type="button" class="backb" id="rjOpen"${cards.length ? '' : ' hidden'}>🔑 조 코드 넣기</button>
@@ -1799,6 +1814,7 @@ function paintGroups() {
     b.disabled = true;
     try {
       await rpc('life_invite_answer', { p_token: token, p_group: +b.dataset.inv, p_yes: b.dataset.yes === '1' });
+      invSeq++; invLastCheck = 0;
       if (b.dataset.yes === '1') { toast('조에 들어갔어요 🌱'); historyItems = []; historyDone = false; }
       groupOpen = null; groupsView = null; refresh().catch(x => toast(x.message));
     } catch (x) { toast(x.message); b.disabled = false; }
@@ -1826,7 +1842,7 @@ function goTab(k) {
 }
 /* 아래 버튼 3개(2026-11-24 룡 「탭 5개는 많다」): 기록 · 히스토리 · 조. 「내 한 주」는 기록 안, 「조원 살피기」는 조 안 */
 function renderTabs() {
-  const items = [['today', '기록'], ['history', '히스토리'], ['group', '조']];
+  const items = [['today', '기록'], ['history', '히스토리'], ['group', '조' + (invCount ? '<span class="dot" aria-label="초대 있음"></span>' : '')]];
   const on = tab === 'mine' ? 'today' : tab === 'leader' ? 'group' : tab;
   $tabs.innerHTML = `<div class="tabs"><div>${items.map(([k, n]) => `<button data-tab="${k}" class="${on === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
   $tabs.querySelectorAll('button').forEach(b => b.onclick = () => goTab(b.dataset.tab));
@@ -1855,6 +1871,66 @@ async function refresh() {
   state = await rpc('life_state', { p_token: token });
   historyItems = []; historyDone = false;
   render();
+  checkInvites();
+}
+/* 조 초대 알림(2026-11-24 룡 「조에 초대받았다고 승인/거절 뜨도록」): 앱을 열면 초대가 있는지 보고 팝업을 띄운다.
+   「나중에 정할게요」를 누른 초대는 앱을 다시 열 때까지 안 띄운다(조 탭 맨 위 카드와 「조」 버튼 빨간 점은 남음) */
+let invCount = 0, invLastCheck = 0, invSeq = 0;
+const invLater = new Set();
+function invWhat(stage) {
+  return stage === 3 ? '들어가면 이 조 사람들이 내 운동·식단·영양제 기록을 볼 수 있어요. 잠든 시각·일어난 시각과 컨디션은 조장과 나만 볼 수 있어요.'
+       : stage === 2 ? '들어가면 이 조 사람들이 내 운동·식단 기록을 볼 수 있어요. 잠든 시각·일어난 시각과 컨디션은 조장과 나만 볼 수 있어요.'
+       : '들어가면 이 방 사람들이 내 운동 기록을 볼 수 있어요.';
+}
+function setInvCount(n) { if (n !== invCount) { invCount = n; if ($tabs.innerHTML) renderTabs(); } }
+/* 팝업을 띄워도 되는 때: 아래 버튼이 있는 보통 화면이고, 다른 창·입력 중인 것이 없을 때 */
+function invCanShow() {
+  return byId('invBg').hidden && tab !== 'group' && $tabs.innerHTML && !pwForced && !(state.me && state.me.need_consent)
+    && byId('amBg').hidden && byId('cnBg').hidden && !askDone && !byId('go') && !byId('exGo');
+}
+function invClose() { byId('invBg').hidden = true; }
+async function checkInvites(force) {
+  if (!token || !state || state.wait || tab === 'group' || (!force && Date.now() - invLastCheck < 60000)) return; /* 조 탭은 renderGroup이 같은 것을 부른다 */
+  invLastCheck = Date.now();
+  const tk = token, seq = ++invSeq;
+  let v; try { v = await rpc('life_groups_view', { p_token: token }); } catch (e) { return; }
+  if (tk !== token || seq !== invSeq) return; /* 그 사이 초대에 답했으면 옛 응답은 버린다 */
+  const list = v.invites || [];
+  setInvCount(list.length);
+  showInvite(list);
+}
+function showInvite(list) {
+  const i = list.find(x => !invLater.has(x.group));
+  if (!i || !invCanShow()) return;
+  byId('invTitle').textContent = i.name + '에 초대받았어요';
+  byId('invBy').textContent = i.stage + '단계 ' + (i.stage === 1 ? '방' : '조') + (i.by ? ' · ' + i.by + '님이 초대했어요' : '');
+  byId('invWhat').textContent = invWhat(i.stage);
+  byId('invErr').textContent = '';
+  const yes = byId('invYes'), no = byId('invNo');
+  yes.disabled = no.disabled = false;
+  const answer = async ok => {
+    yes.disabled = no.disabled = true;
+    try {
+      await rpc('life_invite_answer', { p_token: token, p_group: i.group, p_yes: ok });
+      invSeq++; invClose();
+      toast(ok ? (i.stage === 1 ? '방' : '조') + '에 들어갔어요 🌱' : '초대를 거절했어요');
+      groupsView = null; groupOpen = null; invLastCheck = 0;
+      refresh().catch(x => toast(x.message));
+    } catch (x) { byId('invErr').textContent = x.message; yes.disabled = no.disabled = false; }
+  };
+  yes.onclick = () => answer(true);
+  no.onclick = () => answer(false);
+  byId('invLater').onclick = () => { invLater.add(i.group); invClose(); showInvite(list); };
+  byId('invBg').hidden = false;
+}
+/* 가입 닉네임 칸 바로 아래 안내(2026-11-24 룡): 적는 동안 4자가 아니면 빨간 글, 4자가 되면 사라진다 */
+function nickHint(input, hint) {
+  if (!input || !hint) return;
+  input.oninput = () => {
+    const n = [...input.value.trim()].length;
+    hint.hidden = !(n > 0 && n !== 4);
+    hint.textContent = '닉네임은 꼭 4글자로 적어 주세요. 지금은 ' + n + '글자예요.';
+  };
 }
 /* 새 버전 알아차리기(2026-11-06 룡: 앱이 옛 화면을 계속 보여 줌). 앱으로 돌아올 때마다 서버의 파일 표식을 보고 바뀌었으면 새로 연다 */
 let siteTag = null;
@@ -2082,7 +2158,7 @@ async function xtMake(w) {
 
 /* 가입 승인(2026-11-24 룡): 가입은 코드 없이 신청 → 운영자가 승인·반려. 승인 전에는 이 화면만 보인다 */
 function renderWait() {
-  $tabs.innerHTML = ''; byId('menuBtn').hidden = true; byId('amBg').hidden = true;
+  $tabs.innerHTML = ''; byId('invBg').hidden = true; byId('menuBtn').hidden = true; byId('amBg').hidden = true;
   const rej = state.status === 'rejected', typed = byId('reNick') ? byId('reNick').value : ''; /* 다른 앱에 갔다 와도 적던 닉네임이 남게 */
   $app.innerHTML = `<div class="ask"><div class="big">${rej ? '✏️' : '⏳'}</div><h1>${rej ? '닉네임을 다시 정해 주세요' : '승인을 기다리는 중'}</h1>
     <p class="sub">${rej ? esc(state.note || '') : '운영자가 확인하면 바로 시작할 수 있어요.'}</p></div>
@@ -2185,7 +2261,7 @@ byId('cnNo').onclick = () => { byId('cnBg').hidden = true; };
 byId('cnBg').onclick = e => { if (e.target === byId('cnBg')) byId('cnBg').hidden = true; };
 byId('askYes').onclick = () => { if (askDone) askDone(true); };
 byId('askNo').onclick = () => { if (askDone) askDone(false); };
-document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (askDone) askDone(false); else if (!byId('cnBg').hidden) byId('cnBg').hidden = true; });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (askDone) askDone(false); else if (!byId('cnBg').hidden) byId('cnBg').hidden = true; else if (!byId('invBg').hidden) byId('invLater').click(); });
 byId('askBg').onclick = e => { if (e.target === byId('askBg') && askDone) askDone(false); };
 byId('amBg').onclick = e => { if (e.target === byId('amBg') && !pwForced) byId('amBg').hidden = true; };
 // 앱의 뒤로 가기(2026-11-11 룡: 꺼지지 말고 전 단계로): 열린 계정 창 → 직전 탭 → 「오늘」 → 맨 위. 더 갈 데가 없을 때만 앱이 닫힌다.
@@ -2193,6 +2269,7 @@ const tabTrail = [];
 window.appBack = () => {
   if (!byId('cnBg').hidden) { byId('cnBg').hidden = true; return true; } /* 카드뉴스 팝업이 떠 있으면 그것부터 닫는다 */
   if (askDone) { askDone(false); return true; } /* 확인창이 떠 있으면 「아니오」로 닫는다 */
+  if (!byId('invBg').hidden) { byId('invLater').click(); return true; } /* 초대 팝업은 「나중에 정할게요」로 닫는다 */
   if (!byId('amBg').hidden) {
     if (pwForced) return true; // 비밀번호를 꼭 바꿔야 할 때는 안 닫힌다
     if (!byId('pwForm').hidden || !byId('amMoView').hidden || !byId('delForm').hidden) amView('set'); else if (!byId('amSetView').hidden) amView('main'); else byId('amBg').hidden = true;
