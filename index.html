@@ -101,6 +101,7 @@
   .wdots .wd.ft { opacity: .45; }
   .slots.meal button.fast, .slots.meal button.fast:disabled { background: #3d6fb5; border-color: #3d6fb5; color: #fff; opacity: 1; }
   #bedBox:empty { display: none; }
+  #bedBox > .card { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; padding: 14px 0 4px; margin-top: 12px !important; }
   .gcards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   @media (max-width: 359px) { .gcards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .gcard { position: relative; min-height: 64px; padding: 8px 6px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); line-height: 1.3; overflow-wrap: anywhere; }
@@ -115,7 +116,7 @@
   .check .txt { flex: 1; min-width: 0; }
   .check .txt strong { display: block; font-weight: 900; }
   .check.done { background: var(--main-soft); border-color: var(--main); }
-  .check button { min-height: 44px; padding: 0 12px; font-size: 14px; white-space: nowrap; }
+  .check button:not(#bedBox button) { min-height: 44px; padding: 0 12px; font-size: 14px; white-space: nowrap; }
   .check .btns { display: flex; gap: 6px; }
   .check .pick { background: var(--main); color: var(--main-ink); }
   .row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
@@ -179,6 +180,12 @@
 <div id="app"><div class="loading">불러오는 중…</div></div>
 <div id="tabs"></div>
 <button id="menuBtn" aria-label="내 계정" hidden><span id="myName"></span> ☰</button>
+<div class="am-bg" id="askBg" role="alertdialog" aria-modal="true" aria-labelledby="askMsg" style="z-index:30" hidden>
+  <div class="am" style="max-width:320px;text-align:center;padding:22px 16px 16px">
+    <p id="askMsg" style="margin:0 0 18px;font-size:16px;font-weight:700;line-height:1.5;white-space:pre-line"></p>
+    <div style="display:flex;gap:8px"><button type="button" id="askNo" style="flex:1">취소</button><button type="button" id="askYes" class="main" style="flex:1;margin:0">확인</button></div>
+  </div>
+</div>
 <div class="am-bg" id="amBg" role="dialog" aria-modal="true" aria-labelledby="amName" hidden>
   <div class="am">
     <div class="am-head"><strong id="amName"></strong><button type="button" class="am-x" id="amClose" aria-label="닫기">✕</button></div>
@@ -362,7 +369,7 @@ function campForm(box) {
     const st = byId('cStart').value, en = byId('cEnd').value, err = byId('cErr');
     if (!plan) { err.textContent = '안을 골라 주세요.'; return; }
     if (!st || !en) { err.textContent = '시작일과 마침일을 넣어 주세요.'; return; }
-    if (!c.plan && !confirm(`${plan}안으로 정할까요?\n이뮨을 한 번에 ${plan}알, 하루 ${plan * 2}알 먹어요.\n안은 정하면 바꿀 수 없어요.`)) return;
+    if (!c.plan && !await ask(`${plan}안으로 정할까요?\n이뮨을 한 번에 ${plan}알, 하루 ${plan * 2}알 먹어요.\n안은 정하면 바꿀 수 없어요.`)) return;
     byId('cGo').disabled = true;
     try { camp = await rpc('life_set_camp', { p_token: token, p_plan: plan, p_start: st, p_end: en }); campEdit = false; campDraft = null; box.innerHTML = ''; paintCamp(); toast('캠프를 저장했어요'); }
     catch (x) { err.textContent = x.message; byId('cGo').disabled = false; }
@@ -462,6 +469,17 @@ function bindCheers() {
     b.classList.add('on');
     try { await rpc('life_cheer', { p_token: token, p_post: +b.dataset.cheer }); toast('응원을 보냈어요 👏'); loadSocial(); }
     catch (x) { b.classList.remove('on'); toast(x.message); }
+  });
+}
+/* 앱 안 확인창(2026-11-24 룡): 폰 기본 확인창은 사이트 주소가 같이 떠서 쓰지 않는다. ask('글', '예 버튼', '아니오 버튼') → true/false */
+let askDone = null;
+function ask(msg, yes, no) {
+  return new Promise(res => {
+    if (askDone) askDone(false);
+    const bg = byId('askBg');
+    byId('askMsg').textContent = msg; byId('askYes').textContent = yes || '확인'; byId('askNo').textContent = no || '취소';
+    askDone = v => { askDone = null; bg.hidden = true; res(v); };
+    bg.hidden = false; byId('askYes').focus();
   });
 }
 function toast(msg) {
@@ -835,7 +853,7 @@ let heroInfo = null;
 async function askHeroLink() {
   try { if (!heroInfo) heroInfo = await rpc('life_hero_info', { p_token: token }); } catch (e) { return; }
   if (!(heroInfo.rooms > 0) || heroInfo.link != null) return;
-  const ok = confirm('내가 속한 1단계 운동방(실명 명단)에도 운동 인증을 같이 넣을까요?\n\n확인 = 앞으로 같이 넣기\n취소 = 건강 기록에만 남기기\n\n☰ 설정에서 언제든 바꿀 수 있어요.');
+  const ok = await ask('내가 속한 1단계 운동방(실명 명단)에도 운동 인증을 같이 넣을까요?\n\n☰ 설정에서 언제든 바꿀 수 있어요.', '같이 넣기', '건강 기록에만');
   try { heroInfo = await rpc('life_set_hero_link', { p_token: token, p_on: ok }); } catch (e) {}
 }
 function exerciseCard(d) {
@@ -874,7 +892,7 @@ function dietCard(d) {
     <div class="slots meal">${SLOTS.map(([k, name]) => {
       const c = n(k), done = c > 0 && k !== 'snack', fast = (d.fasts || []).includes(k);
       /* 올린 끼니도 다시 누르면 바꿀 수 있다(2026-11-23 룡) */
-      return `<button type="button" data-slot="${k}"${done ? ' data-done="1"' : ''} class="${fast ? 'on fast' : c ? 'on' : ''}"><b>${fast ? '🙏' : SLOT_ICON[k]}</b>${name}${k === 'snack' && c ? ' ' + c : ''}${fast ? ' 금식' : done ? ' ✓' : ''}</button>`;
+      return `<button type="button" data-slot="${k}"${done ? ' data-done="1"' : ''} class="${fast ? 'on fast' : c ? 'on' : ''}"><b>${SLOT_ICON[k]}</b>${name}${k === 'snack' && c ? ' ' + c : ''}${fast ? ' 금식' : done ? ' ✓' : ''}</button>`;
     }).join('')}</div>
     <div id="mealBox"></div>
   </div>`;
@@ -889,12 +907,14 @@ function renderToday() {
     ${fixCard()}
 
     <div class="checks">
-      <div class="check${d.bed ? ' done' : ''}">
-        <div class="ico">🌙</div>
-        <div class="txt"><strong>수면 ${d.bed ? '✅' : ''}</strong><span class="sub">기상 ${hm(d.wake)}${d.condition ? ' ' + FACES[d.condition - 1] : ''}${d.condition_note ? ' ' + esc(d.condition_note) : ''}${d.bed ? ' · 취침 ' + hm(d.bed) : ''} <a href="#" id="wakeFix">기상 고치기</a></span></div>
-        <div class="btns"><button class="${d.bed ? '' : 'pick'}" id="bedBtn">${d.bed ? '고치기' : '잘게요'}</button></div>
+      <div class="check${d.bed ? ' done' : ''}" style="display:block">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="ico">🌙</div>
+          <div class="txt"><strong>수면 ${d.bed ? '✅' : ''}</strong><span class="sub">기상 ${hm(d.wake)}${d.condition ? ' ' + FACES[d.condition - 1] : ''}${d.condition_note ? ' ' + esc(d.condition_note) : ''}${d.bed ? ' · 취침 ' + hm(d.bed) : ''} <a href="#" id="wakeFix">기상 고치기</a></span></div>
+          <div class="btns"><button class="${d.bed ? '' : 'pick'}" id="bedBtn">${d.bed ? '고치기' : '잘게요'}</button></div>
+        </div>
+        <div id="bedBox"></div>
       </div>
-      <div id="bedBox"></div>
       ${exerciseCard(d)}
       ${dietCard(d)}
     </div>
@@ -913,17 +933,17 @@ function renderToday() {
     box.dataset.k = slot;
     const redo = b.dataset.done === '1'; /* 이미 올린 끼니 = 바꾸기 */
     box.innerHTML = `${redo ? `<p class="sub" style="margin:10px 0 0">${name}은 올렸어요. 새로 올리면 먼저 올린 것을 대신해요.</p>` : ''}
-      <div class="exbox" style="margin-top:10px"><button type="button" class="pick" id="mPhoto" style="flex:1">📷 ${name} 사진${redo ? ' 바꾸기' : ''}</button>${slot === 'snack' ? '' : `<button type="button" id="mFast" style="flex:1;background:#3d6fb5;color:#fff">🙏 금식</button>`}</div>
+      <div class="exbox" style="margin-top:10px"><button type="button" class="pick" id="mPhoto" style="flex:1">📷 ${name} 사진${redo ? ' 바꾸기' : ''}</button>${slot === 'snack' ? '' : `<button type="button" id="mFast" style="flex:1;background:#3d6fb5;color:#fff">금식</button>`}</div>
       <div class="exbox" style="margin-top:8px"><input id="mNote" maxlength="60" placeholder="${redo ? '글로 바꾸기' : '사진이 없으면 글로'}: 예) 김치찌개, 밥 반 공기" autocomplete="off">
       <button type="button" id="mGo">${redo ? '바꾸기' : '저장'}</button></div><div class="err" id="err"></div>`;
     byId('mPhoto').onclick = () => { pendingKind = 'diet'; pendingSlot = slot; pendingDay = null; pendingRedo = redo; $file.click(); };
     /* 금식(2026-11-24 룡 「우리 중엔 금식도 자주 하는 사람 많아」): 안 먹은 것이 아니라 금식으로 남긴다. 글 '금식'으로 저장 */
     const mf = byId('mFast');
-    if (mf) mf.onclick = () => {
-      if (!confirm(`${name}을 금식으로 적을까요?`)) return;
+    if (mf) mf.onclick = async () => {
+      if (!await ask(`${name}을 금식으로 적을까요?`, '금식으로 적기')) return;
       mf.disabled = true;
-      Promise.resolve(redo ? act('life_meal_replace', { p_token: token, p_slot: slot, p_photo: null, p_note: '금식' }, name + ' 금식으로 적었어요 🙏')
-        : act('life_post', { p_token: token, p_kind: 'diet', p_photo: null, p_slot: slot, p_note: '금식' }, name + ' 금식으로 적었어요 🙏'))
+      Promise.resolve(redo ? act('life_meal_replace', { p_token: token, p_slot: slot, p_photo: null, p_note: '금식' }, name + ' 금식으로 적었어요')
+        : act('life_post', { p_token: token, p_kind: 'diet', p_photo: null, p_slot: slot, p_note: '금식' }, name + ' 금식으로 적었어요'))
         .finally(() => { const b = byId('mFast'); if (b) b.disabled = false; });
     };
     const inp = byId('mNote');
@@ -948,21 +968,21 @@ function renderToday() {
       act('life_set_goal', { p_token: token, p_goal: +b.dataset.goal }, `이번 주 ${b.dataset.goal}일! 💪`);
     });
   };
-  document.getElementById('exBtn').onclick = () => {
-    if (!confirm('오늘 운동했어요?')) return; /* 실수로 누르는 것 막기(2026-11-24 룡) */
-    document.getElementById('exBtn').disabled = true;
+  document.getElementById('exBtn').onclick = async () => {
+    if (!await ask('오늘 운동했어요?', '했어요')) return; /* 실수로 누르는 것 막기(2026-11-24 룡) */
+    const eb = byId('exBtn'); if (eb) eb.disabled = true;
     askHeroLink().then(() => act('life_post', { p_token: token, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: null }, pick(CHEERS.exercise)))
       .finally(() => { const b = byId('exBtn'); if (b && !(state.day && state.day.exercise)) b.disabled = false; }); /* 저장이 안 됐으면 다시 누를 수 있게 */
   };
   $app.querySelectorAll('[data-exday]').forEach(b => b.onclick = async () => {
     const k = b.dataset.exday;
-    if (!confirm(`${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일에 운동했어요?`)) return;
+    if (!await ask(`${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일에 운동했어요?`, '했어요')) return;
     b.disabled = true;
     try { await askHeroLink(); await rpc('life_post_day', { p_token: token, p_day: k, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: null }); toast(pick(CHEERS.exercise)); await refresh(); }
     catch (x) { toast(x.message); b.disabled = false; }
   });
   const exOff = byId('exOff');
-  if (exOff) exOff.onclick = e => { e.preventDefault(); if (confirm('오늘 운동 기록을 취소할까요?')) act('life_exercise_off', { p_token: token }, '취소했어요'); };
+  if (exOff) exOff.onclick = async e => { e.preventDefault(); if (await ask('오늘 운동 기록을 취소할까요?', '기록 취소', '그대로 두기')) act('life_exercise_off', { p_token: token }, '취소했어요'); };
   /* 이미 적은 기상 시각·컨디션 고치기(오늘). 기존 life_wake가 오늘 줄의 두 값만 바꾼다 */
   byId('wakeFix').onclick = e => {
     e.preventDefault();
@@ -989,8 +1009,8 @@ function renderToday() {
     };
     box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
-  document.getElementById('bedBtn').onclick = () => {
-    if (!d.bed && !confirm('지금 잘게요?')) return; /* 실수로 누르는 것 막기(2026-11-24 룡) */
+  document.getElementById('bedBtn').onclick = async () => {
+    if (!d.bed && !await ask('지금 잘게요?', '잘게요')) return; /* 실수로 누르는 것 막기(2026-11-24 룡) */
     if (byId('bedBox').dataset.k === 'wake') byId('bedBox').innerHTML = '';
     byId('bedBox').dataset.k = 'bed';
     if (!d.bed) { /* 버튼 하나: 지금 시각으로 취침, 앱이면 폰 고정 */
@@ -1093,7 +1113,7 @@ async function renderHistory() {
       try { await loadHistory(); renderHistory(); } catch (x) { toast(x.message); more.disabled = false; }
     };
     $app.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
-      if (!confirm('이 기록을 지울까요?')) return;
+      if (!await ask('이 기록을 지울까요?', '지우기')) return;
       b.disabled = true;
       try { state = await rpc('life_delete_post', { p_token: token, p_id: +b.dataset.del }); }
       catch (x) { toast(x.message); b.disabled = false; return; }
@@ -1292,8 +1312,8 @@ async function dayEditor(day) {
   if (byId('dExGo')) byId('dExGo').onclick = () => {
     run('life_post_day', { p_token: token, p_day: day, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: null }, pick(CHEERS.exercise));
   };
-  byId('dayBox').querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => {
-    if (!confirm('이 기록을 지울까요?')) return;
+  byId('dayBox').querySelectorAll('[data-pdel]').forEach(b => b.onclick = async () => {
+    if (!await ask('이 기록을 지울까요?', '지우기')) return;
     run('life_delete_post', { p_token: token, p_id: +b.dataset.pdel }, '지웠어요');
   });
   byId('dayBox').querySelectorAll('[data-dslot]').forEach(b => b.onclick = () => {
@@ -1450,7 +1470,7 @@ document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible' || !token || !state) return;
   if (await checkNewSite()) return;
   if (state.today !== seoulToday()) { tab = 'today'; refresh().catch(() => {}); return; }
-  if ((tab === 'today' || tab === 'group') && !document.getElementById('go')) refresh().catch(() => {});
+  if ((tab === 'today' || tab === 'group') && !document.getElementById('go') && !askDone) refresh().catch(() => {}); /* 확인창이 떠 있으면 다시 그리지 않는다 */
 });
 
 /* ☰ 계정 창. 로그아웃은 이 앱의 모든 기기에서, 비밀번호를 바꾸면 모든 기록에서 나간다 */
@@ -1475,10 +1495,15 @@ function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hid
 function paintHeroItem() { const b = byId('amHero'); b.hidden = !(heroInfo && heroInfo.rooms > 0); byId('amHeroTxt').textContent = '🏃 운동방에도 같이 넣기: ' + (heroInfo && heroInfo.link ? '켬' : '끔'); }
 byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false; };
 byId('amClose').onclick = () => { byId('amBg').hidden = true; };
+byId('askYes').onclick = () => { if (askDone) askDone(true); };
+byId('askNo').onclick = () => { if (askDone) askDone(false); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && askDone) askDone(false); });
+byId('askBg').onclick = e => { if (e.target === byId('askBg') && askDone) askDone(false); };
 byId('amBg').onclick = e => { if (e.target === byId('amBg') && !pwForced) byId('amBg').hidden = true; };
 // 앱의 뒤로 가기(2026-11-11 룡: 꺼지지 말고 전 단계로): 열린 계정 창 → 직전 탭 → 「오늘」 → 맨 위. 더 갈 데가 없을 때만 앱이 닫힌다.
 const tabTrail = [];
 window.appBack = () => {
+  if (askDone) { askDone(false); return true; } /* 확인창이 떠 있으면 「아니오」로 닫는다 */
   if (!byId('amBg').hidden) {
     if (pwForced) return true; // 비밀번호를 꼭 바꿔야 할 때는 안 닫힌다
     if (!byId('pwForm').hidden || !byId('amMoView').hidden || !byId('delForm').hidden) amView('set'); else if (!byId('amSetView').hidden) amView('main'); else byId('amBg').hidden = true;
@@ -1498,7 +1523,7 @@ byId('amSet').onclick = () => amView('set');
 byId('amMo').onclick = openMoments;
 byId('amHero').onclick = async () => {
   const on = !(heroInfo && heroInfo.link);
-  if (on && !confirm('내가 누른 「운동했어요」를 내가 속한 1단계 운동방(실명 명단)에도 같이 넣을까요?')) return;
+  if (on && !await ask('내가 누른 「운동했어요」를 내가 속한 1단계 운동방(실명 명단)에도 같이 넣을까요?', '같이 넣기')) return;
   try { heroInfo = await rpc('life_set_hero_link', { p_token: token, p_on: on }); paintHeroItem(); toast(on ? '앞으로 운동방에도 같이 넣어요' : '이제 건강 기록에만 남겨요'); } catch (x) { toast(x.message); }
 };
 byId('amCamp').onclick = () => {
@@ -1532,7 +1557,7 @@ byId('delBack').onclick = () => amView('set');
 byId('delForm').onsubmit = async e => {
   e.preventDefault();
   byId('delErr').textContent = '';
-  if (!confirm('정말 지울까요? 지우면 되돌릴 수 없어요.')) return;
+  if (!await ask('정말 지울까요?\n지우면 되돌릴 수 없어요.', '지우기')) return;
   const btn = byId('delGo'); btn.disabled = true;
   try {
     const d = await rpc('life_delete_me', { p_token: token, p_pw: byId('delPw').value });
