@@ -281,7 +281,7 @@ function hm(t) { return t ? t.slice(0, 5) : '-'; }
 /* DB의 life_today()와 같은 계산: 서울 시각 새벽 4시가 하루 경계 */
 function seoulToday() { return new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10); }
 
-const READS = ['life_state', 'life_history', 'life_mine', 'life_leader', 'life_day', 'life_my_feedback'];
+const READS = ['life_state', 'life_my_ex_photo', 'life_history', 'life_mine', 'life_leader', 'life_day', 'life_my_feedback'];
 const APK_URL = 'https://ggorotls-prog.github.io/life-room/app/life-room.apk';
 async function rpc(fn, args) {
   let r;
@@ -508,7 +508,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
+function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -904,10 +904,12 @@ function thumbOf(dataUrl) {
   });
 }
 function openExBox() {
-  const box = byId('exBox');
-  if (box.innerHTML) { box.innerHTML = ''; return; }
+  const box0 = byId('exBox');
+  if (box0.innerHTML) { box0.innerHTML = ''; return; }
+  /* 화면이 다시 그려졌을 수 있어 그릴 때마다 상자를 새로 찾는다(사진 고르고 돌아온 뒤) */
   const paint = () => {
-    box.innerHTML = `<div class="card" style="margin-top:10px">
+    const box = byId('exBox'); if (!box) return;
+    box.innerHTML =`<div class="card" style="margin-top:10px">
       <div class="exphoto">${exDraft.photo ? `<img src="${exDraft.photo}" alt="고른 사진"><a href="#" id="exPhotoDel">사진 빼기</a>` : '<button type="button" id="exPhoto" style="width:100%">📷 사진 넣기</button>'}</div>
       <label class="f" for="exNote">무슨 운동?</label>
       <input id="exNote" maxlength="60" placeholder="예) 걷기 30분" autocomplete="off" value="${esc(exDraft.note)}" style="margin-top:6px">
@@ -925,11 +927,14 @@ function openExBox() {
   if (!f) { f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*'; f.id = 'exFile'; f.hidden = true; document.body.appendChild(f); }
   f.onchange = async () => {
     const file = f.files[0]; f.value = ''; if (!file) return;
-    try { exDraft.photo = await shrink(file); exDraft.thumb = await thumbOf(exDraft.photo); exDraft.note = byId('exNote') ? byId('exNote').value : exDraft.note; paint(); }
-    catch (x) { toast(x.message); }
+    try {
+      exDraft.photo = await shrink(file); exDraft.thumb = await thumbOf(exDraft.photo);
+      if (byId('exNote')) exDraft.note = byId('exNote').value;
+      const b = byId('exBox'); if (b && !b.innerHTML) openExBox(); else paint();
+    } catch (x) { toast(x.message); }
   };
   paint();
-  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  box0.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 async function saveEx() {
   const note = (byId('exNote').value || '').trim();
@@ -939,7 +944,8 @@ async function saveEx() {
   const data = { photo: exDraft.photo, note, day: state.today };
   const ok = await act('life_post', { p_token: token, p_kind: 'exercise', p_photo: exDraft.photo, p_slot: null, p_note: note, p_thumb: exDraft.thumb }, pick(CHEERS.exercise));
   if (!ok) { const g = byId('exGo'); if (g) g.disabled = false; else toast('저장이 안 됐어요. 다시 눌러 주세요.'); return; }
-  exDraft = { photo: null, thumb: null, note: '' }; exShareData = data;
+  exDraft = { photo: null, thumb: null, note: '' };
+  prepShare(data);
   const sh = byId('exShare'); if (sh) sh.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 /* 카톡방에 올리기: 사진이 있으면 사진 아래 흰 띠(위 날짜 작게, 아래 내용 크게) 한 장. 없으면 글 두 줄(2026-11-24 룡) */
@@ -977,26 +983,44 @@ function exCard(photo, date, note) {
     img.src = photo;
   });
 }
-async function shareEx() {
+/* 올릴 한 장은 미리 만들어 둔다. 누를 때 오래 기다리면 브라우저(아이폰)가 공유 창을 막는다 */
+let exPrepping = null;
+function prepShare(data) {
   const d = state.day, e = exToday(d);
-  let data = exShareData && exShareData.day === state.today ? exShareData : null;
-  if (!data) {
-    /* 앱을 다시 연 뒤: 내 오늘 운동 사진을 히스토리에서 찾는다 */
-    let photo = null;
-    if (e && e.thumb) try { const h = await rpc('life_history', { p_token: token, p_offset: 0 }); const p = h.find(x => x.mine && x.kind === 'exercise' && x.day === state.today); photo = p && p.photo; } catch (x) {}
-    data = { photo, note: exNote(d), day: state.today };
-  }
-  const date = exDateText(data.day), text = data.note ? date + '\n' + data.note : date;
-  try {
-    if (data.photo) {
-      const url = await exCard(data.photo, date, data.note), b64 = url.split(',')[1];
-      if (phone && phone.shareImage) { phone.shareImage(b64, text); return; }
-      const blob = await (await fetch(url)).blob(), file = new File([blob], '운동인증.jpg', { type: 'image/jpeg' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
-      if (phone) { toast('앱을 업데이트하면 사진으로 올릴 수 있어요.'); }
+  if (!d || !d.exercise) { exShareData = null; return; }
+  if (!data && exShareData && exShareData.day === state.today && exShareData.ok) return;
+  if (!data && exPrepping) return;
+  exPrepping = (async () => {
+    let photo = data ? data.photo : null, note = data ? data.note : exNote(d), ok = true;
+    if (!data && e && e.thumb) {
+      /* 앱을 다시 연 뒤: 내 오늘 운동 사진 하나만 서버에서 받는다 */
+      try { const r = await rpc('life_my_ex_photo', { p_token: token }); photo = r && r.photo; } catch (x) {}
+      if (!photo) ok = false;
     }
-    if (phone && phone.shareText) { phone.shareText(text); return; }
-    if (navigator.share) { await navigator.share({ text }); return; }
+    const day = state.today, date = exDateText(day), text = note ? date + '\n' + note : date;
+    let b64 = null, file = null;
+    if (photo) {
+      try {
+        const url = await exCard(photo, date, note); b64 = url.split(',')[1];
+        const bin = atob(b64), arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        file = new File([arr], '운동인증.jpg', { type: 'image/jpeg' });
+      } catch (x) { ok = false; }
+    }
+    exShareData = { day, text, b64, file, ok };
+  })().finally(() => { exPrepping = null; });
+}
+async function shareEx() {
+  const s = exShareData && exShareData.day === state.today ? exShareData : null;
+  if (!s || !s.ok) { toast(exPrepping ? '올릴 사진을 만드는 중이에요. 잠시 뒤 다시 눌러 주세요.' : '사진을 불러오지 못했어요. 다시 눌러 주세요.'); if (!exPrepping) { exShareData = null; prepShare(); } return; }
+  try {
+    if (s.b64) {
+      if (phone && phone.shareImage) { phone.shareImage(s.b64, s.text); return; }
+      if (navigator.canShare && navigator.canShare({ files: [s.file] })) { await navigator.share({ files: [s.file] }); return; }
+      if (phone) toast('앱을 업데이트하면 사진으로 올릴 수 있어요.');
+    }
+    if (phone && phone.shareText) { phone.shareText(s.text); return; }
+    if (navigator.share) { await navigator.share({ text: s.text }); return; }
     toast('이 화면에서는 올리기가 안 돼요. 앱을 업데이트해 주세요.');
   } catch (x) { if (x && x.name !== 'AbortError') toast('올리지 못했어요. 다시 눌러 주세요.'); }
 }
@@ -1104,7 +1128,7 @@ function renderToday() {
   };
   /* 「운동했어요」 → 사진·한 줄 창(2026-11-24 룡). 창을 여는 것이 실수 막기를 겸한다 */
   document.getElementById('exBtn').onclick = openExBox;
-  const exs = byId('exShare'); if (exs) exs.onclick = shareEx;
+  const exs = byId('exShare'); if (exs) { exs.onclick = shareEx; prepShare(); }
   $app.querySelectorAll('[data-exday]').forEach(b => b.onclick = async () => {
     const k = b.dataset.exday;
     if (!await ask(`${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일에 운동했어요?`, '했어요')) return;
@@ -1605,7 +1629,7 @@ document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible' || !token || !state) return;
   if (await checkNewSite()) return;
   if (state.today !== seoulToday()) { tab = 'today'; refresh().catch(() => {}); return; }
-  if ((tab === 'today' || tab === 'group') && !document.getElementById('go') && !askDone) refresh().catch(() => {}); /* 확인창이 떠 있으면 다시 그리지 않는다 */
+  if ((tab === 'today' || tab === 'group') && !document.getElementById('go') && !document.getElementById('exGo') && !askDone) refresh().catch(() => {}); /* 확인창이 떠 있으면 다시 그리지 않는다 */
 });
 
 /* ☰ 계정 창. 로그아웃은 이 앱의 모든 기기에서, 비밀번호를 바꾸면 모든 기록에서 나간다 */

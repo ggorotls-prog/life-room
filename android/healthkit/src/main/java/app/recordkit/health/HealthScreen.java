@@ -239,6 +239,44 @@ public abstract class HealthScreen extends Activity {
         @JavascriptInterface
         public String appName() { return appLabel(); }
 
+        // ---- 운동 인증 카톡방에 올리기(2026-11-24 룡): 폰 공유 창만 연다. 방 고르기·보내기는 본인 손 ----
+        /** 사진 한 장(사진 + 흰 띠, JPEG base64)을 공유 창으로. 파일은 캐시 cam/ 폴더(두 앱 FileProvider 모두 허용) */
+        @JavascriptInterface
+        public void shareImage(String b64, String text) {
+            runOnUiThread(() -> {
+                try {
+                    byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+                    if (bytes.length > 8_000_000) { js("window.toast && toast('사진이 너무 커서 올리지 못했어요.')"); return; }
+                    File dir = new File(getCacheDir(), "cam");
+                    dir.mkdirs();
+                    File f = new File(dir, "share.jpg");
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(f)) { out.write(bytes); }
+                    Uri uri = androidx.core.content.FileProvider.getUriForFile(HealthScreen.this, getPackageName() + ".files", f);
+                    Intent send = new Intent(Intent.ACTION_SEND).setType("image/jpeg")
+                            .putExtra(Intent.EXTRA_STREAM, uri)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    Intent chooser = Intent.createChooser(send, "카톡방에 올리기");
+                    chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(chooser);
+                } catch (Exception e) {
+                    js("window.toast && toast('올리지 못했어요. 다시 눌러 주세요.')");
+                }
+            });
+        }
+
+        /** 글만(사진 없을 때) 공유 창으로 */
+        @JavascriptInterface
+        public void shareText(String text) {
+            runOnUiThread(() -> {
+                try {
+                    Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text);
+                    startActivity(Intent.createChooser(send, "카톡방에 올리기"));
+                } catch (Exception e) {
+                    js("window.toast && toast('올리지 못했어요. 다시 눌러 주세요.')");
+                }
+            });
+        }
+
         // ---- 그 순간에 먼저 묻기(2026-11-16 룡) ----
         /** 로그인 열쇠: 알림 버튼이 앱을 열지 않고 저장할 때 쓴다 */
         @JavascriptInterface
