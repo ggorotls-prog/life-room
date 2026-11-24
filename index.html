@@ -40,6 +40,9 @@
   label.f { display: block; margin-top: 12px; font-size: 14px; font-weight: 700; }
   label.f input { margin-top: 4px; }
   .err { color: var(--err); font-size: 14px; margin-top: 10px; min-height: 20px; }
+  /* 오류가 없을 때는 빈 칸을 접어 버튼을 위 칸에 붙인다(2026-11-24 룡: 고치기·적용점 저장 버튼이 동떨어짐) */
+  #bedBox .err:empty, #fbErr:empty { min-height: 0; margin-top: 0; }
+  #bedBox .err:empty + button.main, #fbErr:empty + button.main { margin-top: 12px; }
   .switch { color: var(--main); background: none; width: 100%; font-size: 14px; margin-top: 4px; }
   .consent { background: var(--main-soft); border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: 14px; }
   .consent ul { margin: 6px 0 0; padding-left: 18px; }
@@ -128,7 +131,7 @@
   .fire { font-size: 13px; font-weight: 700; color: var(--sun); margin-left: 4px; white-space: nowrap; }
   .en { font-size: 13px; font-weight: 700; color: var(--sun); margin-left: 6px; white-space: nowrap; }
   .cheer { display: flex; align-items: center; gap: 10px; padding: 0 14px 12px; }
-  .cheer button { min-height: 40px; padding: 0 14px; }
+  .cheer button { min-height: 40px; padding: 0 14px; background: var(--card); border: 1.5px solid var(--main); color: var(--main); } /* 누르기 전도 또렷하게(2026-11-24 아내 요청) */
   .cheer button.on { background: var(--main); color: var(--main-ink); }
   .got { background: var(--main-soft); border-radius: 12px; padding: 10px 14px; margin: 0 0 12px; font-size: 15px; }
   /* 「오늘 우리 조」 한눈에 아이콘(2026-11-20) */
@@ -500,7 +503,7 @@ function dropKeys() {
 }
 function logout() { dropKeys(); token = null; store.del('life_token'); state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
 
-/* 시간 고르기: 30분 단위 */
+/* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
   let h = '', found = false;
   for (let i = 0; i < 48; i++) {
@@ -748,7 +751,7 @@ function renderBedYesterday() {
   $tabs.innerHTML = '';
   $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>어제 몇 시에 주무셨어요?</h1>
     <p class="sub">기억이 안 나면 대략 골라 주세요</p>
-    <div class="card"><select id="t">${timeOptions(18, store.get('life_bed') || '23:00')}</select>
+    <div class="card"><select id="t">${timeOptions(0, store.get('life_bed') || '23:00')}</select>
     <div class="err" id="err"></div><button class="main" id="go">다음</button></div></div>`;
   document.getElementById('go').onclick = () => {
     const v = document.getElementById('t').value;
@@ -771,7 +774,7 @@ function renderWake() {
     <p class="sub">지금 ${t}에 일어난 걸로 적어요 · <a href="#" id="fixT">시간 고치기</a></p>${alarmLine()}${lockLine()}${pinGuide()}
     <div class="card">
       <div id="tBox" hidden><label class="f" style="margin-top:0">몇 시에 일어나셨어요?</label>
-      <select id="t" style="margin-top:6px">${timeOptions(4, nowRounded())}</select></div>
+      <select id="t" style="margin-top:6px">${timeOptions(0, nowRounded())}</select></div>
       <label class="f" style="margin-top:0">오늘 컨디션은요?</label>
       <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
       ${whyBox('', false)}
@@ -994,7 +997,7 @@ function renderToday() {
     let face = d.condition || null;
     box.innerHTML = `<div class="card" style="margin-top:8px">
       <label class="f" style="margin-top:0">몇 시에 일어나셨어요?</label>
-      <select id="t" style="margin-top:6px">${timeOptions(4, d.wake ? hm(d.wake) : nowRounded())}</select>
+      <select id="t" style="margin-top:6px">${timeOptions(0, d.wake ? hm(d.wake) : nowRounded())}</select>
       <label class="f">오늘 컨디션은요?</label>
       <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" class="${face === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
       ${whyBox(d.condition_note || '', face === 1 || face === 3)}
@@ -1023,7 +1026,7 @@ function renderToday() {
     }
     document.getElementById('bedBox').innerHTML = `<div class="card" style="margin-top:8px">
       <label class="f" style="margin-top:0">몇 시에 주무세요?</label>
-      <select id="t" style="margin-top:6px">${timeOptions(18, d.bed ? hm(d.bed) : nowRounded())}</select>
+      <select id="t" style="margin-top:6px">${timeOptions(0, d.bed ? hm(d.bed) : nowRounded())}</select>
       <div class="err" id="err"></div><button class="main" id="go">오늘 마감</button></div>`;
     document.getElementById('go').onclick = () => {
       const v = document.getElementById('t').value;
@@ -1277,8 +1280,8 @@ async function dayEditor(day) {
   let face = d.condition || null, slotSel = null;
   byId('dayBox').innerHTML = `<div class="card" style="margin-bottom:12px">
     <b>${dayName(day)} 기록</b>
-    <label class="f">기상</label><select id="dWake" style="margin-top:4px"><option value="">비워 두기</option>${timeOptions(4, d.wake ? hm(d.wake) : '')}</select>
-    <label class="f">취침 (그날 밤)</label><select id="dBed" style="margin-top:4px"><option value="">비워 두기</option>${timeOptions(18, d.bed ? hm(d.bed) : '')}</select>
+    <label class="f">기상</label><select id="dWake" style="margin-top:4px"><option value="">비워 두기</option>${timeOptions(0, d.wake ? hm(d.wake) : '')}</select>
+    <label class="f">취침 (그날 밤)</label><select id="dBed" style="margin-top:4px"><option value="">비워 두기</option>${timeOptions(0, d.bed ? hm(d.bed) : '')}</select>
     <label class="f">컨디션</label>
     <div class="faces">${FACES.map((f, i) => `<button type="button" data-v="${i + 1}" class="${face === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
     ${whyBox(d.condition_note || '', face === 1 || face === 3)}
@@ -1353,7 +1356,8 @@ let groupsView = null, groupOpen = null;
 function groupCards(v) {
   const boss = r => r === 'leader' || r === 'owner';
   const cards = [];
-  (v.rooms || []).forEach(r => cards.push({ key: 'r' + r.id, stage: 1, name: r.name, role: r.role, leader: r.leader, alerts: r.alerts || [], n: r.n, what: '운동 없음', room: true }));
+  /* 운영자라서만 보이는 운동방은 뺀다(2026-11-24 룡: 조 탭은 내가 조장·조원인 조만. 운영자 화면은 따로) */
+  (v.rooms || []).filter(r => r.role !== 'owner').forEach(r => cards.push({ key: 'r' + r.id, stage: 1, name: r.name, role: r.role, leader: r.leader, alerts: r.alerts || [], n: r.n, what: '운동 없음', room: true }));
   (v.groups || []).forEach(g => cards.push({ key: 'g' + g.id, stage: g.stage || 2, name: g.name, role: g.role, leader: g.leader, alerts: g.alerts || [], members: g.members || [], n: (g.members || []).length, what: '기록 없음' }));
   return { cards, boss };
 }
