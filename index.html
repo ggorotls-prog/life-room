@@ -93,6 +93,13 @@
   .bar { flex: 1; height: 12px; border-radius: 6px; background: var(--fill); overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--main); transition: width .3s; }
   .checks { display: grid; gap: 8px; margin-top: 16px; }
+  .wdots { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 10px; }
+  .wdots .wd { background: none; padding: 0; min-height: 48px; font-size: 13px; font-weight: 700; color: var(--sub); border-radius: 8px; opacity: 1; }
+  .wdots .wd i { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin: 0 auto 2px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--card); font-style: normal; font-size: 15px; color: var(--main-ink); }
+  .wdots .wd.on i { background: var(--main); border-color: var(--main); }
+  .wdots .wd.td i { border-width: 2.5px; border-color: var(--sun); }
+  .wdots .wd.ft { opacity: .45; }
+  .slots.meal button.fast, .slots.meal button.fast:disabled { background: #3d6fb5; border-color: #3d6fb5; color: #fff; opacity: 1; }
   #bedBox:empty { display: none; }
   .check { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-height: 68px; }
   .check .ico { font-size: 28px; }
@@ -822,8 +829,21 @@ function exerciseCard(d) {
       <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''} <a href="#" id="goalBtn">수정</a>${d.exercise ? ' · <a href="#" id="exOff">취소</a>' : ''}</span></div>
       <div class="btns"><button class="${d.exercise ? '' : 'pick'}" id="exBtn"${d.exercise ? ' disabled' : ''}>${d.exercise ? '했어요' : '운동했어요'}</button></div>
     </div>
+    ${weekDots()}
     <div id="goalBox"></div>
   </div>`;
+}
+/* 이번 주 동그라미(2026-11-24 룡 「운동 사이트처럼 언제 했는지」): 일~토 7개. 한 날 = 초록 체크, 오늘 = 굵은 테두리.
+   지난 빈 날을 누르면 한 번 묻고 그날 운동을 적는다(지난 7일까지, 서버 규칙 그대로) */
+function weekDots() {
+  const st = state.week_start, days = state.week_days || [], t = state.today;
+  if (!st) return '';
+  const cell = i => {
+    const d = new Date(st + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + i);
+    const k = d.toISOString().slice(0, 10), on = days.includes(k), past = k < t;
+    return `<button type="button" class="wd${on ? ' on' : ''}${k === t ? ' td' : ''}${k > t ? ' ft' : ''}"${past && !on ? ` data-exday="${k}"` : ' disabled'} aria-label="${'일월화수목금토'[i]}요일 운동 ${on ? '함' : '안 함'}"><i>${on ? '✓' : ''}</i>${'일월화수목금토'[i]}</button>`;
+  };
+  return `<div class="wdots">${[0, 1, 2, 3, 4, 5, 6].map(cell).join('')}</div>`;
 }
 function dietCard(d) {
   const meals = d.meals || [];
@@ -831,12 +851,12 @@ function dietCard(d) {
   return `<div class="check${d.diet ? ' done' : ''}" style="display:block">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="ico">🥗</div>
-      <div class="txt"><strong>식단 ${d.diet ? '✅' : ''}</strong><span class="sub">끼니를 누르고 사진을 올려 주세요 📷 사진이 없으면 글로 적어도 돼요</span></div>
+      <div class="txt"><strong>식단 ${d.diet ? '✅' : ''}</strong><span class="sub">끼니를 누르고 사진을 올려 주세요 📷 글로 적거나 금식도 돼요</span></div>
     </div>
     <div class="slots meal">${SLOTS.map(([k, name]) => {
-      const c = n(k), done = c > 0 && k !== 'snack';
+      const c = n(k), done = c > 0 && k !== 'snack', fast = (d.fasts || []).includes(k);
       /* 올린 끼니도 다시 누르면 바꿀 수 있다(2026-11-23 룡) */
-      return `<button type="button" data-slot="${k}"${done ? ' data-done="1"' : ''} class="${c ? 'on' : ''}"><b>${SLOT_ICON[k]}</b>${name}${k === 'snack' && c ? ' ' + c : ''}${done ? ' ✓' : ''}</button>`;
+      return `<button type="button" data-slot="${k}"${done ? ' data-done="1"' : ''} class="${fast ? 'on fast' : c ? 'on' : ''}"><b>${fast ? '🙏' : SLOT_ICON[k]}</b>${name}${k === 'snack' && c ? ' ' + c : ''}${fast ? ' 금식' : done ? ' ✓' : ''}</button>`;
     }).join('')}</div>
     <div id="mealBox"></div>
   </div>`;
@@ -875,10 +895,19 @@ function renderToday() {
     box.dataset.k = slot;
     const redo = b.dataset.done === '1'; /* 이미 올린 끼니 = 바꾸기 */
     box.innerHTML = `${redo ? `<p class="sub" style="margin:10px 0 0">${name}은 올렸어요. 새로 올리면 먼저 올린 것을 대신해요.</p>` : ''}
-      <div class="exbox" style="margin-top:10px"><button type="button" class="pick" id="mPhoto">📷 ${name} 사진${redo ? ' 바꾸기' : ''}</button></div>
+      <div class="exbox" style="margin-top:10px"><button type="button" class="pick" id="mPhoto" style="flex:1">📷 ${name} 사진${redo ? ' 바꾸기' : ''}</button>${slot === 'snack' ? '' : `<button type="button" id="mFast" style="flex:1;background:#3d6fb5;color:#fff">🙏 금식</button>`}</div>
       <div class="exbox" style="margin-top:8px"><input id="mNote" maxlength="60" placeholder="${redo ? '글로 바꾸기' : '사진이 없으면 글로'}: 예) 김치찌개, 밥 반 공기" autocomplete="off">
       <button type="button" id="mGo">${redo ? '바꾸기' : '저장'}</button></div><div class="err" id="err"></div>`;
     byId('mPhoto').onclick = () => { pendingKind = 'diet'; pendingSlot = slot; pendingDay = null; pendingRedo = redo; $file.click(); };
+    /* 금식(2026-11-24 룡 「우리 중엔 금식도 자주 하는 사람 많아」): 안 먹은 것이 아니라 금식으로 남긴다. 글 '금식'으로 저장 */
+    const mf = byId('mFast');
+    if (mf) mf.onclick = () => {
+      if (!confirm(`${name}을 금식으로 적을까요?`)) return;
+      mf.disabled = true;
+      Promise.resolve(redo ? act('life_meal_replace', { p_token: token, p_slot: slot, p_photo: null, p_note: '금식' }, name + ' 금식으로 적었어요 🙏')
+        : act('life_post', { p_token: token, p_kind: 'diet', p_photo: null, p_slot: slot, p_note: '금식' }, name + ' 금식으로 적었어요 🙏'))
+        .finally(() => { const b = byId('mFast'); if (b) b.disabled = false; });
+    };
     const inp = byId('mNote');
     const go = () => {
       const v = inp.value.trim();
@@ -902,10 +931,18 @@ function renderToday() {
     });
   };
   document.getElementById('exBtn').onclick = () => {
+    if (!confirm('오늘 운동했어요?')) return; /* 실수로 누르는 것 막기(2026-11-24 룡) */
     document.getElementById('exBtn').disabled = true;
     Promise.resolve(act('life_post', { p_token: token, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: null }, pick(CHEERS.exercise)))
       .finally(() => { const b = byId('exBtn'); if (b && !(state.day && state.day.exercise)) b.disabled = false; }); /* 저장이 안 됐으면 다시 누를 수 있게 */
   };
+  $app.querySelectorAll('[data-exday]').forEach(b => b.onclick = async () => {
+    const k = b.dataset.exday;
+    if (!confirm(`${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일에 운동했어요?`)) return;
+    b.disabled = true;
+    try { await rpc('life_post_day', { p_token: token, p_day: k, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: null }); toast(pick(CHEERS.exercise)); await refresh(); }
+    catch (x) { toast(x.message); b.disabled = false; }
+  });
   const exOff = byId('exOff');
   if (exOff) exOff.onclick = e => { e.preventDefault(); if (confirm('오늘 운동 기록을 취소할까요?')) act('life_exercise_off', { p_token: token }, '취소했어요'); };
   /* 이미 적은 기상 시각·컨디션 고치기(오늘). 기존 life_wake가 오늘 줄의 두 값만 바꾼다 */
@@ -935,6 +972,7 @@ function renderToday() {
     box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
   document.getElementById('bedBtn').onclick = () => {
+    if (!d.bed && !confirm('지금 잘게요?')) return; /* 실수로 누르는 것 막기(2026-11-24 룡) */
     if (byId('bedBox').dataset.k === 'wake') byId('bedBox').innerHTML = '';
     byId('bedBox').dataset.k = 'bed';
     if (!d.bed) { /* 버튼 하나: 지금 시각으로 취침, 앱이면 폰 고정 */
