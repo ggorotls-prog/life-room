@@ -41,8 +41,8 @@
   label.f input { margin-top: 4px; }
   .err { color: var(--err); font-size: 14px; margin-top: 10px; min-height: 20px; }
   /* 오류가 없을 때는 빈 칸을 접어 버튼을 위 칸에 붙인다(2026-11-24 룡: 고치기·적용점 저장 버튼이 동떨어짐) */
-  #bedBox .err:empty, #fbErr:empty { min-height: 0; margin-top: 0; }
-  #bedBox .err:empty + button.main, #fbErr:empty + button.main { margin-top: 12px; }
+  #bedBox .err:empty, #fbErr:empty, #exErr:empty { min-height: 0; margin-top: 0; }
+  #bedBox .err:empty + button.main, #fbErr:empty + button.main, #exErr:empty + button.main { margin-top: 12px; }
   .switch { color: var(--main); background: none; width: 100%; font-size: 14px; margin-top: 4px; }
   .consent { background: var(--main-soft); border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: 14px; }
   .consent ul { margin: 6px 0 0; padding-left: 18px; }
@@ -150,6 +150,13 @@
   .post .head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
   .post .head .nm { flex: 1; font-weight: 900; overflow-wrap: anywhere; }
   .post img { display: block; width: 100%; }
+  .post img.ex { max-height: 240px; object-fit: cover; } /* 운동 사진은 낮게 잘라서(2026-11-24 룡) */
+  .exthumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex: none; }
+  .exnote { display: block; color: var(--ink); overflow-wrap: anywhere; }
+  .exphoto img { display: block; width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; }
+  .exphoto a { display: inline-block; margin-top: 6px; font-size: 14px; }
+  .exwords { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .exwords button { min-height: 36px; padding: 0 12px; font-size: 14px; font-weight: 500; background: var(--card); border: 1px solid var(--line); color: var(--ink); }
   .post .del { background: none; color: var(--sub); min-height: 36px; padding: 0 4px; font-size: 13px; }
   .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
   .tbl th { color: var(--sub); font-size: 12px; text-align: center; padding: 4px 2px; }
@@ -501,7 +508,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
+function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -863,17 +870,135 @@ async function askHeroLink() {
   try { heroInfo = await rpc('life_set_hero_link', { p_token: token, p_on: ok }); } catch (e) {}
 }
 function exerciseCard(d) {
-  /* 운동은 「했다/안 했다」만(2026-11-24 룡). 글은 안 적는다. 누르면 내가 속한 운동방에도 같이 들어간다 */
+  /* 운동은 하루 한 번 「했다/안 했다」. 누르면 사진·한 줄 창, 저장하면 내가 속한 운동방에도 같이 들어간다(2026-11-24 룡) */
   const wk = state.week, goal = state.me.goal;
   return `<div class="check${d.exercise ? ' done' : ''}" style="display:block">
     <div style="display:flex;align-items:center;gap:12px">
-      <div class="ico">🏃</div>
-      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''} <a href="#" id="goalBtn">수정</a>${d.exercise ? ' · <a href="#" id="exOff">취소</a>' : ''}</span></div>
+      ${exThumb(d) ? `<img class="exthumb" src="${esc(exThumb(d))}" alt="오늘 운동 사진">` : '<div class="ico">🏃</div>'}
+      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong>${exNote(d) ? `<span class="sub exnote">${esc(exNote(d))}</span>` : ''}<span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''} <a href="#" id="goalBtn">수정</a>${d.exercise ? ' · <a href="#" id="exOff">취소</a>' : ''}</span></div>
       <div class="btns"><button class="${d.exercise ? '' : 'pick'}" id="exBtn"${d.exercise ? ' disabled' : ''}>${d.exercise ? '했어요' : '운동했어요'}</button></div>
     </div>
+    ${d.exercise ? '<button type="button" id="exShare" style="width:100%;margin-top:10px">💬 카톡방에 올리기</button>' : ''}
+    <div id="exBox"></div>
     ${weekDots()}
     <div id="goalBox"></div>
   </div>`;
+}
+/* 운동 인증(2026-11-24 룡): 사진 또는 「무슨 운동?」 한 줄, 둘 중 하나는 꼭. 기록 탭에는 작은 사진만, 카톡방에는 한 장으로 */
+const exToday = d => (d && d.exercises && d.exercises[0]) || null;
+const exThumb = d => { const e = exToday(d); return e && e.thumb; };
+const exNote = d => { const e = exToday(d); return e && e.note && e.note !== '운동' ? e.note : ''; };
+const EX_WORDS = ['걷기', '홈트', '헬스', '러닝', '스트레칭'];
+let exDraft = { photo: null, thumb: null, note: '' }, exShareData = null;
+function thumbOf(dataUrl) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const s = 96, c = document.createElement('canvas'), k = Math.min(img.width, img.height);
+      c.width = s; c.height = s;
+      c.getContext('2d').drawImage(img, (img.width - k) / 2, (img.height - k) / 2, k, k, 0, 0, s, s);
+      res(c.toDataURL('image/jpeg', .7));
+    };
+    img.onerror = () => res(null);
+    img.src = dataUrl;
+  });
+}
+function openExBox() {
+  const box = byId('exBox');
+  if (box.innerHTML) { box.innerHTML = ''; return; }
+  const paint = () => {
+    box.innerHTML = `<div class="card" style="margin-top:10px">
+      <div class="exphoto">${exDraft.photo ? `<img src="${exDraft.photo}" alt="고른 사진"><a href="#" id="exPhotoDel">사진 빼기</a>` : '<button type="button" id="exPhoto" style="width:100%">📷 사진 넣기</button>'}</div>
+      <label class="f" for="exNote">무슨 운동?</label>
+      <input id="exNote" maxlength="60" placeholder="예) 걷기 30분" autocomplete="off" value="${esc(exDraft.note)}" style="margin-top:6px">
+      <div class="exwords">${EX_WORDS.map(w => `<button type="button" data-exw="${w}">${w}</button>`).join('')}</div>
+      <p class="sub" style="margin:6px 0 0;font-size:12px">사진이나 운동 내용 중 하나는 꼭 넣어 주세요</p>
+      <div class="err" id="exErr"></div><button class="main" id="exGo" type="button">저장</button></div>`;
+    const inp = byId('exNote');
+    inp.oninput = () => { exDraft.note = inp.value; byId('exErr').textContent = ''; };
+    box.querySelectorAll('[data-exw]').forEach(b => b.onclick = () => { inp.value = b.dataset.exw + ' '; exDraft.note = inp.value; byId('exErr').textContent = ''; inp.focus(); });
+    const ph = byId('exPhoto'); if (ph) ph.onclick = () => byId('exFile').click();
+    const pd = byId('exPhotoDel'); if (pd) pd.onclick = e => { e.preventDefault(); exDraft.photo = exDraft.thumb = null; paint(); };
+    byId('exGo').onclick = saveEx;
+  };
+  let f = byId('exFile');
+  if (!f) { f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*'; f.id = 'exFile'; f.hidden = true; document.body.appendChild(f); }
+  f.onchange = async () => {
+    const file = f.files[0]; f.value = ''; if (!file) return;
+    try { exDraft.photo = await shrink(file); exDraft.thumb = await thumbOf(exDraft.photo); exDraft.note = byId('exNote') ? byId('exNote').value : exDraft.note; paint(); }
+    catch (x) { toast(x.message); }
+  };
+  paint();
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+async function saveEx() {
+  const note = (byId('exNote').value || '').trim();
+  if (!exDraft.photo && !note) { byId('exErr').textContent = '사진이나 운동 내용 중 하나를 넣어 주세요.'; byId('exNote').focus(); return; }
+  const go = byId('exGo'); go.disabled = true;
+  await askHeroLink();
+  const data = { photo: exDraft.photo, note, day: state.today };
+  const ok = await act('life_post', { p_token: token, p_kind: 'exercise', p_photo: exDraft.photo, p_slot: null, p_note: note, p_thumb: exDraft.thumb }, pick(CHEERS.exercise));
+  if (!ok) { const g = byId('exGo'); if (g) g.disabled = false; else toast('저장이 안 됐어요. 다시 눌러 주세요.'); return; }
+  exDraft = { photo: null, thumb: null, note: '' }; exShareData = data;
+  const sh = byId('exShare'); if (sh) sh.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+/* 카톡방에 올리기: 사진이 있으면 사진 아래 흰 띠(위 날짜 작게, 아래 내용 크게) 한 장. 없으면 글 두 줄(2026-11-24 룡) */
+function exDateText(day) { const d = new Date(day + 'T00:00:00'); return `${d.getMonth() + 1}월 ${d.getDate()}일(${'일월화수목금토'[d.getDay()]})`; }
+function exCard(photo, date, note) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const W = Math.min(1080, img.width), H = Math.round(img.height * W / img.width), pad = Math.round(W * .05);
+      const ds = Math.round(W * .045), ns = Math.round(W * .075), maxW = W - pad * 2;
+      const font = 'Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+      const c = document.createElement('canvas'), g = c.getContext('2d');
+      /* 내용이 길면 두 줄까지 나누고, 그래도 넘치면 글자를 줄인다 */
+      const wrap = size => {
+        g.font = `800 ${size}px ${font}`;
+        const lines = []; let cur = '';
+        for (const ch of note) { if (g.measureText(cur + ch).width > maxW && cur) { lines.push(cur); cur = ch.trim() ? ch : ''; } else cur += ch; }
+        if (cur) lines.push(cur);
+        return lines;
+      };
+      let size = ns, lines = note ? wrap(size) : [];
+      while (lines.length > 2 && size > ds) { size -= 2; lines = wrap(size); }
+      if (lines.length > 2) { lines = lines.slice(0, 2); lines[1] = lines[1].slice(0, -1) + '…'; }
+      const lh = Math.round(size * 1.3), band = pad * 2 + Math.round(ds * 1.4) + lines.length * lh;
+      c.width = W; c.height = H + band;
+      g.drawImage(img, 0, 0, W, H);
+      g.fillStyle = '#ffffff'; g.fillRect(0, H, W, band);
+      g.textBaseline = 'top'; g.fillStyle = '#6b6a64'; g.font = `500 ${ds}px ${font}`;
+      g.fillText(date, pad, H + pad);
+      g.fillStyle = '#1f1f1d'; g.font = `800 ${size}px ${font}`;
+      lines.forEach((t, i) => g.fillText(t, pad, H + pad + Math.round(ds * 1.4) + i * lh));
+      res(c.toDataURL('image/jpeg', .9));
+    };
+    img.onerror = () => rej(new Error('사진을 읽지 못했어요.'));
+    img.src = photo;
+  });
+}
+async function shareEx() {
+  const d = state.day, e = exToday(d);
+  let data = exShareData && exShareData.day === state.today ? exShareData : null;
+  if (!data) {
+    /* 앱을 다시 연 뒤: 내 오늘 운동 사진을 히스토리에서 찾는다 */
+    let photo = null;
+    if (e && e.thumb) try { const h = await rpc('life_history', { p_token: token, p_offset: 0 }); const p = h.find(x => x.mine && x.kind === 'exercise' && x.day === state.today); photo = p && p.photo; } catch (x) {}
+    data = { photo, note: exNote(d), day: state.today };
+  }
+  const date = exDateText(data.day), text = data.note ? date + '\n' + data.note : date;
+  try {
+    if (data.photo) {
+      const url = await exCard(data.photo, date, data.note), b64 = url.split(',')[1];
+      if (phone && phone.shareImage) { phone.shareImage(b64, text); return; }
+      const blob = await (await fetch(url)).blob(), file = new File([blob], '운동인증.jpg', { type: 'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+      if (phone) { toast('앱을 업데이트하면 사진으로 올릴 수 있어요.'); }
+    }
+    if (phone && phone.shareText) { phone.shareText(text); return; }
+    if (navigator.share) { await navigator.share({ text }); return; }
+    toast('이 화면에서는 올리기가 안 돼요. 앱을 업데이트해 주세요.');
+  } catch (x) { if (x && x.name !== 'AbortError') toast('올리지 못했어요. 다시 눌러 주세요.'); }
 }
 /* 이번 주 동그라미(2026-11-24 룡 「운동 사이트처럼 언제 했는지」): 일~토 7개. 한 날 = 초록 체크, 오늘 = 굵은 테두리.
    지난 빈 날을 누르면 한 번 묻고 그날 운동을 적는다(지난 7일까지, 서버 규칙 그대로) */
@@ -977,12 +1102,9 @@ function renderToday() {
       act('life_set_goal', { p_token: token, p_goal: +b.dataset.goal }, `이번 주 ${b.dataset.goal}일! 💪`);
     });
   };
-  document.getElementById('exBtn').onclick = async () => {
-    if (!await ask('오늘 운동했어요?', '했어요')) return; /* 실수로 누르는 것 막기(2026-11-24 룡) */
-    const eb = byId('exBtn'); if (eb) eb.disabled = true;
-    askHeroLink().then(() => act('life_post', { p_token: token, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: null }, pick(CHEERS.exercise)))
-      .finally(() => { const b = byId('exBtn'); if (b && !(state.day && state.day.exercise)) b.disabled = false; }); /* 저장이 안 됐으면 다시 누를 수 있게 */
-  };
+  /* 「운동했어요」 → 사진·한 줄 창(2026-11-24 룡). 창을 여는 것이 실수 막기를 겸한다 */
+  document.getElementById('exBtn').onclick = openExBox;
+  const exs = byId('exShare'); if (exs) exs.onclick = shareEx;
   $app.querySelectorAll('[data-exday]').forEach(b => b.onclick = async () => {
     const k = b.dataset.exday;
     if (!await ask(`${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일에 운동했어요?`, '했어요')) return;
@@ -1104,7 +1226,7 @@ function historyHtml() {
       ${p.mine ? `<button class="del" data-del="${p.id}">지우기</button>` : ''}</div>
       ${p.note ? `<p style="padding:0 14px 12px;font-size:15px">${esc(p.note)}</p>` : ''}
       ${p.shared === false ? `<p class="sub" style="padding:0 14px 12px">${p.mine ? '🔒 나만 보는 기록이에요' : '🔒 올렸어요 (내용은 본인만 봐요)'}</p>` : ''}
-      ${p.photo ? `<img src="${esc(p.photo)}" alt="${label[p.kind]} 사진" loading="lazy">` : ''}
+      ${p.photo ? `<img${p.kind === 'exercise' ? ' class="ex"' : ''} src="${esc(p.photo)}" alt="${label[p.kind]} 사진" loading="lazy">` : ''}
       <div class="cheer"${p.photo ? ' style="padding-top:12px"' : ''}><button type="button" data-cheer="${p.id}"${p.mine ? ' disabled' : ''}>👏 응원</button><span class="sub"></span></div>
     </div>`).join('');
   return `<h1>히스토리</h1><p class="sub" style="margin-bottom:12px">내가 속한 조 사람들이 올린 것을 한 줄로 봐요</p>
