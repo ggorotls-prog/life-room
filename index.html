@@ -114,6 +114,25 @@
   .galert { position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--err); color: #fff; font-size: 13px; font-style: normal; font-weight: 900; line-height: 22px; text-align: center; }
   .gwarn { background: #fdecec; color: #8f1d1d; border-radius: 12px; padding: 12px 14px; margin: 12px 0; font-size: 14px; line-height: 1.6; }
   .gwarn b { display: block; margin-bottom: 2px; }
+  .thru { background: var(--main-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; text-align: center; font-size: 15px; line-height: 1.4; }
+  .thru b { display: block; font-size: 26px; color: var(--main); }
+  .backb { width: auto; margin: 0 0 8px; padding: 6px 12px; font-size: 14px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); }
+  .mem { border-top: 1px solid var(--line); padding: 12px 0; }
+  .mem:first-child { border-top: 0; }
+  .mem-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .mem-h b { font-size: 16px; overflow-wrap: anywhere; } .mem-h small { color: var(--sub); font-size: 12px; font-weight: 400; }
+  .mem-h button { width: auto; margin: 0; font-size: 12px; padding: 4px 8px; flex: none; }
+  .mem-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+  .mem-sum > div { background: var(--fill); border-radius: 10px; padding: 6px 4px; text-align: center; min-width: 0; }
+  .mem-sum small { display: block; font-size: 11px; color: var(--sub); } .mem-sum b { font-size: 13px; display: block; }
+  .mem-sum .cbtns { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+  .mem-sum .cbtn { width: auto; margin: 0; font-size: 12px; padding: 1px 3px; min-height: 0; border-radius: 6px; background: var(--card); border: 1px solid var(--line); color: var(--ink); line-height: 1.3; }
+  .mem-why { margin-top: 6px; background: var(--fill); border-radius: 8px; padding: 6px 10px; font-size: 14px; overflow-wrap: anywhere; }
+  .mem details { margin-top: 8px; } .mem summary { font-size: 13px; color: var(--sub); cursor: pointer; }
+  .mem .scroll { overflow-x: auto; }
+  .codeRow { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--fill); border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
+  .codeRow .code { font-family: monospace; font-size: 18px; font-weight: 800; letter-spacing: .08em; }
+  .codeRow button { width: auto; margin: 0; font-size: 13px; padding: 6px 10px; }
   .check { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-height: 68px; }
   .check .ico { font-size: 28px; }
   .check .txt { flex: 1; min-width: 0; }
@@ -279,7 +298,7 @@ function hm(t) { return t ? t.slice(0, 5) : '-'; }
 /* DB의 life_today()와 같은 계산: 서울 시각 새벽 4시가 하루 경계 */
 function seoulToday() { return new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10); }
 
-const READS = ['life_state', 'life_my_ex_photo', 'life_history', 'life_mine', 'life_leader', 'life_day', 'life_my_feedback'];
+const READS = ['life_state', 'life_my_ex_photo', 'life_history', 'life_mine', 'life_group_manage', 'life_day', 'life_my_feedback'];
 const APK_URL = 'https://ggorotls-prog.github.io/life-room/app/life-room.apk';
 async function rpc(fn, args) {
   let r;
@@ -326,7 +345,6 @@ function paintSocial() {
     b.textContent = '👏 응원' + (c ? ' ' + c.n : '');
     const who = b.parentNode.querySelector('.sub'); if (who) who.textContent = c ? c.names : '';
   });
-  const ag = byId('adminGo'); if (ag) ag.hidden = !social.admin;
   /* 조 보드를 아이콘으로 */
   const isCamp = social.stage === 3, bd = Object.fromEntries((social.board || []).map(x => [x.nickname, x]));
   document.querySelectorAll('[data-board]').forEach(el => { const b = bd[el.dataset.board]; if (b) { el.classList.add('icons'); el.innerHTML = boardIcons(b, isCamp); } });
@@ -506,7 +524,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
+function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -1479,22 +1497,104 @@ async function dayEditor(day) {
     byId('dNoPhoto').onclick = () => run('life_post_day', { p_token: token, p_day: day, p_kind: 'diet', p_photo: null, p_slot: slotSel, p_note: null }, pick(CHEERS.diet));
   });
 }
+/* 조 화면(2026-11-24 룡): 조 탭에서 내가 조장인 조 칸을 누르면 여기로 온다. 관리자 사이트에서 하던 조 관리를 앱 안에서 한다.
+   2·3단계 조 = 조원 카드(최근 7일) · 초대 코드 · 내보내기. 1단계 운동방 = 운동표·참가자 관리가 옮겨 올 때까지 관리자 사이트로 가는 길을 둔다 */
+let manageKey = null;
+function condWhy(btn) {
+  const box = btn.closest('.mem').querySelector('.mem-why'), on = box.dataset.v === btn.dataset.v && !box.hidden;
+  box.hidden = on; box.dataset.v = btn.dataset.v;
+  if (!on) box.innerHTML = btn.dataset.list ? decodeURIComponent(btn.dataset.list) : '<span class="sub">이 컨디션인 날이 없어요.</span>';
+}
+function memberCard(m, admin) {
+  const all = m.records || [], w = all.slice(0, 7), byDay = Object.fromEntries(all.map(r => [r.day, r]));
+  const wake = w.map(r => toMin(r.wake)).filter(x => x != null);
+  /* 취침은 정오 전이면 다음 날로 쳐서 평균(새벽 1시 = 25시). 잠 = 전날 취침 → 그날 기상 */
+  const bed = w.map(r => toMin(r.bed)).filter(x => x != null).map(x => x < 720 ? x + 1440 : x);
+  const sleep = w.map(r => {
+    const prev = new Date(r.day + 'T00:00:00Z'); prev.setUTCDate(prev.getUTCDate() - 1);
+    const p = byDay[prev.toISOString().slice(0, 10)], b = p ? toMin(p.bed) : null, k = toMin(r.wake);
+    return b == null || k == null ? null : (k + 1440 - b) % 1440;
+  }).filter(x => x != null && x > 0);
+  const sl = sleep.length ? Math.round(avg(sleep)) : null;
+  const ex = w.filter(r => r.exercise).length;
+  const condBtn = v => {
+    const rows = w.filter(r => r.condition === v);
+    const list = rows.map(r => `<div>${r.day.slice(5).replace('-', '/')} ${FACES[v - 1]} ${r.condition_note ? esc(r.condition_note) : '<span class="sub">이유 없음</span>'}</div>`).join('');
+    return `<button type="button" class="cbtn" data-v="${v}" data-list="${encodeURIComponent(list)}">${FACES[v - 1]}${rows.length}</button>`;
+  };
+  const canKick = !m.me && (!m.leader || admin);
+  return `<div class="mem"><div class="mem-h"><b>${esc(m.nickname)}${m.leader ? ' ⭐' : ''}${m.me ? ' <small>(나)</small>' : ''}${m.plan ? ` <small>💊${m.plan}안</small>` : ''}</b>${canKick ? `<button type="button" class="switch" data-kick="${esc(m.nickname)}">내보내기</button>` : ''}</div>
+    <div class="mem-sum">
+      <div><small>평균 수면</small><b>${sl != null ? Math.floor(sl / 60) + '시간 ' + (sl % 60) + '분' : '-'}</b><small>기상 ${wake.length ? fromMin(avg(wake)) : '-'} · 취침 ${bed.length ? fromMin(avg(bed)) : '-'}</small></div>
+      <div><small>운동 (최근 7일)</small><b>${ex}/${m.goal || '-'}일</b></div>
+      <div><small>컨디션 · 눌러 보기</small><b class="cbtns">${condBtn(3)}${condBtn(2)}${condBtn(1)}</b></div>
+    </div>
+    <div class="mem-why" hidden></div>
+    ${feedbackPin(m.feedback, '스스로 정한 적용점')}
+    <details><summary>날짜별 표 보기 (2주)</summary><div class="scroll">${recordTable(all)}</div></details></div>`;
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast('복사했어요'); }
+  catch (e) { toast('복사가 안 돼요. 길게 눌러 복사해 주세요.'); }
+}
 async function renderLeader() {
-  $app.innerHTML = '<div class="loading">불러오는 중…</div>';
-  try {
-    const list = await rpc('life_leader', { p_token: token });
-    if (tab !== 'leader') return;
-    $app.innerHTML = `<h1>조원 살피기</h1><p class="sub">심방 때 참고해 주세요. 여기 내용은 다른 곳에 옮기지 않아요.</p>
-      ${list.map(m => `<h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px">${esc(m.nickname)}${m.leader || m.me ? '' : `<button type="button" class="switch" data-kick="${esc(m.nickname)}" style="width:auto;margin:0;font-size:13px;padding:6px 10px">내보내기</button>`}</h2>${feedbackPin(m.feedback, '스스로 정한 적용점')}<div class="card">${recordTable(m.records)}</div>`).join('')}`;
-    /* 잘못 들어온 사람 내보내기(2026-11-20 룡): 조에서만 빠지고 기록·계정은 본인에게 남는다 */
-    $app.querySelectorAll('[data-kick]').forEach(b => b.onclick = async () => {
-      const nick = b.dataset.kick;
-      if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '정말 내보내기'; return; }
-      b.disabled = true;
-      try { await rpc('life_leader_kick', { p_token: token, p_nick: nick }); toast(nick + '님을 조에서 내보냈어요'); renderLeader(); }
-      catch (x) { toast(x.message); b.disabled = false; }
-    });
-  } catch (x) { if (token) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+  const key = manageKey, seq = screenSeq, tk = token;
+  const still = () => tab === 'leader' && key === manageKey && seq === screenSeq && tk === token;
+  const back = '<button type="button" class="backb" id="mgBack">‹ 조</button>';
+  const bindBack = () => { const b = byId('mgBack'); if (b) b.onclick = () => goTab('group'); };
+  const card = groupsView ? groupCards(groupsView).cards.find(c => c.key === key) : null;
+  if (!key || !card || card.role !== 'leader') { tab = 'group'; renderTabs(); return renderGroup(); }
+  const al = card.alerts.length ? `<div class="gwarn">${card.alerts.map(a => `<div>🚨 ${esc(a.nickname)} · ${a.days}일째 ${card.what}</div>`).join('')}</div>` : '';
+  if (key[0] === 'r') {
+    /* 1단계 운동방: 운동표 · 참가자 관리 · 기수는 다음 칸에서 옮겨 온다 */
+    $app.innerHTML = `${back}<h1>${esc(card.name)} <span class="sub" style="font-weight:400;font-size:14px">1단계 운동방 · ${card.n}명</span></h1>${al}
+      <div class="card"><p class="sub" style="margin:0 0 10px">운동표 · 참가자 관리 · 기수는 곧 이 화면으로 옮겨 와요. 그때까지는 관리자 사이트에서 해 주세요.</p>
+      <button type="button" id="adminGo" style="width:100%">🛠 관리자 사이트 열기</button></div>`;
+    bindBack(); byId('adminGo').onclick = goAdmin;
+    return;
+  }
+  const gid = +key.slice(1);
+  $app.innerHTML = back + '<div class="loading">불러오는 중…</div>'; bindBack();
+  let g;
+  try { g = await rpc('life_group_manage', { p_token: token, p_group: gid }); }
+  catch (x) { if (still() && token) { $app.innerHTML = `${back}<p class="err">${esc(x.message)}</p>`; bindBack(); } return; }
+  if (!still()) return;
+  const rows = (card.members || []).map(b => `<div class="row${b.mine ? ' mine' : ''}"><div class="nm">${esc(b.nickname)}<span class="fire">${b.streak >= 2 ? '🔥 ' + b.streak + '일째' : ''}</span></div><div class="dots icons">${boardIcons(b, !!b.camp)}</div></div>`).join('');
+  $app.innerHTML = `${back}<h1>${esc(g.name)} <span class="sub" style="font-weight:400;font-size:14px">${g.stage}단계 · ${g.members.length}명</span></h1>${al}
+    ${rows ? `<h2>오늘</h2><div class="card" style="padding:4px 16px">${rows}</div>` : ''}
+    <h2>조원</h2><p class="sub" style="margin:-4px 0 8px">심방 때 참고해 주세요. 여기 내용은 다른 곳에 옮기지 않아요.</p>
+    <div class="card" style="padding:4px 16px">${g.members.map(m => memberCard(m, g.admin)).join('') || '<p class="sub" style="margin:12px 0">아직 조원이 없어요. 아래 초대 코드를 보내 주세요.</p>'}</div>
+    <h2>🎟 조원 초대</h2>
+    <div class="card"><p class="sub" style="margin:0">이 조는 늘 이 코드 하나예요. 여러 명이 써도 돼요.</p>
+      <div class="codeRow"><span class="code">${esc(g.code || '-')}</span><span>${g.code ? `<button type="button" data-copy="${esc(g.code)}">복사</button>` : ''}${g.admin ? ' <button type="button" class="switch" id="mgNewCode">새 코드로 바꾸기</button>' : ''}</span></div>
+      ${g.admin ? `<p class="sub" style="margin:6px 0 0;font-size:12px">새 코드로 바꾸면 옛 코드로는 더 못 들어와요. 이미 들어온 사람은 그대로예요.</p>
+      <h2 style="margin-top:14px">⭐ 조장 초대 <span class="sub" style="font-weight:400">한 번 쓰는 코드</span></h2>
+      ${g.invites.map(i => `<div class="codeRow"><span class="code">${esc(i.code)}</span><button type="button" data-copy="${esc(i.code)}">복사</button></div>`).join('') || '<p class="sub" style="margin:6px 0 0">남은 조장 초대 코드가 없어요.</p>'}
+      <button type="button" id="mgInvL" style="width:100%;margin-top:8px">➕ 조장 초대 코드 만들기</button>` : ''}
+      <p class="sub" style="margin:10px 0 0;font-size:12px">새 사람은 건강 기록 첫 화면에서 「초대 코드로 가입하기」 → 초대 코드 + 닉네임 + 비밀번호로 들어와요.</p></div>`;
+  bindBack();
+  $app.querySelectorAll('.cbtn').forEach(b => b.onclick = () => condWhy(b));
+  $app.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(b.dataset.copy));
+  /* 잘못 들어온 사람 내보내기(2026-11-20 룡): 그 조에서만 빠지고 기록·계정은 본인에게 남는다 */
+  $app.querySelectorAll('[data-kick]').forEach(b => b.onclick = async () => {
+    const nick = b.dataset.kick;
+    if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '정말 내보내기'; return; }
+    b.disabled = true;
+    try {
+      await rpc('life_group_kick', { p_token: token, p_group: gid, p_nick: nick });
+      toast(nick + '님을 조에서 내보냈어요'); historyItems = []; historyDone = false;
+      try { const v = await rpc('life_groups_view', { p_token: token }); if (tk === token) groupsView = v; } catch (e) {}
+      if (still()) renderLeader();
+    } catch (x) { toast(x.message); b.disabled = false; }
+  });
+  const code = async (what, btn, msg) => {
+    btn.disabled = true;
+    try { const r = await rpc('life_group_code', { p_token: token, p_group: gid, p_what: what }); toast(msg + ' ' + r.code); if (still()) renderLeader(); }
+    catch (x) { toast(x.message); btn.disabled = false; }
+  };
+  const nc = byId('mgNewCode');
+  if (nc) nc.onclick = () => { if (nc.dataset.sure !== '1') { nc.dataset.sure = '1'; nc.textContent = '정말 바꾸기'; return; } code('new', nc, '새 초대 코드'); };
+  const il = byId('mgInvL'); if (il) il.onclick = () => code('leader', il, '조장 초대 코드');
 }
 
 /* 「조」 탭(2026-11-24 룡): 첫 화면은 기록만. 조는 여기에 모은다.
@@ -1514,14 +1614,14 @@ function paintGroups() {
   const { cards, boss } = groupCards(v);
   const mine = cards.filter(c => boss(c.role));
   const warn = mine.flatMap(c => c.alerts.map(a => ({ ...a, group: c.name, what: c.what }))).sort((x, y) => y.days - x.days);
-  if (cards.length === 1 && groupOpen == null) groupOpen = cards[0].key;
-  const open = cards.find(c => c.key === groupOpen);
+  if (cards.length === 1 && groupOpen == null && cards[0].role !== 'leader') groupOpen = cards[0].key;
+  const open = cards.find(c => c.key === groupOpen && c.role !== 'leader');
   const roleName = c => c.role === 'leader' ? '조장' : c.role === 'owner' ? (c.leader ? '조장 ' + esc(c.leader) : '운영자') : '조원';
   const sect = st => {
     const list = cards.filter(c => c.stage === st);
     if (!list.length) return '';
-    return `<h2>${st}단계</h2><div class="gcards">${list.map(c => `<button type="button" class="gcard${c.key === groupOpen ? ' on' : ''}" data-g="${esc(c.key)}"${boss(c.role) && c.alerts.length ? ` title="${esc(c.alerts.map(a => a.nickname + ' ' + a.days + '일째 ' + c.what).join(', '))}"` : ''}>
-        <b>${esc(c.name)}</b><small>${roleName(c)} · ${c.n}명</small>${boss(c.role) && c.alerts.length ? `<i class="galert" aria-label="관심이 필요한 사람 ${c.alerts.length}명">${c.alerts.length}</i>` : ''}</button>`).join('')}</div>`;
+    return `<h2>${st}단계</h2><div class="gcards">${list.map(c => `<button type="button" class="gcard${c.key === groupOpen && c.role !== 'leader' ? ' on' : ''}" data-g="${esc(c.key)}"${boss(c.role) && c.alerts.length ? ` title="${esc(c.alerts.map(a => a.nickname + ' ' + a.days + '일째 ' + c.what).join(', '))}"` : ''}>
+        <b>${esc(c.name)}</b><small>${roleName(c)} · ${c.n}명${c.role === 'leader' ? ' ›' : ''}</small>${boss(c.role) && c.alerts.length ? `<i class="galert" aria-label="관심이 필요한 사람 ${c.alerts.length}명">${c.alerts.length}</i>` : ''}</button>`).join('')}</div>`;
   };
   const detail = c => {
     if (!c) return '';
@@ -1532,16 +1632,19 @@ function paintGroups() {
     return `<h2>${esc(c.name)} <span class="sub" style="font-weight:400">${c.role === 'owner' ? '명단' : '오늘'}</span></h2>${al}<div class="card" style="padding:4px 16px">${rows || '<p class="sub" style="margin:12px 0">아직 조원이 없어요.</p>'}</div>`;
   };
   $app.innerHTML = `<h1>조</h1>
+    ${v.through > 0 ? `<div class="thru">나를 통해 지금<b>${v.through}명</b>의 삶이 변하는 중</div>` : ''}
     ${warn.length ? `<div class="gwarn"><b>관심이 필요한 사람 ${warn.length}명</b>${warn.slice(0, 8).map(a => `<div>${esc(a.nickname)} · ${esc(a.group)} · ${a.days}일째 ${a.what}</div>`).join('')}${warn.length > 8 ? `<div>…그 밖에 ${warn.length - 8}명</div>` : ''}</div>` : ''}
     ${cards.length ? sect(1) + sect(2) + sect(3) : ''}
     <div id="gDetail">${detail(open)}</div>
-    ${state.me.is_leader ? '<button type="button" id="leaderGo" style="width:100%;margin-top:12px">👀 조원 살피기</button>' : ''}
-    <button type="button" id="adminGo"${social && social.admin ? '' : ' hidden'} style="width:100%;margin-top:12px">🛠 조 관리</button>
     ${cards.some(c => !c.room) ? '' : `<div class="card" style="margin-top:16px"><p class="sub" style="margin:0 0 8px">조장에게 받은 초대 코드를 넣으면 조에 들어가요.</p>
       <div class="exbox"><input id="rjCode" maxlength="12" placeholder="초대 코드" autocomplete="off" style="text-transform:uppercase"><button class="pick" id="rjGo" type="button">들어가기</button></div><div class="err" id="rjErr"></div></div>`}`;
-  $app.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { groupOpen = groupOpen === b.dataset.g ? null : b.dataset.g; paintGroups(); if (groupOpen) byId('gDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
-  const lg = byId('leaderGo'); if (lg) lg.onclick = () => goTab('leader');
-  byId('adminGo').onclick = goAdmin; if (!social) loadSocial();
+  /* 내가 조장인 조 칸 = 그 조 화면으로 넘어간다. 조원인 조 칸 = 아래에 오늘 모습을 편다(2026-11-24 룡) */
+  $app.querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
+    const c = cards.find(x => x.key === b.dataset.g);
+    if (c && c.role === 'leader') { manageKey = c.key; goTab('leader'); return; }
+    groupOpen = groupOpen === b.dataset.g ? null : b.dataset.g; paintGroups(); if (groupOpen) byId('gDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+  if (!social) loadSocial();
   const rj = byId('rjGo');
   if (rj) rj.onclick = async () => {
     const code = byId('rjCode').value.trim();
@@ -1558,7 +1661,7 @@ async function renderGroup() {
   catch (x) { if (token && tab === 'group' && seq === screenSeq && !groupsView) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 function goTab(k) {
-  if (k !== tab) tabTrail.push(tab);
+  if (k !== tab && tab !== 'leader') tabTrail.push(tab); /* 조 화면에서 나갈 때는 뒤로 가기 기록에 넣지 않는다(다시 들어가지 않게) */
   tab = k; window.scrollTo(0, 0);
   if (tab === 'today' || tab === 'group') refresh().catch(x => toast(x.message)); else render();
 }
