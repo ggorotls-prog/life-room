@@ -93,6 +93,7 @@
   .bar { flex: 1; height: 12px; border-radius: 6px; background: var(--fill); overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--main); transition: width .3s; }
   .checks { display: grid; gap: 8px; margin-top: 16px; }
+  #bedBox:empty { display: none; }
   .check { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-height: 68px; }
   .check .ico { font-size: 28px; }
   .check .txt { flex: 1; min-width: 0; }
@@ -172,7 +173,7 @@
     <div id="amSetView" hidden>
       <button type="button" class="am-back" id="amBack">‹ 처음으로</button>
       <button type="button" class="am-item" id="amPw"><span>비밀번호 바꾸기</span><span class="am-go">›</span></button>
-      <button type="button" class="am-item" id="amCamp"><span>💊 캠프 설정</span><span class="am-go">›</span></button>
+      <button type="button" class="am-item" id="amCamp" hidden><span>💊 캠프 설정</span><span class="am-go">›</span></button>
       <button type="button" class="am-item" id="amMo" hidden><span>📲 앱이 먼저 묻기</span><span class="am-go">›</span></button>
       <button type="button" class="am-item danger" id="amDel"><span>탈퇴하고 내 기록 지우기</span><span class="am-go">›</span></button>
     </div>
@@ -352,6 +353,7 @@ function campForm(box) {
 }
 function paintCamp() {
   const box = byId('campBox'); if (!box) return;
+  if (camp && !camp.allowed) { campEdit = false; campDraft = null; box.innerHTML = ''; return; } /* 열어 준 사람(캠프 조)에게만 보인다 */
   if (campEdit) { if (camp) campForm(box); return; }
   if (byId('campForm')) return;
   if (!camp) { box.innerHTML = ''; return; }
@@ -849,15 +851,15 @@ function renderToday() {
     ${fixCard()}
 
     <div class="checks">
-      ${exerciseCard(d)}
-      ${dietCard(d)}
       <div class="check${d.bed ? ' done' : ''}">
         <div class="ico">🌙</div>
         <div class="txt"><strong>수면 ${d.bed ? '✅' : ''}</strong><span class="sub">기상 ${hm(d.wake)}${d.condition ? ' ' + FACES[d.condition - 1] : ''}${d.condition_note ? ' ' + esc(d.condition_note) : ''}${d.bed ? ' · 취침 ' + hm(d.bed) : ''} <a href="#" id="wakeFix">기상 고치기</a></span></div>
         <div class="btns"><button class="${d.bed ? '' : 'pick'}" id="bedBtn">${d.bed ? '고치기' : '잘게요'}</button></div>
       </div>
+      <div id="bedBox"></div>
+      ${exerciseCard(d)}
+      ${dietCard(d)}
     </div>
-    <div id="bedBox"></div>
     <div id="campBox"></div>
     ${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
@@ -1380,7 +1382,7 @@ function unforcePw() {
   byId('amClose').hidden = byId('pwBack').hidden = false; byId('pwMust').hidden = byId('pwConsent').hidden = true;
   byId('pwGo').textContent = '바꾸기';
 }
-function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; byId('delForm').hidden = v !== 'del'; byId('amMoView').hidden = v !== 'mo'; if (v === 'set') byId('amMo').hidden = !hasMoments(); }
+function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; byId('delForm').hidden = v !== 'del'; byId('amMoView').hidden = v !== 'mo'; if (v === 'set') { byId('amMo').hidden = !hasMoments(); byId('amCamp').hidden = !(camp && camp.allowed); } }
 byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false; };
 byId('amClose').onclick = () => { byId('amBg').hidden = true; };
 byId('amBg').onclick = e => { if (e.target === byId('amBg') && !pwForced) byId('amBg').hidden = true; };
