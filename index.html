@@ -172,6 +172,7 @@
     <div id="amSetView" hidden>
       <button type="button" class="am-back" id="amBack">‹ 처음으로</button>
       <button type="button" class="am-item" id="amPw"><span>비밀번호 바꾸기</span><span class="am-go">›</span></button>
+      <button type="button" class="am-item" id="amCamp"><span>💊 캠프 설정</span><span class="am-go">›</span></button>
       <button type="button" class="am-item" id="amMo" hidden><span>📲 앱이 먼저 묻기</span><span class="am-go">›</span></button>
       <button type="button" class="am-item danger" id="amDel"><span>탈퇴하고 내 기록 지우기</span><span class="am-go">›</span></button>
     </div>
@@ -267,22 +268,17 @@ async function rpc(fn, args) {
     if (d && d.message === 'day') throw new Error('지난 7일만 고칠 수 있어요.');
     /* 서버에 아직 없는 함수(새 기능을 화면만 먼저 올린 경우) */
     if (r.status === 404 || (d && d.code === 'PGRST202')) throw new Error('아직 준비 중인 기능이에요. 운영자에게 말해 주세요.');
+    /* 서버가 한국어로 알려 준 까닭은 그대로 보여 준다(예: 「마침일이 시작일보다 빨라요.」) */
+    if (d && d.message && /[가-힣]/.test(d.message)) throw new Error(d.message);
     if (READS.includes(fn)) throw new Error('불러오지 못했어요. 다시 열어 주세요. 계속 안 되면 운영자에게 말해 주세요.');
     throw new Error('저장이 안 됐어요. 다시 눌러 주세요. 계속 안 되면 운영자에게 말해 주세요.');
   }
   return d;
 }
 
-/* ⚡ 에너지: 운동 글에서 숫자를 뽑아 재미로 보는 점수. 칼로리가 아니다(2026-11-19 룡 「우리만의 용어로, 재미로」).
-   숫자+단위(분·km·개·세트…)를 더하고, 숫자가 없으면 5. 1~99 */
-function energyOf(note) {
-  const W = { '시간': 24, '분': 0.4, 'km': 5, '킬로미터': 5, '키로': 5, '킬로': 5, '세트': 3, '개': 0.2, '회': 0.2, '번': 0.2, '걸음': 0.003, '보': 0.003, '층': 0.5 };
-  const re = /(\d+(?:\.\d+)?)\s*(시간|분|km|킬로미터|키로|킬로|세트|개|회|번|걸음|보|층)/gi;
-  let e = 0, hit = false, m;
-  while ((m = re.exec(String(note || '')))) { e += parseFloat(m[1]) * (W[m[2].toLowerCase()] || 0); hit = true; }
-  if (!hit) e = 5;
-  return Math.max(1, Math.min(99, Math.round(e)));
-}
+/* ⚡ 에너지(2026-11-24 룡): 기록 하나 = ⚡1. 한 주 동안 얼마나 꼬박꼬박 기록했는지를 「내 한 주」에서만 본다.
+   기상 1 · 취침 1 · 끼니 하나에 1 · 운동 1 · 영양제 한 칸에 1 */
+function energyDay(r) { return (r.wake ? 1 : 0) + (r.bed ? 1 : 0) + (r.meals || []).length + (r.exercise ? 1 : 0) + (+r.supps || 0); }
 /* 서로 응원·연속 기록(2026-11-19 룡 「서로가 서로 상호작용」). 서버 life_social을 불러 화면의 빈칸만 채운다(다시 그리지 않아 적던 글이 안 지워진다) */
 let social = null;
 function doneCount(st) { const d = st && st.day; return d ? (d.exercise ? 1 : 0) + (d.diet ? 1 : 0) + (d.wake && d.bed ? 1 : 0) : 0; }
@@ -317,41 +313,78 @@ const MEAL3 = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'
 /* 영양제 = 캠프 카드 9장 시간표 5칸(2026-11-22 룡). 제품 이름은 줄임말만(이=이뮨·제=제놀·오=오메가3·데=데일리, 숫자 = 알 수) */
 /* 이뮨 알 수는 조원이 처음 한 번 고른 안을 따른다: 2안 = 한 번 2알, 3안 = 한 번 3알(12주 그대로, 1안은 없음, 2026-11-22 룡) */
 const SUPP5 = [['am_pre', '아침 식전', '이#'], ['am_post', '아침 식후', '제1 오1 데1'], ['pm_post', '점심 식후', '제2 오1 데1'], ['eve_pre', '저녁 식전', '이#'], ['eve_post', '저녁 식후', '제1 오1']];
+/* 캠프 설정(2026-11-24 룡): 본인이 캠프 유형(안)·시작일·마침일을 넣으면 그 기간에만 영양제가 나온다. 안은 처음 한 번, 날짜는 고칠 수 있다 */
+let campEdit = false, campDraft = null; /* 적던 값: 화면이 새로 그려져도 남긴다 */
+const ymd = d => d.toISOString().slice(0, 10);
+const md = s => s ? (+s.slice(5, 7)) + '월 ' + (+s.slice(8, 10)) + '일' : '';
+function campForm(box) {
+  if (byId('campForm')) return; /* 적는 중에는 다시 그리지 않는다 */
+  const c = camp || {}, dr = campDraft || {}, t0 = dr.start || c.start || state.today || seoulToday();
+  const plus = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return ymd(d); };
+  let plan = c.plan || dr.plan || null;
+  const keep = () => { campDraft = { plan, start: byId('cStart').value, end: byId('cEnd').value }; };
+  box.innerHTML = `<div class="card" id="campForm" style="margin-top:8px">
+      <h2 style="margin:0 0 6px">💊 캠프 설정</h2>
+      <label class="f" style="margin-top:0">캠프 유형</label>
+      <select id="cKind" style="margin-top:6px"><option>셀체인지 캠프 (12주)</option></select>
+      <label class="f">내 안 <span class="sub" style="font-weight:400">${c.plan ? '(처음 정한 대로 가요)' : '(처음 한 번만 정해요)'}</span></label>
+      <div class="supp5" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        ${[2, 3].map(n => `<button type="button" data-plan="${n}" class="${plan === n ? 'on' : ''}"${c.plan && c.plan !== n ? ' disabled' : ''}><b>${n}안</b><small>이뮨 한 번에 ${n}알 · 하루 ${n * 2}알</small></button>`).join('')}</div>
+      <label class="f">시작일<input type="date" id="cStart" value="${t0}"></label>
+      <label class="f">마침일<input type="date" id="cEnd" value="${dr.end || c.end || plus(t0, 83)}"></label>
+      <p class="sub" style="margin-top:6px;font-size:12px">시작일부터 마침일까지만 영양제 칸이 나와요. 날짜는 나중에 고칠 수 있어요.</p>
+      <div class="err" id="cErr"></div>
+      <button class="main" id="cGo" type="button">저장</button>
+      <button class="switch" id="cNo" type="button">닫기</button></div>`;
+  box.querySelectorAll('[data-plan]').forEach(b => b.onclick = () => { plan = +b.dataset.plan; box.querySelectorAll('[data-plan]').forEach(x => x.classList.toggle('on', x === b)); keep(); });
+  byId('cStart').onchange = () => { if (byId('cStart').value) byId('cEnd').value = plus(byId('cStart').value, 83); keep(); };
+  byId('cEnd').onchange = keep;
+  byId('cNo').onclick = () => { campEdit = false; campDraft = null; box.innerHTML = ''; paintCamp(); };
+  byId('cGo').onclick = async () => {
+    const st = byId('cStart').value, en = byId('cEnd').value, err = byId('cErr');
+    if (!plan) { err.textContent = '안을 골라 주세요.'; return; }
+    if (!st || !en) { err.textContent = '시작일과 마침일을 넣어 주세요.'; return; }
+    if (!c.plan && !confirm(`${plan}안으로 정할까요?\n이뮨을 한 번에 ${plan}알, 하루 ${plan * 2}알 먹어요.\n안은 정하면 바꿀 수 없어요.`)) return;
+    byId('cGo').disabled = true;
+    try { camp = await rpc('life_set_camp', { p_token: token, p_plan: plan, p_start: st, p_end: en }); campEdit = false; campDraft = null; box.innerHTML = ''; paintCamp(); toast('캠프를 저장했어요'); }
+    catch (x) { err.textContent = x.message; byId('cGo').disabled = false; }
+  };
+}
 function paintCamp() {
   const box = byId('campBox'); if (!box) return;
-  if (!camp || !camp.camp) { box.innerHTML = ''; return; }
-  const on = camp.supps || [], q = CAMP_Q[camp.day_no], plan = camp.plan;
-  const body = plan ? `<div class="supp5">${SUPP5.map(([k, when, what]) => `<button type="button" data-supp="${k}" class="${on.includes(k) ? 'on' : ''}"><b>${when}${on.includes(k) ? ' ✓' : ''}</b><small>${what.replace('#', plan)}</small></button>`).join('')}</div>
-      <p class="sub" style="margin-top:6px;font-size:12px">${plan}안 · 이=이뮨 · 제=제놀 · 오=오메가3 · 데=데일리 · 숫자는 알 수</p>`
-    : `<p class="sub" style="margin-top:10px"><b>처음 한 번만 골라 주세요.</b> 12주 동안 그대로 가요.</p>
-      <div class="supp5" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-        <button type="button" data-plan="2"><b>2안</b><small>이뮨 한 번에 2알 · 하루 4알</small></button>
-        <button type="button" data-plan="3"><b>3안</b><small>이뮨 한 번에 3알 · 하루 6알</small></button></div>`;
-  box.innerHTML = `<div class="check${on.length ? ' done' : ''}" style="display:block;margin-top:8px">
+  if (campEdit) { if (camp) campForm(box); return; }
+  if (byId('campForm')) return;
+  if (!camp) { box.innerHTML = ''; return; }
+  const setLink = '<a href="#" data-campset="1">캠프 설정</a>';
+  if (!camp.camp) {
+    box.innerHTML = camp.ask ? `<div class="check" style="display:block;margin-top:8px"><div style="display:flex;align-items:center;gap:12px">
+        <div class="ico">💊</div><div class="txt"><strong>셀체인지 캠프</strong><span class="sub">유형·시작일·마침일을 넣으면 그날부터 영양제 칸이 나와요</span></div>
+        <div class="btns"><button class="pick" type="button" data-campset="1">설정</button></div></div></div>`
+      : camp.start ? `<p class="sub" style="margin-top:8px">💊 캠프 ${md(camp.start)} ~ ${md(camp.end)} · ${camp.before ? '아직 시작 전이에요' : '끝났어요'} · ${setLink}</p>` : '';
+  } else {
+    const on = camp.supps || [], q = CAMP_Q[camp.day_no], plan = camp.plan;
+    box.innerHTML = `<div class="check${on.length ? ' done' : ''}" style="display:block;margin-top:8px">
       <div style="display:flex;align-items:center;gap:12px">
         <div class="ico">💊</div>
-        <div class="txt"><strong>영양제 ${plan ? `${on.length}/${SUPP5.length} ${on.length === SUPP5.length ? '✅' : ''}` : ''}</strong><span class="sub">셀체인지 ${camp.day_no}일째 · ${plan ? '먹은 때를 눌러 주세요' : '내 안을 골라 주세요'}</span></div>
+        <div class="txt"><strong>영양제 ${on.length}/${SUPP5.length} ${on.length === SUPP5.length ? '✅' : ''}</strong><span class="sub">셀체인지 ${camp.day_no}일째 · 먹은 때를 눌러 주세요</span></div>
       </div>
-      ${body}
+      <div class="supp5">${SUPP5.map(([k, when, what]) => `<button type="button" data-supp="${k}" class="${on.includes(k) ? 'on' : ''}"><b>${when}${on.includes(k) ? ' ✓' : ''}</b><small>${what.replace('#', plan)}</small></button>`).join('')}</div>
+      <p class="sub" style="margin-top:6px;font-size:12px">${plan}안 · 이=이뮨 · 제=제놀 · 오=오메가3 · 데=데일리 · 숫자는 알 수 · ${md(camp.end)}까지 · ${setLink}</p>
     </div>
     ${q ? `<div class="got" style="margin-top:8px">🚩 ${camp.day_no}일 이정표 · ${q}</div>` : ''}
     <p class="sub" style="margin-top:8px">📷 식단 사진은 나만 봐요. 히스토리에서 「조에 보이기」를 누른 사진만 조에 보여요.</p>`;
+  }
+  box.querySelectorAll('[data-campset]').forEach(b => b.onclick = e => { e.preventDefault(); campEdit = true; box.innerHTML = ''; campForm(box); });
   box.querySelectorAll('[data-supp]').forEach(b => b.onclick = async () => {
     b.disabled = true;
     try { camp = await rpc('life_supp', { p_token: token, p_slot: b.dataset.supp, p_on: !b.classList.contains('on') }); paintCamp(); loadSocial(); }
     catch (x) { toast(x.message); b.disabled = false; }
   });
-  box.querySelectorAll('[data-plan]').forEach(b => b.onclick = async () => {
-    const p = +b.dataset.plan;
-    if (!confirm(`${p}안으로 정할까요?\n이뮨을 한 번에 ${p}알, 하루 ${p * 2}알 먹어요.\n정하면 12주 동안 바꿀 수 없어요.`)) return;
-    b.disabled = true;
-    try { camp = await rpc('life_set_plan', { p_token: token, p_plan: p }); paintCamp(); }
-    catch (x) { toast(x.message === 'plan_set' ? '이미 안을 정했어요' : x.message); b.disabled = false; }
-  });
 }
 async function loadCamp() {
   paintCamp();
-  try { camp = await rpc('life_camp', { p_token: token }); paintCamp(); } catch (e) {}
+  try { camp = await rpc('life_camp', { p_token: token }); paintCamp(); }
+  catch (e) { if (campEdit) { campEdit = false; toast('캠프 설정을 불러오지 못했어요. 다시 눌러 주세요.'); } }
 }
 /* 「오늘 우리 조」 한눈에(2026-11-20 룡): 조원마다 동그라미 아이콘으로 오늘 어디까지 했는지 보인다.
    🏃 운동 = 한 번이라도 올리면 채움 / 수면 = 왼쪽 반은 기상(해, 노랑)·오른쪽 반은 취침(밤, 남색) / 식단 = 아침·점심·저녁 세 조각(간식은 뺌) / 캠프 조는 영양제 세 조각 */
@@ -390,7 +423,7 @@ async function loadSocial() {
   paintSocial();
   try {
     social = await rpc('life_social', { p_token: token }); paintSocial();
-    if (social.stage === 3) { if (byId('campBox')) loadCamp(); } else camp = null;
+    if (byId('campBox')) loadCamp();
   } catch (e) {}
 }
 /* 내 글·사진마다 「나만 보기 / 조에 보이기」(모든 조, 2026-11-20 법무 검토: 건강 기록이 남에게 보이는 앱은 숨기는 방법을 준다).
@@ -779,17 +812,15 @@ function bedAndLock(args, cheer) { lockPhone(); act('life_bed', args, cheer).the
 const SLOTS = [['breakfast', '아침'], ['lunch', '점심'], ['dinner', '저녁'], ['snack', '간식']];
 const SLOT_ICON = { breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍪' };
 function exerciseCard(d) {
-  const list = (d.exercises || []).map(e => `<div><span class="t">${e.at}</span><span>${esc(e.note || '운동')}<span class="en">⚡${energyOf(e.note)}</span></span></div>`).join('');
+  /* 운동은 「했다/안 했다」만(2026-11-24 룡). 글은 안 적는다. 누르면 내가 속한 운동방에도 같이 들어간다 */
   const wk = state.week, goal = state.me.goal;
   return `<div class="check${d.exercise ? ' done' : ''}" style="display:block">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="ico">🏃</div>
-      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''}${(d.exercises || []).length ? ' · 오늘 ⚡' + (d.exercises || []).reduce((a, e) => a + energyOf(e.note), 0) : ''} <a href="#" id="goalBtn">수정</a></span></div>
-      <div class="btns"><button class="pick" id="exBtn">운동 기록</button></div>
+      <div class="txt"><strong>운동 ${d.exercise ? '✅' : ''}</strong><span class="sub">이번 주 ${wk}/${goal}일${wk >= goal ? ' 🎉' : ''} <a href="#" id="goalBtn">수정</a>${d.exercise ? ' · <a href="#" id="exOff">취소</a>' : ''}</span></div>
+      <div class="btns"><button class="${d.exercise ? '' : 'pick'}" id="exBtn"${d.exercise ? ' disabled' : ''}>${d.exercise ? '했어요' : '운동했어요'}</button></div>
     </div>
     <div id="goalBox"></div>
-    <div id="exBox"></div>
-    ${list ? `<div class="list">${list}</div>` : ''}
   </div>`;
 }
 function dietCard(d) {
@@ -869,20 +900,12 @@ function renderToday() {
     });
   };
   document.getElementById('exBtn').onclick = () => {
-    const box = document.getElementById('exBox');
-    if (box.innerHTML) { box.innerHTML = ''; return; }
-    box.innerHTML = `<div class="exbox"><input id="exNote" maxlength="60" placeholder="예: 걷기 30분, 팔굽혀펴기 20개" autocomplete="off">
-      <button class="pick" id="exGo">저장</button></div><div class="err" id="err"></div>`;
-    const inp = document.getElementById('exNote'); inp.focus();
-    const go = () => {
-      const v = inp.value.trim();
-      if (!v) { document.getElementById('err').textContent = '어떤 운동인지 적어 주세요.'; return; }
-      document.getElementById('exGo').disabled = true;
-      act('life_post', { p_token: token, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: v }, pick(CHEERS.exercise));
-    };
-    document.getElementById('exGo').onclick = go;
-    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+    document.getElementById('exBtn').disabled = true;
+    Promise.resolve(act('life_post', { p_token: token, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: null }, pick(CHEERS.exercise)))
+      .finally(() => { const b = byId('exBtn'); if (b && !(state.day && state.day.exercise)) b.disabled = false; }); /* 저장이 안 됐으면 다시 누를 수 있게 */
   };
+  const exOff = byId('exOff');
+  if (exOff) exOff.onclick = e => { e.preventDefault(); if (confirm('오늘 운동 기록을 취소할까요?')) act('life_exercise_off', { p_token: token }, '취소했어요'); };
   /* 이미 적은 기상 시각·컨디션 고치기(오늘). 기존 life_wake가 오늘 줄의 두 값만 바꾼다 */
   byId('wakeFix').onclick = e => {
     e.preventDefault();
@@ -989,7 +1012,7 @@ function historyHtml() {
       <div class="head"><div class="nm">${esc(p.nickname)}</div><span class="sub">${p.kind === 'diet' && p.slot ? '🥗 ' + slotName[p.slot] : label[p.kind]} · ${p.day.slice(5).replace('-', '/')}</span>
       ${p.mine ? `<button class="del" data-share="${p.id}" data-on="${p.shared === false ? 1 : 0}">${p.shared === false ? '👀 조에 보이기' : '🔒 나만 보기'}</button>` : ''}
       ${p.mine ? `<button class="del" data-del="${p.id}">지우기</button>` : ''}</div>
-      ${p.note ? `<p style="padding:0 14px 12px;font-size:15px">${esc(p.note)}${p.kind === 'exercise' ? `<span class="en">⚡${energyOf(p.note)}</span>` : ''}</p>` : ''}
+      ${p.note ? `<p style="padding:0 14px 12px;font-size:15px">${esc(p.note)}</p>` : ''}
       ${p.shared === false ? `<p class="sub" style="padding:0 14px 12px">${p.mine ? '🔒 나만 보는 기록이에요' : '🔒 올렸어요 (내용은 본인만 봐요)'}</p>` : ''}
       ${p.photo ? `<img src="${esc(p.photo)}" alt="${label[p.kind]} 사진" loading="lazy">` : ''}
       <div class="cheer"${p.photo ? ' style="padding-top:12px"' : ''}><button type="button" data-cheer="${p.id}"${p.mine ? ' disabled' : ''}>👏 응원</button><span class="sub"></span></div>
@@ -1077,6 +1100,7 @@ function weekReport(rows) {
   const meal = k => w.filter(r => (r.meals || []).includes(k)).length;
   const cond = [0, 0, 0]; w.forEach(r => { if (r.condition) cond[r.condition - 1]++; });
   const unlocks = w.reduce((a, r) => a + (r.unlocks || []).length, 0);
+  const energy = w.reduce((a, r) => a + energyDay(r), 0);
   const why = w.filter(r => r.condition).map(r => `<li>${r.day.slice(5).replace('-', '/')} ${FACES[r.condition - 1]} ${esc(r.condition_note || '')}</li>`).join('');
   return `<div class="card" style="margin-bottom:12px"><h2 style="margin:0 0 10px">📊 이번 한 주 보고 <span class="sub" style="font-weight:400">최근 7일</span></h2>
     <div class="wk">
@@ -1085,6 +1109,7 @@ function weekReport(rows) {
       <div><small>평균 잠</small><b>${sl ? Math.floor(Math.round(sl) / 60) + '시간 ' + (Math.round(sl) % 60) + '분' : '-'}</b></div>
       <div><small>운동</small><b>${ex}일</b> <span class="sub">/ 목표 ${state.me.goal}일</span></div>
       <div><small>컨디션</small><b>😄${cond[2]} 😐${cond[1]} 😫${cond[0]}</b></div>
+      <div><small>에너지</small><b>⚡${energy}</b> <span class="sub">기록 하나에 1</span></div>
       ${unlocks ? `<div><small>긴급 해제</small><b>🚨 ${unlocks}회</b></div>` : ''}
     </div>
     ${weekLines(w, { wake, bed, ex, meal, cond, unlocks })}
@@ -1181,7 +1206,7 @@ async function dayEditor(day) {
     <button class="main" id="dSave" type="button">기상·취침·컨디션 저장</button>
     <h2 style="margin-top:20px">🏃 운동</h2>
     ${ex.length ? `<div class="list">${ex.map(p => `<div><span style="flex:1">${esc(p.note || '운동')}</span>${del(p)}</div>`).join('')}</div>` : '<p class="sub">적은 운동이 없어요.</p>'}
-    <div class="exbox"><input id="dEx" maxlength="60" placeholder="예: 걷기 30분" autocomplete="off"><button class="pick" id="dExGo" type="button">더하기</button></div>
+    ${ex.length ? '' : '<div class="exbox"><button class="pick" id="dExGo" type="button" style="width:100%">이날 운동했어요</button></div>'}
     <h2>🥗 식단</h2>
     ${diet.length ? `<div class="list">${diet.map(p => `<div><span style="flex:1">${slotName[p.slot] || '식단'}${p.photo ? ' 📷' : ''}${p.note ? ' · ' + esc(p.note) : ''}</span>${del(p)}</div>`).join('')}</div>` : '<p class="sub">적은 끼니가 없어요.</p>'}
     <div class="slots">${SLOTS.map(([k, n]) => `<button type="button" data-dslot="${k}" ${k !== 'snack' && had(k) ? 'disabled' : ''}>${n}${k !== 'snack' && had(k) ? ' ✓' : ''}</button>`).join('')}</div>
@@ -1206,10 +1231,8 @@ async function dayEditor(day) {
     if ((face === 1 || face === 3) && !why) { err.textContent = `왜 ${FACE_NAMES[face - 1]}인지 한 줄 적어 주세요.`; byId('why').focus(); return; }
     run('life_fix_day', { p_token: token, p_day: day, p_wake: byId('dWake').value || null, p_bed: byId('dBed').value || null, p_condition: face, p_note: why || null }, '고쳤어요');
   };
-  byId('dExGo').onclick = () => {
-    const v = byId('dEx').value.trim();
-    if (!v) { err.textContent = '어떤 운동인지 적어 주세요.'; return; }
-    run('life_post_day', { p_token: token, p_day: day, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: v }, pick(CHEERS.exercise));
+  if (byId('dExGo')) byId('dExGo').onclick = () => {
+    run('life_post_day', { p_token: token, p_day: day, p_kind: 'exercise', p_photo: null, p_slot: null, p_note: null }, pick(CHEERS.exercise));
   };
   byId('dayBox').querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => {
     if (!confirm('이 기록을 지울까요?')) return;
@@ -1381,6 +1404,11 @@ window.appBack = () => {
 };
 byId('amSet').onclick = () => amView('set');
 byId('amMo').onclick = openMoments;
+byId('amCamp').onclick = () => {
+  byId('amBg').hidden = true; campEdit = true;
+  if (tab === 'today' && byId('campBox')) { byId('campBox').innerHTML = ''; if (camp) campForm(byId('campBox')); else loadCamp(); byId('campBox').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  else goTab('today');
+};
 byId('moBack').onclick = () => amView('set');
 byId('amBack').onclick = () => amView('main');
 byId('pwBack').onclick = () => amView('set');
