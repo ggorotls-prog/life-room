@@ -239,7 +239,7 @@
     <img id="cnImg" alt="오늘의 카드뉴스" style="display:block;width:100%;height:auto;max-height:66vh;object-fit:contain;border-radius:12px">
     <p class="sub" id="cnWhy" style="margin:10px 0 0" hidden></p>
     <a id="cnDl" style="display:block;margin-top:8px;font-weight:700;color:var(--main)" hidden>사진 내려받기</a>
-    <div style="display:flex;gap:8px;margin-top:12px"><button type="button" id="cnNo" style="flex:1">닫기</button><button type="button" id="cnGo" class="main" style="flex:1;margin:0">카톡으로 보내기</button></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button type="button" id="cnNo" style="flex:1">닫기</button><button type="button" id="cnGo" class="main" style="flex:1;margin:0">공유하기</button></div>
   </div>
 </div>
 <div class="am-bg" id="amBg" role="dialog" aria-modal="true" aria-labelledby="amName" hidden>
@@ -1801,7 +1801,7 @@ document.addEventListener('visibilitychange', async () => {
 });
 
 /* 카드뉴스 보내기(2026-11-24 룡): 조 탭 「1단계」「2단계」 제목 옆 버튼. 내가 조장인 방이 그 단계에 있을 때만 보인다.
-   누르면 오늘 카드를 팝업으로 보여 주고, 「카톡으로 보내기」를 눌러야 공유 창이 열린다(관리자 사이트 「오늘 보낼 것」과 같은 흐름).
+   누르면 오늘 카드를 팝업으로 보여 주고, 「공유하기」를 눌러야 공유 창이 열린다(관리자 사이트 「오늘 보낼 것」과 같은 흐름).
    카드 문구는 관리자 사이트의 cards.js를 그대로 읽는다(한 곳만 고치면 되게). 1단계 = CARDS1, 2단계 = CARDS2(만드는 중) */
 const CN_LABEL = { 1: '💪 운동방 · 오늘의 한 장', 2: '🌱 생활개선 · 오늘의 한 장' };
 const cnToday = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
