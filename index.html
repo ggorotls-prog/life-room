@@ -92,7 +92,7 @@
   .week b { font-size: 22px; font-weight: 900; white-space: nowrap; }
   .bar { flex: 1; height: 12px; border-radius: 6px; background: var(--fill); overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--main); transition: width .3s; }
-  .checks { display: grid; gap: 8px; margin-top: 16px; }
+  .checks { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 16px; }
   .wdots { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 10px; }
   .wdots .wd { background: none; padding: 0; min-height: 48px; font-size: 13px; font-weight: 700; color: var(--sub); border-radius: 8px; opacity: 1; }
   .wdots .wd i { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin: 0 auto 2px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--card); font-style: normal; font-size: 15px; color: var(--main-ink); }
@@ -116,7 +116,7 @@
   .check .txt { flex: 1; min-width: 0; }
   .check .txt strong { display: block; font-weight: 900; }
   .check.done { background: var(--main-soft); border-color: var(--main); }
-  .check button:not(#bedBox button) { min-height: 44px; padding: 0 12px; font-size: 14px; white-space: nowrap; }
+  .check button:not(:where(#bedBox button)) { min-height: 44px; padding: 0 12px; font-size: 14px; white-space: nowrap; }
   .check .btns { display: flex; gap: 6px; }
   .check .pick { background: var(--main); color: var(--main-ink); }
   .row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
