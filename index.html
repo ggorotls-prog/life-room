@@ -114,6 +114,26 @@
   .galert { position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--err); color: #fff; font-size: 13px; font-style: normal; font-weight: 900; line-height: 22px; text-align: center; }
   .gwarn { background: #fdecec; color: #8f1d1d; border-radius: 12px; padding: 12px 14px; margin: 12px 0; font-size: 14px; line-height: 1.6; }
   .gwarn b { display: block; margin-bottom: 2px; }
+  /* 오늘의 카드뉴스(540×675 → 사진 1080×1350). 관리자 사이트와 같은 모양 */
+  #cardArea { position: fixed; left: -10000px; top: 0; }
+  .cn { width: 540px; height: 675px; box-sizing: border-box; padding: 40px 40px 30px; position: relative; overflow: hidden;
+        background: linear-gradient(160deg, #fff6ee 0%, #fde3d3 55%, #f6c7b4 100%); color: #2a1a14; font-family: 'Noto Sans KR', sans-serif; text-align: left; }
+  .cn::after { content: ''; position: absolute; right: -90px; top: -90px; width: 260px; height: 260px; border-radius: 50%; background: rgba(224,102,102,.13); }
+  .cn-top { display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; color: #b5523f; position: relative; z-index: 1; }
+  .cn-big { font-size: 96px; font-weight: 800; color: #e06666; letter-spacing: -0.04em; line-height: 1; margin: 48px 0 14px; white-space: nowrap; }
+  .cn-big.long { font-size: 68px; margin-top: 60px; }
+  .cn-t { font-size: 33px; font-weight: 800; line-height: 1.32; letter-spacing: -0.03em; word-break: keep-all; }
+  .cn-b { white-space: pre-line; font-size: 19px; font-weight: 500; line-height: 1.65; color: #4a352d; margin-top: 18px; word-break: keep-all; }
+  .cn-do { position: absolute; left: 40px; right: 40px; bottom: 74px; background: #e06666; color: #fff; border-radius: 18px; padding: 18px 20px;
+           display: flex; gap: 16px; align-items: center; box-shadow: 0 8px 20px rgba(224,102,102,.35); word-break: keep-all; }
+  .cn-box { flex: none; width: 34px; height: 34px; border: 3px solid #fff; border-radius: 9px; }
+  .cn-do b { display: block; font-size: 15px; font-weight: 800; color: #ffe4dc; letter-spacing: .04em; }
+  .cn-do .cn-m { display: block; font-size: 22px; font-weight: 800; line-height: 1.35; margin: 2px 0 4px; }
+  .cn-do small { display: block; font-size: 14px; font-weight: 700; color: rgba(255,255,255,.88); }
+  .cn-s { position: absolute; left: 40px; right: 40px; bottom: 22px; font-size: 12.5px; line-height: 1.45; color: #7a5a4e; word-break: keep-all; }
+  .cn-s b { color: #b5523f; font-weight: 800; margin-right: 4px; }
+  .sect-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .sect-h .backb { margin: 0; flex: none; }
   .thru { background: var(--main-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; text-align: center; font-size: 15px; line-height: 1.4; }
   .thru span { display: block; } .thru b { font-size: 26px; color: var(--main); }
   .backb { width: auto; margin: 0 0 8px; padding: 6px 12px; font-size: 14px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); }
@@ -211,6 +231,15 @@
   <div class="am" style="max-width:320px;text-align:center;padding:22px 16px 16px">
     <p id="askMsg" style="margin:0 0 18px;font-size:16px;font-weight:700;line-height:1.5;white-space:pre-line"></p>
     <div style="display:flex;gap:8px"><button type="button" id="askNo" style="flex:1">취소</button><button type="button" id="askYes" class="main" style="flex:1;margin:0">확인</button></div>
+  </div>
+</div>
+<div id="cardArea" aria-hidden="true"></div>
+<div class="am-bg" id="cnBg" role="dialog" aria-modal="true" aria-label="보낼 카드뉴스" style="z-index:25" hidden>
+  <div class="am" style="max-width:420px;text-align:center;padding:14px">
+    <img id="cnImg" alt="오늘의 카드뉴스" style="display:block;width:100%;height:auto;max-height:66vh;object-fit:contain;border-radius:12px">
+    <p class="sub" id="cnWhy" style="margin:10px 0 0" hidden></p>
+    <a id="cnDl" style="display:block;margin-top:8px;font-weight:700;color:var(--main)" hidden>사진 내려받기</a>
+    <div style="display:flex;gap:8px;margin-top:12px"><button type="button" id="cnNo" style="flex:1">닫기</button><button type="button" id="cnGo" class="main" style="flex:1;margin:0">카톡으로 보내기</button></div>
   </div>
 </div>
 <div class="am-bg" id="amBg" role="dialog" aria-modal="true" aria-labelledby="amName" hidden>
@@ -1641,7 +1670,8 @@ function paintGroups() {
   const sect = st => {
     const list = cards.filter(c => c.stage === st);
     if (!list.length) return '';
-    return `<h2>${st}단계</h2><div class="gcards">${list.map(c => `<button type="button" class="gcard${c.key === groupOpen && c.role !== 'leader' ? ' on' : ''}" data-g="${esc(c.key)}"${boss(c.role) && c.alerts.length ? ` title="${esc(c.alerts.map(a => a.nickname + ' ' + a.days + '일째 ' + c.what).join(', '))}"` : ''}>
+    const cn = st < 3 && list.some(c => c.role === 'leader');
+    return `<h2 class="sect-h"><span>${st}단계</span>${cn ? `<button type="button" class="backb" data-cn="${st}">${cnSent(st) ? '✅ 보냄 · 다시' : '🖼 카드뉴스 보내기'}</button>` : ''}</h2><div class="gcards">${list.map(c => `<button type="button" class="gcard${c.key === groupOpen && c.role !== 'leader' ? ' on' : ''}" data-g="${esc(c.key)}"${boss(c.role) && c.alerts.length ? ` title="${esc(c.alerts.map(a => a.nickname + ' ' + a.days + '일째 ' + c.what).join(', '))}"` : ''}>
         <b>${esc(c.name)}</b><small>${roleName(c)} · ${c.n}명${c.role === 'leader' ? ' ›' : ''}</small>${boss(c.role) && c.alerts.length ? `<i class="galert" aria-label="관심이 필요한 사람 ${c.alerts.length}명">${c.alerts.length}</i>` : ''}</button>`).join('')}</div>`;
   };
   const detail = c => {
@@ -1673,6 +1703,7 @@ function paintGroups() {
     groupOpen = groupOpen === b.dataset.g ? null : b.dataset.g; paintGroups(); if (groupOpen) byId('gDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
   if (!social) loadSocial();
+  $app.querySelectorAll('[data-cn]').forEach(b => b.onclick = () => cnOpen(+b.dataset.cn, b));
   $app.querySelectorAll('[data-inv]').forEach(b => b.onclick = async () => {
     b.disabled = true;
     try {
@@ -1768,6 +1799,99 @@ document.addEventListener('visibilitychange', async () => {
   if (state.today !== seoulToday()) { tab = 'today'; refresh().catch(() => {}); return; }
   if ((tab === 'today' || tab === 'group') && !document.getElementById('go') && !document.getElementById('exGo') && !askDone) refresh().catch(() => {}); /* 확인창이 떠 있으면 다시 그리지 않는다 */
 });
+
+/* 카드뉴스 보내기(2026-11-24 룡): 조 탭 「1단계」「2단계」 제목 옆 버튼. 내가 조장인 방이 그 단계에 있을 때만 보인다.
+   누르면 오늘 카드를 팝업으로 보여 주고, 「카톡으로 보내기」를 눌러야 공유 창이 열린다(관리자 사이트 「오늘 보낼 것」과 같은 흐름).
+   카드 문구는 관리자 사이트의 cards.js를 그대로 읽는다(한 곳만 고치면 되게). 1단계 = CARDS1, 2단계 = CARDS2(만드는 중) */
+const CN_LABEL = { 1: '💪 운동방 · 오늘의 한 장', 2: '🌱 생활개선 · 오늘의 한 장' };
+const cnToday = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+const cnSentKey = st => 'life_cn_sent_' + st;
+const cnSent = st => store.get(cnSentKey(st)) === cnToday();
+function loadScript(src, sri) {
+  return new Promise((ok, no) => {
+    const s = document.createElement('script');
+    if (sri) { s.integrity = sri; s.crossOrigin = 'anonymous'; } /* 남의 서버 파일은 바뀌지 않았는지 확인하고 받는다 */
+    s.src = src; s.onload = ok; s.onerror = () => { s.remove(); no(new Error('load')); };
+    document.head.appendChild(s);
+  });
+}
+let cnLibs = null;
+function cnLoad() {
+  if (!cnLibs) cnLibs = Promise.all([
+    window.html2canvas ? null : loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA=='),
+    window.CARDS1 ? null : loadScript('../life-changer/cards.js'),
+  ]).catch(e => { cnLibs = null; throw e; });
+  return cnLibs;
+}
+function cnPick(st, today) {
+  const list = window['CARDS' + st] || [];
+  if (!list.length) return null;
+  const p = today.split('-').map(Number), n = Math.round((Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(2026, 10, 15)) / 864e5);
+  return list[((n % list.length) + list.length) % list.length];
+}
+function cnHtml(c, today, st) {
+  const p = today.split('-'), wd = '일월화수목금토'[new Date(today + 'T00:00:00Z').getUTCDay()];
+  const parts = (c.s || '').split(' · '), cite = parts.pop();
+  const src = cite + (parts.length ? ' · ' + parts.join(' · ') : '') + (c.p ? ' · PubMed ' + c.p : '');
+  return `<div class="cn">
+    <div class="cn-top"><span>${CN_LABEL[st] || ''}</span><span>${+p[1]}월 ${+p[2]}일 ${wd}요일</span></div>
+    <div class="cn-big${c.n.length > 7 ? ' long' : ''}">${esc(c.n)}</div>
+    <div class="cn-t">${esc(c.t)}</div>
+    <div class="cn-b">${esc(c.b)}</div>
+    <div class="cn-do"><i class="cn-box"></i><div><b>오늘 오후 미션</b><span class="cn-m">${esc(c.d)}</span><small>끝내면 오운완 인증 ✅</small></div></div>
+    <div class="cn-s"><b>📚 근거 연구</b> ${esc(src)}</div>
+    </div>`;
+}
+function cnFit() {
+  const el = byId('cardArea').firstElementChild;
+  if (!el) return;
+  const b = el.querySelector('.cn-b'), t = el.querySelector('.cn-t'), d = el.querySelector('.cn-do'), g = el.querySelector('.cn-big');
+  for (let f = parseFloat(getComputedStyle(g).fontSize); f > 40 && g.scrollWidth > g.clientWidth; f -= 4) g.style.fontSize = f - 4 + 'px';
+  for (let s = 19, ts = 33; s >= 15 && b.getBoundingClientRect().bottom > d.getBoundingClientRect().top - 12; s--, ts--) {
+    b.style.fontSize = s + 'px'; t.style.fontSize = ts + 'px';
+  }
+}
+const cnMade = {}; /* 단계 → { day, url, b64, file } */
+async function cnMake(st) {
+  const today = cnToday();
+  if (cnMade[st] && cnMade[st].day === today) return cnMade[st];
+  await cnLoad();
+  const c = cnPick(st, today);
+  if (!c) return null;
+  byId('cardArea').innerHTML = cnHtml(c, today, st); cnFit();
+  await document.fonts.ready;
+  const cv = await html2canvas(byId('cardArea').firstElementChild, { scale: 2, backgroundColor: null });
+  byId('cardArea').innerHTML = '';
+  /* 앱 공유 창구는 JPEG을 받는다(투명 바탕은 흰색으로) */
+  const j = document.createElement('canvas'); j.width = cv.width; j.height = cv.height;
+  const x = j.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, j.width, j.height); x.drawImage(cv, 0, 0);
+  const jpg = j.toDataURL('image/jpeg', 0.92);
+  const blob = await new Promise(ok => j.toBlob(ok, 'image/jpeg', 0.92));
+  const md = today.slice(5);
+  return cnMade[st] = { day: today, url: jpg, b64: jpg.split(',')[1], file: new File([blob], '오늘의한장_' + md + '.jpg', { type: 'image/jpeg' }) };
+}
+let cnBusy = false;
+async function cnOpen(st, btn) {
+  if (cnBusy) return;
+  cnBusy = true; const old = btn.textContent; btn.textContent = '만드는 중…'; btn.disabled = true;
+  let m = null, failed = false;
+  try { m = await cnMake(st); } catch (e) { failed = true; }
+  cnBusy = false; btn.textContent = old; btn.disabled = false;
+  if (failed) { toast('카드를 만들지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.'); return; }
+  if (!m) { toast(st + '단계 카드뉴스는 아직 만드는 중이에요.'); return; }
+  byId('cnImg').src = m.url; byId('cnWhy').hidden = true; byId('cnDl').hidden = true; byId('cnBg').hidden = false;
+  byId('cnGo').onclick = async () => {
+    const done = () => { store.set(cnSentKey(st), m.day); byId('cnBg').hidden = true; if (tab === 'group' && groupsView) paintGroups(); };
+    try {
+      if (phone && phone.shareImage) { phone.shareImage(m.b64, ''); done(); return; }
+      if (navigator.canShare && navigator.canShare({ files: [m.file] })) { await navigator.share({ files: [m.file] }); done(); return; }
+    } catch (x) { if (x && x.name === 'AbortError') return; }
+    /* 공유 창이 없는 곳(PC 등): 사진을 저장해서 올린다 */
+    const w = byId('cnWhy'), d = byId('cnDl');
+    w.textContent = phone ? '앱을 업데이트하면 바로 보낼 수 있어요. 지금은 사진을 길게 눌러 저장해 주세요.' : '이 화면은 공유 창이 없어요. 사진을 내려받아 카톡방에 올려 주세요.';
+    w.hidden = false; d.href = m.url; d.download = m.file.name; d.hidden = false;
+  };
+}
 
 /* 가입 승인(2026-11-24 룡): 가입은 코드 없이 신청 → 운영자가 승인·반려. 승인 전에는 이 화면만 보인다 */
 function renderWait() {
@@ -1870,14 +1994,17 @@ function paintHeroItem() { const b = byId('amHero'); b.hidden = !(heroInfo && he
 byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amOp').hidden = !state.op; byId('amBg').hidden = false; };
 byId('amOp').onclick = () => { byId('amBg').hidden = true; goTab('op'); };
 byId('amClose').onclick = () => { byId('amBg').hidden = true; };
+byId('cnNo').onclick = () => { byId('cnBg').hidden = true; };
+byId('cnBg').onclick = e => { if (e.target === byId('cnBg')) byId('cnBg').hidden = true; };
 byId('askYes').onclick = () => { if (askDone) askDone(true); };
 byId('askNo').onclick = () => { if (askDone) askDone(false); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && askDone) askDone(false); });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (askDone) askDone(false); else if (!byId('cnBg').hidden) byId('cnBg').hidden = true; });
 byId('askBg').onclick = e => { if (e.target === byId('askBg') && askDone) askDone(false); };
 byId('amBg').onclick = e => { if (e.target === byId('amBg') && !pwForced) byId('amBg').hidden = true; };
 // 앱의 뒤로 가기(2026-11-11 룡: 꺼지지 말고 전 단계로): 열린 계정 창 → 직전 탭 → 「오늘」 → 맨 위. 더 갈 데가 없을 때만 앱이 닫힌다.
 const tabTrail = [];
 window.appBack = () => {
+  if (!byId('cnBg').hidden) { byId('cnBg').hidden = true; return true; } /* 카드뉴스 팝업이 떠 있으면 그것부터 닫는다 */
   if (askDone) { askDone(false); return true; } /* 확인창이 떠 있으면 「아니오」로 닫는다 */
   if (!byId('amBg').hidden) {
     if (pwForced) return true; // 비밀번호를 꼭 바꿔야 할 때는 안 닫힌다
