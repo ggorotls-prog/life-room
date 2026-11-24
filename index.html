@@ -155,8 +155,6 @@
   .exnote { display: block; color: var(--ink); overflow-wrap: anywhere; }
   .exphoto img { display: block; width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; }
   .exphoto a { display: inline-block; margin-top: 6px; font-size: 14px; }
-  .exwords { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .exwords button { min-height: 36px; padding: 0 12px; font-size: 14px; font-weight: 500; background: var(--card); border: 1px solid var(--line); color: var(--ink); }
   .post .del { background: none; color: var(--sub); min-height: 36px; padding: 0 4px; font-size: 13px; }
   .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
   .tbl th { color: var(--sub); font-size: 12px; text-align: center; padding: 4px 2px; }
@@ -888,7 +886,6 @@ function exerciseCard(d) {
 const exToday = d => (d && d.exercises && d.exercises[0]) || null;
 const exThumb = d => { const e = exToday(d); return e && e.thumb; };
 const exNote = d => { const e = exToday(d); return e && e.note && e.note !== '운동' ? e.note : ''; };
-const EX_WORDS = ['걷기', '홈트', '헬스', '러닝', '스트레칭'];
 let exDraft = { photo: null, thumb: null, note: '' }, exShareData = null;
 function thumbOf(dataUrl) {
   return new Promise(res => {
@@ -913,12 +910,10 @@ function openExBox() {
       <div class="exphoto">${exDraft.photo ? `<img src="${exDraft.photo}" alt="고른 사진"><a href="#" id="exPhotoDel">사진 빼기</a>` : '<button type="button" id="exPhoto" style="width:100%">📷 사진 넣기</button>'}</div>
       <label class="f" for="exNote">무슨 운동?</label>
       <input id="exNote" maxlength="60" placeholder="예) 걷기 30분" autocomplete="off" value="${esc(exDraft.note)}" style="margin-top:6px">
-      <div class="exwords">${EX_WORDS.map(w => `<button type="button" data-exw="${w}">${w}</button>`).join('')}</div>
       <p class="sub" style="margin:6px 0 0;font-size:12px">사진이나 운동 내용 중 하나는 꼭 넣어 주세요</p>
       <div class="err" id="exErr"></div><button class="main" id="exGo" type="button">저장</button></div>`;
     const inp = byId('exNote');
     inp.oninput = () => { exDraft.note = inp.value; byId('exErr').textContent = ''; };
-    box.querySelectorAll('[data-exw]').forEach(b => b.onclick = () => { inp.value = b.dataset.exw + ' '; exDraft.note = inp.value; byId('exErr').textContent = ''; inp.focus(); });
     const ph = byId('exPhoto'); if (ph) ph.onclick = () => byId('exFile').click();
     const pd = byId('exPhotoDel'); if (pd) pd.onclick = e => { e.preventDefault(); exDraft.photo = exDraft.thumb = null; paint(); };
     byId('exGo').onclick = saveEx;
