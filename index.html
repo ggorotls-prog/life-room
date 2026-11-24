@@ -218,6 +218,7 @@
     <div class="am-head"><strong id="amName"></strong><button type="button" class="am-x" id="amClose" aria-label="닫기">✕</button></div>
     <div id="amMain">
       <button type="button" class="am-item" id="amSet"><span>⚙️ 설정</span><span class="am-go">›</span></button>
+      <button type="button" class="am-item" id="amOp" hidden><span>🗂 운영자 화면</span><span class="am-go">›</span></button>
       <button type="button" class="am-item danger" id="amOut"><span>로그아웃</span><small>이 앱의 모든 기기에서 나가져요</small></button>
     </div>
     <div id="amSetView" hidden>
@@ -298,7 +299,7 @@ function hm(t) { return t ? t.slice(0, 5) : '-'; }
 /* DB의 life_today()와 같은 계산: 서울 시각 새벽 4시가 하루 경계 */
 function seoulToday() { return new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10); }
 
-const READS = ['life_state', 'life_my_ex_photo', 'life_history', 'life_mine', 'life_group_manage', 'life_day', 'life_my_feedback'];
+const READS = ['life_state', 'life_my_ex_photo', 'life_history', 'life_mine', 'life_group_manage', 'life_op_view', 'life_day', 'life_my_feedback'];
 const APK_URL = 'https://ggorotls-prog.github.io/life-room/app/life-room.apk';
 async function rpc(fn, args) {
   let r;
@@ -717,21 +718,25 @@ function nowRounded() {
 }
 
 /* 가입·로그인 */
+/* 가입 신청(코드 없이 신청 → 운영자 승인, 2026-11-24 룡)은 개인정보처리방침을 고쳐 알린 뒤에 켠다(법무사 검토).
+   켤 때: 이 값을 true로 + 서버에서 life_apply를 열고(grant) life_signup을 닫는다 */
+const APPLY_ON = false;
 function renderAuth(mode) {
   $tabs.innerHTML = '';
-  const signup = mode === 'signup';
+  const signup = mode === 'signup', apply = signup && APPLY_ON;
   $app.innerHTML = `
     <div class="ask"><div class="big">🌱</div><h1>건강 기록</h1>
     <p class="sub">기상부터 취침까지, 하루 30초</p></div>
     <div class="card" style="margin-top:20px">
       <form id="f">
-        ${signup ? '<label class="f">조 코드 (조장에게 받아요)<input id="code" autocomplete="off" autocapitalize="characters" required></label>' : ''}
-        <label class="f">${signup ? '아이디 (닉네임, 본명 말고 편한 이름으로)' : '아이디'}<input id="nick" maxlength="12" autocomplete="username" required></label>
+        ${signup && !apply ? '<label class="f">조 코드 (조장에게 받아요)<input id="code" autocomplete="off" autocapitalize="characters" required></label>' : ''}
+        <label class="f">${signup ? '닉네임 (꼭 4자 · 꾸미는 말 2자 + 이름 2자)' : '아이디'}<input id="nick" maxlength="${signup ? 4 : 12}" ${signup ? 'placeholder="예: 깐깐룡이, 깐깐귀룡"' : ''} autocomplete="username" required></label>
         <label class="f">${signup ? '비밀번호 (6자 이상, 영어+숫자)' : '비밀번호'}<input id="pw" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></label>
+        ${apply ? '<label class="f">누구와 함께하나요? (초대한 분의 앱 닉네임)<input id="withNick" maxlength="12" autocomplete="off" required></label><p class="sub" style="margin:6px 0 0;font-size:13px">본명이나 전화번호는 적지 마세요. 가입 신청을 하면 운영자가 확인하고 승인해요. 승인 전에는 기록할 수 없어요.</p>' : ''}
         ${signup ? `<div class="consent"><b>시작하기 전에</b>
         <p>건강 기록(기상·취침·운동·식단)을 받아, 우리 조와 함께 보고 응원하는 데만 씁니다. 탈퇴하면 바로 지웁니다.</p>
         <details><summary>자세히 보기</summary><ul>
-          <li><b>받는 것</b>: 아이디·비밀번호, 건강에 관한 기록(기상·취침 시각, 컨디션, 운동, 식단 사진·글(금식 포함), 영양제 체크, 「잘게요」를 푼 사유)</li>
+          <li><b>받는 것</b>: 아이디·비밀번호, ${apply ? '「누구와 함께하나요?」에 적은 닉네임(가입 승인에만 쓰고 승인되면 지웁니다), ' : ''}건강에 관한 기록(기상·취침 시각, 컨디션, 운동, 식단 사진·글(금식 포함), 영양제 체크, 「잘게요」를 푼 사유)</li>
           <li><b>쓰는 곳</b>: 내 기록 보관, 우리 조와 함께 보고 응원, 조장·관리자의 돌봄, 운영자의 조 운영 살피기. 광고·판매에는 쓰지 않습니다. 다른 목적에 쓰려면 그때 다시 동의를 받습니다.</li>
           <li><b>보는 사람</b>: 운동·식단·영양제와 「했는지」 표시는 내가 속한 모든 조의 사람이 봅니다. 금식은 처음에는 나만 봅니다. 글·사진마다 「나만 보기」로 숨길 수 있습니다. 기상·취침 시각과 컨디션은 조장·관리자만 봅니다. 운영자는 조 이름·조장·조원 아이디와 기록 없는 날수를 보고, 글·사진·시각은 앱을 고칠 때만 필요한 만큼 봅니다.</li>
           <li><b>보관</b>: 탈퇴할 때까지 보관하고, 탈퇴하면 바로 지웁니다. 1년 동안 쓰지 않으면 지웁니다. 저장은 Supabase에 합니다(서버는 서울, 관리 중 싱가포르·미국에서 처리될 수 있음).</li>
@@ -741,10 +746,10 @@ function renderAuth(mode) {
         <label class="ck"><input type="checkbox" id="cHealth"><span>[필수] 건강에 관한 기록 처리에 동의합니다</span></label>
         <label class="ck"><input type="checkbox" id="cAge"><span>[필수] 만 14세 이상입니다</span></label></div>` : ''}
         <div class="err" id="err"></div>
-        <button class="main" id="go">${signup ? '동의하고 시작' : '들어가기'}</button>
+        <button class="main" id="go">${apply ? '동의하고 가입 신청' : signup ? '동의하고 시작' : '들어가기'}</button>
       </form>
       ${signup ? '' : '<p class="sub" style="text-align:center;margin-top:12px"><a href="privacy.html">개인정보처리방침</a></p>'}
-      <button class="switch" id="sw">${signup ? '이미 가입했어요' : '조 코드로 가입하기'}</button>
+      <button class="switch" id="sw">${signup ? '이미 가입했어요' : APPLY_ON ? '가입 신청하기' : '조 코드로 가입하기'}</button>
       ${signup ? '' : '<p class="sub" style="margin-top:8px;text-align:center">비밀번호를 잊었으면 초대한 사람(관리자)에게 말해 주세요. 새 비밀번호를 정해 줍니다.</p>'}
     </div>
     `; /* 「앱으로 받기」 카드는 지움(2026-11-20 룡: 「아예 없애」) */
@@ -758,9 +763,11 @@ function renderAuth(mode) {
     const go = document.getElementById('go'), err = document.getElementById('err');
     go.disabled = true; err.textContent = '';
     try {
-      const nick = document.getElementById('nick').value, pw = document.getElementById('pw').value;
+      const nick = document.getElementById('nick').value.trim(), pw = document.getElementById('pw').value;
+      if (signup && [...nick].length !== 4) { err.textContent = '닉네임은 꼭 4자로 적어 주세요. (예: 깐깐룡이, 깐깐귀룡)'; go.disabled = false; return; }
       const d = signup
-        ? await rpc('life_signup', { p_code: document.getElementById('code').value, p_nick: nick, p_pw: pw, p_consent: true })
+        ? (apply ? await rpc('life_apply', { p_nick: nick, p_pw: pw, p_with: byId('withNick').value, p_consent: true })
+                 : await rpc('life_signup', { p_code: byId('code').value, p_nick: nick, p_pw: pw, p_consent: true }))
         : await rpc('life_login', { p_nick: nick, p_pw: pw });
       if (d.error) { err.textContent = /초대 코드/.test(d.error) ? '조 코드를 다시 확인해 주세요. 코드는 조장에게 받아요.' : d.error; go.disabled = false; return; }
       token = d.token; store.set('life_token', token);
@@ -1568,11 +1575,12 @@ async function renderLeader() {
     <div class="card"><p class="sub" style="margin:0">조원이 될 사람에게만 전해 주세요. 조 탭 「조 코드 넣기」에 넣으면 바로 들어와요. 조원 화면에는 이 코드가 안 보여요.</p>
       <div class="codeRow"><span class="code">${esc(g.code || '-')}</span><span>${g.code ? `<button type="button" data-copy="${esc(g.code)}">복사</button>` : ''} <button type="button" class="switch" id="mgNewCode">새 코드 만들기</button></span></div>
       <p class="sub" style="margin:6px 0 0;font-size:12px">코드가 다른 사람에게 새면 새 코드를 만들어 주세요. 옛 코드로는 더 못 들어와요. 이미 들어온 사람은 그대로예요.</p>
-      ${g.admin ? `
-      <h2 style="margin-top:14px">⭐ 조장 초대 <span class="sub" style="font-weight:400">한 번 쓰는 코드</span></h2>
-      ${g.invites.map(i => `<div class="codeRow"><span class="code">${esc(i.code)}</span><button type="button" data-copy="${esc(i.code)}">복사</button></div>`).join('') || '<p class="sub" style="margin:6px 0 0">남은 조장 초대 코드가 없어요.</p>'}
-      <button type="button" id="mgInvL" style="width:100%;margin-top:8px">➕ 조장 초대 코드 만들기</button>` : ''}
-      <p class="sub" style="margin:10px 0 0;font-size:12px">새 사람은 건강 기록 첫 화면에서 「조 코드로 가입하기」 → 조 코드 + 닉네임 + 비밀번호로 들어와요.</p></div>`;
+      </div>
+    <h2>👋 닉네임으로 초대</h2>
+    <div class="card"><p class="sub" style="margin:0">이미 가입한 사람의 닉네임을 적어 주세요. 그 사람이 조 탭에서 「들어가기」를 누르면 들어와요.</p>
+      <div class="exbox"><input id="mgInvNick" maxlength="12" placeholder="닉네임" autocomplete="off"><button class="pick" id="mgInvGo" type="button">초대</button></div><div class="err" id="mgInvErr"></div>
+      ${(g.invited || []).map(n => `<div class="codeRow"><span>${esc(n)} <span class="sub">· 답을 기다리는 중</span></span><button type="button" class="switch" data-uninv="${esc(n)}">거두기</button></div>`).join('')}
+      <p class="sub" style="margin:10px 0 0;font-size:12px">${APPLY_ON ? '아직 가입하지 않은 사람은 건강 기록 첫 화면 「가입 신청하기」에서 신청해요. 「누구와 함께하나요?」에 내 닉네임을 적게 알려 주세요.' : '아직 가입하지 않은 사람은 건강 기록 첫 화면 「조 코드로 가입하기」에서 위 조 코드로 가입해요.'}</p></div>`;
   bindBack();
   $app.querySelectorAll('.cbtn').forEach(b => b.onclick = () => condWhy(b));
   $app.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(b.dataset.copy));
@@ -1595,7 +1603,19 @@ async function renderLeader() {
   };
   const nc = byId('mgNewCode');
   if (nc) nc.onclick = () => { if (nc.dataset.sure !== '1') { nc.dataset.sure = '1'; nc.textContent = '정말 새로 만들기'; return; } code('new', nc, '새 조 코드'); };
-  const il = byId('mgInvL'); if (il) il.onclick = () => code('leader', il, '조장 초대 코드');
+  const ig = byId('mgInvGo');
+  ig.onclick = async () => {
+    const n = byId('mgInvNick').value.trim(), er = byId('mgInvErr');
+    if (!n) { er.textContent = '닉네임을 적어 주세요.'; return; }
+    ig.disabled = true; er.textContent = '';
+    try { const r = await rpc('life_group_invite', { p_token: token, p_group: gid, p_nick: n }); toast(r.nickname + '님을 초대했어요'); if (still()) renderLeader(); }
+    catch (x) { er.textContent = x.message; ig.disabled = false; }
+  };
+  $app.querySelectorAll('[data-uninv]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { await rpc('life_group_invite', { p_token: token, p_group: gid, p_nick: b.dataset.uninv, p_cancel: true }); if (still()) renderLeader(); }
+    catch (x) { toast(x.message); b.disabled = false; }
+  });
 }
 
 /* 「조」 탭(2026-11-24 룡): 첫 화면은 기록만. 조는 여기에 모은다.
@@ -1632,7 +1652,11 @@ function paintGroups() {
     const rows = c.members.map(b => `<div class="row${b.mine ? ' mine' : ''}"><div class="nm">${esc(b.nickname)}<span class="fire">${b.streak >= 2 ? '🔥 ' + b.streak + '일째' : ''}</span></div>${b.roster ? '' : `<div class="dots icons">${boardIcons(b, !!b.camp)}</div>`}</div>`).join('');
     return `<h2>${esc(c.name)} <span class="sub" style="font-weight:400">${c.role === 'owner' ? '명단' : '오늘'}</span></h2>${al}<div class="card" style="padding:4px 16px">${rows || '<p class="sub" style="margin:12px 0">아직 조원이 없어요.</p>'}</div>`;
   };
+  const inv = (v.invites || []).map(i => `<div class="card" style="margin:0 0 12px"><b>📩 ${esc(i.name)}</b> <span class="sub">${i.stage}단계${i.by ? ' · ' + esc(i.by) + '님이 초대했어요' : ''}</span>
+      <p class="sub" style="margin:4px 0 0">들어가면 내 운동·식단·영양제 기록을 이 조 사람들이 함께 봐요.</p>
+      <div class="exbox"><button type="button" data-inv="${i.group}" data-yes="1" style="flex:1">들어가기</button><button type="button" data-inv="${i.group}" style="flex:1;background:var(--card);border:1.5px solid var(--line);color:var(--ink)">거절</button></div></div>`).join('');
   $app.innerHTML = `<h1>조</h1>
+    ${inv}
     ${v.through > 0 ? `<div class="thru">나를 통해 지금<span><b>${v.through}명</b>의</span>삶이 변하는 중</div>` : ''}
     ${warn.length ? `<div class="gwarn"><b>관심이 필요한 사람 ${warn.length}명</b>${warn.slice(0, 8).map(a => `<div>${esc(a.nickname)} · ${esc(a.group)} · ${a.days}일째 ${a.what}</div>`).join('')}${warn.length > 8 ? `<div>…그 밖에 ${warn.length - 8}명</div>` : ''}</div>` : ''}
     ${cards.length ? sect(1) + sect(2) + sect(3) : ''}
@@ -1646,6 +1670,14 @@ function paintGroups() {
     groupOpen = groupOpen === b.dataset.g ? null : b.dataset.g; paintGroups(); if (groupOpen) byId('gDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
   if (!social) loadSocial();
+  $app.querySelectorAll('[data-inv]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      await rpc('life_invite_answer', { p_token: token, p_group: +b.dataset.inv, p_yes: b.dataset.yes === '1' });
+      if (b.dataset.yes === '1') { toast('조에 들어갔어요 🌱'); historyItems = []; historyDone = false; }
+      groupOpen = null; groupsView = null; refresh().catch(x => toast(x.message));
+    } catch (x) { toast(x.message); b.disabled = false; }
+  });
   const rj = byId('rjGo');
   if (rj) rj.onclick = async () => {
     const code = byId('rjCode').value.trim();
@@ -1676,6 +1708,7 @@ function renderTabs() {
 let screenSeq = 0;
 function render() {
   screenSeq++;
+  if (state.wait) return renderWait();
   byId('myName').textContent = state.me.nickname; byId('menuBtn').hidden = false;
   tellPhone();
   if (state.me.must_change_pw) forcePw();
@@ -1688,6 +1721,7 @@ function render() {
   if (tab === 'history') return renderHistory();
   if (tab === 'mine') return renderMine();
   if (tab === 'leader') return renderLeader();
+  if (tab === 'op') return renderOp();
   if (tab === 'group') return renderGroup();
   renderToday();
 }
@@ -1731,6 +1765,84 @@ document.addEventListener('visibilitychange', async () => {
   if ((tab === 'today' || tab === 'group') && !document.getElementById('go') && !document.getElementById('exGo') && !askDone) refresh().catch(() => {}); /* 확인창이 떠 있으면 다시 그리지 않는다 */
 });
 
+/* 가입 승인(2026-11-24 룡): 가입은 코드 없이 신청 → 운영자가 승인·반려. 승인 전에는 이 화면만 보인다 */
+function renderWait() {
+  $tabs.innerHTML = ''; byId('menuBtn').hidden = true; byId('amBg').hidden = true;
+  const rej = state.status === 'rejected', typed = byId('reNick') ? byId('reNick').value : ''; /* 다른 앱에 갔다 와도 적던 닉네임이 남게 */
+  $app.innerHTML = `<div class="ask"><div class="big">${rej ? '✏️' : '⏳'}</div><h1>${rej ? '닉네임을 다시 정해 주세요' : '승인을 기다리는 중'}</h1>
+    <p class="sub">${rej ? esc(state.note || '') : '운영자가 확인하면 바로 시작할 수 있어요.'}</p></div>
+    <div class="card" style="margin-top:20px">
+      <p style="margin:0 0 4px"><span class="sub">신청한 닉네임</span> <b>${esc(state.nickname || '')}</b></p>
+      <p class="sub" style="margin:0 0 8px">${esc(state.with || '')}님과 함께</p>
+      ${rej ? `<label class="f">새 닉네임 (꼭 4자 · 꾸미는 말 2자 + 이름 2자)<input id="reNick" maxlength="4" placeholder="예: 깐깐룡이" autocomplete="off"></label>
+      <div class="err" id="reErr"></div><button class="main" id="reGo">다시 신청하기</button>`
+    : '<div class="err" id="reErr"></div><button class="main" id="reChk">승인됐는지 확인하기</button>'}
+      <button class="switch" id="reOut">${rej ? '나가기 (나가면 처음부터 다시 신청해야 해요)' : '나가기 (다시 들어오면 이어서 봐요)'}</button>
+      <button class="switch" id="reDel" style="color:var(--sub)">신청 취소하고 지우기</button>
+    </div>`;
+  const err = byId('reErr');
+  if (byId('reNick')) byId('reNick').value = typed;
+  const chk = byId('reChk');
+  if (chk) chk.onclick = async () => {
+    chk.disabled = true;
+    try { await refresh(); if (state && state.wait && state.status === 'pending') toast('아직 기다리는 중이에요'); }
+    catch (x) { err.textContent = x.message; chk.disabled = false; }
+  };
+  const go = byId('reGo');
+  if (go) go.onclick = async () => {
+    const nick = byId('reNick').value.trim();
+    if ([...nick].length !== 4) { err.textContent = '닉네임은 꼭 4자로 적어 주세요.'; return; }
+    go.disabled = true; err.textContent = '';
+    try { await rpc('life_reapply', { p_token: token, p_nick: nick }); await refresh(); }
+    catch (x) { err.textContent = x.message; go.disabled = false; }
+  };
+  byId('reOut').onclick = logout;
+  const del = byId('reDel');
+  del.onclick = async () => {
+    if (del.dataset.sure !== '1') { del.dataset.sure = '1'; del.textContent = '정말 취소하고 지우기'; return; }
+    del.disabled = true;
+    try { await rpc('life_apply_cancel', { p_token: token }); logout(); toast('신청을 지웠어요'); }
+    catch (x) { err.textContent = x.message; del.disabled = false; }
+  };
+}
+/* 운영자 화면(운영자에게만 ☰에 보인다): 가입 신청을 승인·반려. 닉네임과 「누구와 함께」만 본다 */
+async function renderOp() {
+  const seq = screenSeq, tk = token, still = () => tab === 'op' && seq === screenSeq && tk === token;
+  const back = '<button type="button" class="backb" id="opBack">‹ 기록</button>';
+  const bindBack = () => { const b = byId('opBack'); if (b) b.onclick = () => goTab('today'); };
+  if (!state.op) { tab = 'today'; renderTabs(); return renderToday(); }
+  $app.innerHTML = back + '<div class="loading">불러오는 중…</div>'; bindBack();
+  let v;
+  try { v = await rpc('life_op_view', { p_token: token }); }
+  catch (x) { if (still() && token) { $app.innerHTML = `${back}<p class="err">${esc(x.message)}</p>`; bindBack(); } return; }
+  if (!still()) return;
+  const app = a => `<div class="mem" data-app="${esc(a.id)}"><div class="mem-h"><b>${esc(a.nick)}${a.bad ? ' <small style="color:var(--warn-ink, #b3261e)">4자 아님</small>' : ''}</b><small class="sub">${esc(a.at || '')}</small></div>
+      <p class="sub" style="margin:2px 0 8px">${esc(a.with || '-')}님과 함께</p>
+      <div class="exbox" style="margin-top:0"><button type="button" data-ok style="flex:1">승인</button><button type="button" data-no style="flex:1;background:var(--card);border:1.5px solid var(--line);color:var(--ink)">반려</button></div>
+      <div data-nobox hidden><label class="f" style="margin-top:8px">반려 이유 (비우면 「닉네임을 형식에 맞게」)<input maxlength="60" placeholder="예: 앞 두 자를 꾸미는 말로 바꿔 주세요"></label>
+      <button type="button" data-no2 style="width:100%">반려 보내기</button></div></div>`;
+  const rej = a => `<div class="mem" data-app="${esc(a.id)}"><div class="mem-h"><b>${esc(a.nick || '')}</b><button type="button" class="switch" data-del>지우기</button></div>
+      <p class="sub" style="margin:2px 0 0">${esc(a.with || '-')}님과 함께 · ${esc(a.note || '')}</p></div>`;
+  $app.innerHTML = `${back}<h1>운영자 화면</h1>
+    <h2>가입 신청 ${v.apps.length}</h2>
+    <div class="card" style="padding:4px 16px">${v.apps.map(app).join('') || '<p class="sub" style="margin:12px 0">기다리는 신청이 없어요.</p>'}</div>
+    ${v.rejected.length ? `<h2>반려한 신청 ${v.rejected.length}</h2><p class="sub" style="margin:-4px 0 8px">본인이 닉네임을 고쳐 다시 신청하면 위로 올라와요.</p>
+    <div class="card" style="padding:4px 16px">${v.rejected.map(rej).join('')}</div>` : ''}`;
+  bindBack();
+  const decide = async (btn, id, what, note) => {
+    btn.disabled = true;
+    try { await rpc('life_op_decide', { p_token: token, p_id: id, p_what: what, p_note: note || null }); toast(what === 'ok' ? '승인했어요' : what === 'no' ? '반려했어요' : '지웠어요'); if (still()) renderOp(); }
+    catch (x) { toast(x.message); btn.disabled = false; }
+  };
+  $app.querySelectorAll('[data-app]').forEach(box => {
+    const id = box.dataset.app, ok = box.querySelector('[data-ok]'), no = box.querySelector('[data-no]'), no2 = box.querySelector('[data-no2]'), del = box.querySelector('[data-del]');
+    if (ok) ok.onclick = () => { if (ok.dataset.sure !== '1') { ok.dataset.sure = '1'; ok.textContent = '정말 승인'; return; } decide(ok, id, 'ok'); };
+    if (no) no.onclick = () => { const b = box.querySelector('[data-nobox]'); b.hidden = !b.hidden; };
+    if (no2) no2.onclick = () => decide(no2, id, 'no', box.querySelector('[data-nobox] input').value.trim());
+    if (del) del.onclick = () => { if (del.dataset.sure !== '1') { del.dataset.sure = '1'; del.textContent = '정말 지우기'; return; } decide(del, id, 'del'); };
+  });
+}
+
 /* ☰ 계정 창. 로그아웃은 이 앱의 모든 기기에서, 비밀번호를 바꾸면 모든 기록에서 나간다 */
 /* 처음 비밀번호면 바꾸기 전에는 닫히지 않는다(업무·영성 기록과 같음) */
 let pwForced = false;
@@ -1751,7 +1863,8 @@ function unforcePw() {
 }
 function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; byId('delForm').hidden = v !== 'del'; byId('amMoView').hidden = v !== 'mo'; if (v === 'set') { byId('amMo').hidden = !hasMoments(); byId('amCamp').hidden = !(camp && camp.allowed); paintHeroItem(); if (!heroInfo && token) rpc('life_hero_info', { p_token: token }).then(r => { heroInfo = r; paintHeroItem(); }).catch(() => {}); } }
 function paintHeroItem() { const b = byId('amHero'); b.hidden = !(heroInfo && heroInfo.rooms > 0); byId('amHeroTxt').textContent = '🏃 운동방에도 같이 넣기: ' + (heroInfo && heroInfo.link ? '켬' : '끔'); }
-byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amBg').hidden = false; };
+byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amOp').hidden = !state.op; byId('amBg').hidden = false; };
+byId('amOp').onclick = () => { byId('amBg').hidden = true; goTab('op'); };
 byId('amClose').onclick = () => { byId('amBg').hidden = true; };
 byId('askYes').onclick = () => { if (askDone) askDone(true); };
 byId('askNo').onclick = () => { if (askDone) askDone(false); };
