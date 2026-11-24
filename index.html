@@ -1107,7 +1107,7 @@ function renderToday() {
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
     <p class="sub" style="margin:-4px 0 12px"><a href="#" id="weekGo">📊 내 한 주 보기 ›</a>${s.in_group === false ? ' · <a href="#" id="noGroupGo">조가 없어요. 조 탭에서 들어가기 ›</a>' : ''}</p>
     ${feedbackPin(s.feedback, '이번 주 적용점 (내가 정함)')}
-    ${state.today < '2026-12-09' && store.get('life_pv1201') !== '1' ? '<div class="got" id="pvNote">📄 12월 1일부터 개인정보처리방침이 바뀌어요. <a href="privacy.html#바뀐것">바뀐 곳 보기</a> · <a href="#" id="pvOk">닫기</a></div>' : ''}
+    ${state.today < '2026-12-09' && store.get('life_pv1201b') !== '1' ? '<div class="got" id="pvNote">📄 12월 1일부터 개인정보처리방침이 바뀌어요. <a href="privacy.html#바뀐것">바뀐 곳 보기</a> · <a href="#" id="pvOk">닫기</a></div>' : ''}
     <div id="gotBox"></div>
     ${fixCard()}
 
@@ -1128,7 +1128,7 @@ function renderToday() {
     ${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
   byId('weekGo').onclick = e => { e.preventDefault(); goTab('mine'); };
-  const pv = byId('pvOk'); if (pv) pv.onclick = e => { e.preventDefault(); store.set('life_pv1201', '1'); byId('pvNote').remove(); };
+  const pv = byId('pvOk'); if (pv) pv.onclick = e => { e.preventDefault(); store.set('life_pv1201b', '1'); byId('pvNote').remove(); };
   const ng = byId('noGroupGo'); if (ng) ng.onclick = e => { e.preventDefault(); goTab('group'); };
   if (camp) paintCamp(); /* 다시 그릴 때 캠프 칸이 비지 않게 */
   loadSocial();
