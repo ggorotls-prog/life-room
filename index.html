@@ -1311,9 +1311,24 @@ async function siteVersion() {
   catch (e) { return null; }
 }
 siteVersion().then(t => { siteTag = t; });
+/* 폰에 저장된 옛 파일로 열렸는지 확인(2026-11-24 룡 「새 화면이 안 보이네」): 내가 받은 파일의 날짜가 서버 것과 다르면
+   주소 뒤에 표식을 붙여 서버에서 새로 받는다. 같은 표식으로는 한 번만 한다(되풀이 막기) */
+async function freshCheck() {
+  try {
+    const r = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' });
+    const lm = Date.parse(r.headers.get('last-modified') || ''), mine = Date.parse(document.lastModified);
+    const tag = r.headers.get('etag') || String(lm);
+    if (!lm || !mine || Math.abs(lm - mine) < 5000 || store.get('life_fresh') === tag) return false;
+    store.set('life_fresh', tag);
+    location.replace(location.pathname + '?v=' + Date.now());
+    return true;
+  } catch (e) { return false; }
+}
+freshCheck();
 async function checkNewSite() {
   const t = await siteVersion();
-  if (t && siteTag && t !== siteTag && !document.getElementById('go')) { location.reload(); return true; }
+  if (t && siteTag && t !== siteTag && !document.getElementById('go')) { store.set('life_fresh', t); location.replace(location.pathname + '?v=' + Date.now()); return true; }
+  if (!document.getElementById('go') && await freshCheck()) return true;
   if (t && !siteTag) siteTag = t;
   return false;
 }
