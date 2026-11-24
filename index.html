@@ -627,7 +627,7 @@ function timeOptions(startHour, selected) {
 function nowHM() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 
 /* 취침 잠금(2026-11-06 룡 결정: 안드로이드 앱의 접근성 서비스). 「잘게요」 → 다른 앱을 열면 이 앱으로 돌아옴, 「일어났어요」 → 풀림.
-   「해제하기」를 누르면 사유 한 번 고르고 풀린다(기록에 남음). 브라우저에서는 잠금 없이 기록만. */
+   「해제하기」를 누르면 사유 한 번 고르고 풀린다(기록에 남음). 브라우저(아이폰 사이트)는 폰 잠금은 없고, 긴급 해제 버튼·사유 기록은 같다(2026-11-24 룡). */
 const phone = window.LifeRoom || null;
 function lockPhone() { store.set('life_lock', '1'); store.del('life_lock_fail'); store.del('life_unlocked'); if (phone) try { phone.lock(); } catch (e) {} }
 function unlockPhone() { clearInterval(lockTimer); store.del('life_lock'); store.del('life_unlocked'); if (phone) try { phone.unlock(); } catch (e) {} }
@@ -661,7 +661,7 @@ function bindUnlock(onDone) {
   };
 }
 function emergencyBtn() {
-  return phone && store.get('life_lock') === '1' ? `<button class="switch" type="button" id="emBtn" style="color:var(--sub)">🚨 긴급 해제</button>` : '';
+  return store.get('life_lock') === '1' ? `<button class="switch" type="button" id="emBtn" style="color:var(--sub)">🚨 긴급 해제</button>` : '';
 }
 function bindEmergency() { const b = byId('emBtn'); if (b) b.onclick = () => { unlockAsked = true; clearInterval(lockTimer); render(); }; }
 function pinGuide() {
