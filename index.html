@@ -501,7 +501,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { dropKeys(); token = null; store.del('life_token'); state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
+function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -521,8 +521,8 @@ function nowHM() { const d = new Date(); return String(d.getHours()).padStart(2,
 /* 취침 잠금(2026-11-06 룡 결정: 안드로이드 앱의 접근성 서비스). 「잘게요」 → 다른 앱을 열면 이 앱으로 돌아옴, 「일어났어요」 → 풀림.
    「해제하기」를 누르면 사유 한 번 고르고 풀린다(기록에 남음). 브라우저에서는 잠금 없이 기록만. */
 const phone = window.LifeRoom || null;
-function lockPhone() { store.set('life_lock', '1'); store.del('life_lock_fail'); if (phone) try { phone.lock(); } catch (e) {} }
-function unlockPhone() { clearInterval(lockTimer); store.del('life_lock'); if (phone) try { phone.unlock(); } catch (e) {} }
+function lockPhone() { store.set('life_lock', '1'); store.del('life_lock_fail'); store.del('life_unlocked'); if (phone) try { phone.lock(); } catch (e) {} }
+function unlockPhone() { clearInterval(lockTimer); store.del('life_lock'); store.del('life_unlocked'); if (phone) try { phone.unlock(); } catch (e) {} }
 let unlockAsked = false;
 window.lifeUnpinned = () => { if (store.get('life_lock') === '1' && !unlockAsked) { unlockAsked = true; if (state) render(); } };
 window.lifeLockFailed = () => {
@@ -549,7 +549,7 @@ function bindUnlock(onDone) {
     /* 기록 먼저, 그다음 풀기. 인터넷이 끊겨 기록을 못 해도 긴급이니 풀어 준다 */
     try { state = await rpc('life_unlock', { p_token: token, p_note: note }); }
     catch (x) { toast('기록은 못 했어요. 잠금은 풀었어요.'); }
-    unlockPhone(); unlockAsked = false; onDone();
+    unlockPhone(); store.set('life_unlocked', '1'); unlockAsked = false; onDone();
   };
 }
 function emergencyBtn() {
@@ -813,12 +813,15 @@ function renderSleeping() {
   }
   $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>자는 중 · 취침 ${hm(d.bed)}</h1>
     <p class="sub">잘 자요. 일어나면 눌러 주세요</p>${alarmLine()}${lockLine()}${pinGuide()}
-    <div class="card"><button class="main" id="go">일어났어요 ☀️</button>
-    ${store.get('life_lock') === '1' ? emergencyBtn() : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}</div></div>`;
+    <div class="card">${store.get('life_unlocked') === '1' && store.get('life_lock') !== '1'
+      /* 긴급 해제한 뒤(2026-11-24 룡: 어머니가 큰 「일어났어요」를 눌러 다시 못 잠금): 다시 자는 쪽이 큰 버튼 */
+      ? `<button class="main" type="button" id="reBed">🌙 다시 잘게요</button><button type="button" id="go" style="width:100%;margin-top:8px">일어났어요 ☀️</button>`
+      : `<button class="main" id="go">일어났어요 ☀️</button>
+    ${store.get('life_lock') === '1' ? emergencyBtn() : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}`}</div></div>`;
   bindPinGuide(); keepLocked(); bindEmergency();
   document.getElementById('go').onclick = () => {
     /* 새벽 4시 전에 일어나면 기상은 4시 뒤 화면에서 적힌다. 지금은 잠금만 푼다 */
-    unlockPhone(); wakeDone(); store.set('life_awake', state.today); render();
+    unlockPhone(); wakeDone(); store.del('life_unlocked'); store.set('life_awake', state.today); render();
   };
   const rb = document.getElementById('reBed');
   if (rb) rb.onclick = reLock;
@@ -917,6 +920,7 @@ function renderToday() {
           <div class="txt"><strong>수면 ${d.bed ? '✅' : ''}</strong><span class="sub">기상 ${hm(d.wake)}${d.condition ? ' ' + FACES[d.condition - 1] : ''}${d.condition_note ? ' ' + esc(d.condition_note) : ''}${d.bed ? ' · 취침 ' + hm(d.bed) : ''} <a href="#" id="wakeFix">기상 고치기</a></span></div>
           <div class="btns"><button class="${d.bed ? '' : 'pick'}" id="bedBtn">${d.bed ? '고치기' : '잘게요'}</button></div>
         </div>
+        ${d.bed ? '<button class="pick" type="button" id="reSleep" style="width:100%;margin-top:10px">🌙 다시 잘게요</button>' : ''}
         <div id="bedBox"></div>
       </div>
       ${exerciseCard(d)}
@@ -1014,6 +1018,9 @@ function renderToday() {
     };
     box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
+  /* 「일어났어요」를 누른 뒤에도 같은 하루(새벽 4시 전)면 다시 잠근다(2026-11-24 룡). 취침 시각은 처음 것 그대로 */
+  const rs = byId('reSleep');
+  if (rs) rs.onclick = async () => { if (!await ask('다시 잘게요?\n취침 시각은 ' + hm(d.bed) + ' 그대로예요.', '다시 잘게요')) return; store.del('life_awake'); reLock(); };
   document.getElementById('bedBtn').onclick = async () => {
     if (!d.bed && !await ask('지금 잘게요?', '잘게요')) return; /* 실수로 누르는 것 막기(2026-11-24 룡) */
     if (byId('bedBox').dataset.k === 'wake') byId('bedBox').innerHTML = '';
@@ -1574,7 +1581,7 @@ byId('delForm').onsubmit = async e => {
       await refresh();
       return;
     }
-    unlockPhone(); store.del('life_bed'); store.del('life_awake'); store.del('life_alarm');
+    unlockPhone(); store.del('life_bed'); store.del('life_awake'); store.del('life_alarm'); store.del('life_unlocked');
     logout();
     byId('err').textContent = '탈퇴했어요. 내 기록을 모두 지웠어요.';
   } catch (x) { byId('delErr').textContent = x.message; } finally { btn.disabled = false; }
