@@ -214,6 +214,8 @@
   .cheer { display: flex; align-items: center; gap: 10px; padding: 0 14px 12px; }
   .cheer button { min-height: 40px; padding: 0 14px; background: var(--card); border: 1.5px solid var(--main); color: var(--main); } /* 누르기 전도 또렷하게(2026-11-24 아내 요청) */
   .cheer button.on { background: var(--main); color: var(--main-ink); }
+  .chMsgs { padding: 0 14px; } .chMsgs:not(:empty) { padding-bottom: 12px; margin-top: -4px; }
+  .chMsgs p { margin: 4px 0 0; font-size: 15px; line-height: 1.45; } .chMsgs b { margin-right: 4px; }
   .got { background: var(--main-soft); border-radius: 12px; padding: 10px 14px; margin: 0 0 12px; font-size: 15px; }
   /* 「오늘 우리 조」 한눈에 아이콘(2026-11-20) */
   .dots.icons { display: flex; gap: 6px; letter-spacing: 0; }
@@ -274,6 +276,15 @@
   <div class="am" style="max-width:320px;text-align:center;padding:22px 16px 16px">
     <p id="askMsg" style="margin:0 0 18px;font-size:16px;font-weight:700;line-height:1.5;white-space:pre-line"></p>
     <div style="display:flex;gap:8px"><button type="button" id="askNo" style="flex:1">취소</button><button type="button" id="askYes" class="main" style="flex:1;margin:0">확인</button></div>
+  </div>
+</div>
+<!-- 응원 한마디(2026-11-24 룡 「꼭 멘트 적도록」): 응원은 한마디를 적어야 보낼 수 있다 -->
+<div class="am-bg" id="chBg" role="dialog" aria-modal="true" aria-labelledby="chTitle" style="z-index:25" hidden>
+  <div class="am" style="max-width:340px;padding:20px 16px 16px">
+    <p id="chTitle" style="margin:0 0 10px;font-size:16px;font-weight:700;text-align:center"></p>
+    <textarea class="fb" id="chMsg" maxlength="100" placeholder="예) 오늘도 운동하셨네요! 내일도 같이 해요"></textarea>
+    <p class="sub" id="chHint" style="margin:6px 0 12px">한마디를 적어야 보낼 수 있어요</p>
+    <div style="display:flex;gap:8px"><button type="button" id="chNo" style="flex:1">취소</button><button type="button" id="chYes" class="main" style="flex:1;margin:0" disabled>👏 보내기</button></div>
   </div>
 </div>
 <div class="am-bg" id="invBg" role="dialog" aria-modal="true" aria-labelledby="invTitle" style="z-index:20" hidden>
@@ -399,10 +410,12 @@ async function rpc(fn, args, keepLogin) {
     if (d && d.message === 'auth') { if (keepLogin) throw new Error('auth'); logout(); throw new Error('다시 로그인해 주세요.'); }
     /* 새벽 4시를 넘겨 화면이 어제에 머문 경우: 새로 불러와 오늘 순서로 보낸다 */
     if (d && ['need_wake', 'need_bed', 'not_needed'].includes(d.message)) {
-      tab = 'today'; await refresh(); throw new Error('날이 바뀌었어요. 오늘 기록을 시작해 주세요.');
+      closeCheer(); tab = 'today'; await refresh(); throw new Error('날이 바뀌었어요. 오늘 기록을 시작해 주세요.');
     }
     /* 지난 기록 고치기 범위(지난 7일) 밖 */
     if (d && d.message === 'day') throw new Error('지난 7일만 고칠 수 있어요.');
+    if (d && d.message === 'cheer_msg') throw new Error('응원 한마디를 적어 주세요.');
+    if (d && d.message === 'cheer_long') throw new Error('응원 한마디는 100자까지 적을 수 있어요.');
     /* 서버에 아직 없는 함수(새 기능을 화면만 먼저 올린 경우) */
     if (r.status === 404 || (d && d.code === 'PGRST202')) throw new Error('아직 준비 중인 기능이에요. 운영자에게 말해 주세요.');
     /* 서버가 한국어로 알려 준 까닭은 그대로 보여 준다(예: 「마침일이 시작일보다 빨라요.」) */
@@ -428,7 +441,11 @@ function paintSocial() {
     const c = ch[b.dataset.cheer];
     b.classList.toggle('on', !!(c && c.mine));
     b.textContent = '👏 응원' + (c ? ' ' + c.n : '');
-    const who = b.parentNode.querySelector('.sub'); if (who) who.textContent = c ? c.names : '';
+    /* 한마디가 있으면 「닉네임: 한마디」 줄로, 한마디 없는 옛 응원은 이름만 */
+    const said = c && c.msgs ? c.msgs.filter(x => x.msg) : [];
+    const who = b.parentNode.querySelector('.sub'); if (who) who.textContent = c ? c.msgs ? c.msgs.filter(x => !x.msg).map(x => x.nickname).join(', ') : c.names : '';
+    const box = document.querySelector(`[data-msgs="${b.dataset.cheer}"]`);
+    if (box) box.innerHTML = said.map(x => `<p><b>${esc(x.nickname)}님:</b> ${esc(x.msg)}</p>`).join('');
   });
   /* 조 보드를 아이콘으로 */
   const isCamp = social.stage === 3, bd = Object.fromEntries((social.board || []).map(x => [x.nickname, x]));
@@ -436,8 +453,10 @@ function paintSocial() {
 
   const got = byId('gotBox');
   if (got) {
-    const names = [...new Set((social.got || []).map(g => g.nickname))];
-    got.innerHTML = names.length ? `<div class="got">👏 ${esc(names.join(', '))}님이 내 기록을 응원했어요</div>` : '';
+    const gs = social.got || [], names = [...new Set(gs.filter(g => !g.msg).map(g => g.nickname))];
+    const lines = gs.filter(g => g.msg).map(g => `<div>👏 <b>${esc(g.nickname)}님:</b> ${esc(g.msg)}</div>`);
+    if (names.length) lines.push(`<div>👏 ${esc(names.join('님, '))}님이 응원했어요</div>`);
+    got.innerHTML = lines.length ? `<div class="got">${lines.join('')}</div>` : '';
   }
 }
 /* 3단계 = 셀체인지 캠프 조(2026-11-20 룡): 캠프 조 사람에게만 보인다.
@@ -575,12 +594,28 @@ function paintShare() {
   });
 }
 function bindCheers() {
-  document.querySelectorAll('[data-cheer]').forEach(b => b.onclick = async () => {
+  document.querySelectorAll('[data-cheer]').forEach(b => b.onclick = () => {
     if (b.disabled || b.classList.contains('on')) return;
-    b.classList.add('on');
-    try { await rpc('life_cheer', { p_token: token, p_post: +b.dataset.cheer }); toast('응원을 보냈어요 👏'); loadSocial(); }
-    catch (x) { b.classList.remove('on'); toast(x.message); }
+    openCheer(b);
   });
+}
+/* 응원 한마디 창: 한마디를 적어야 「보내기」가 눌린다(서버도 빈 한마디는 받지 않는다) */
+let cheerBtn = null;
+function openCheer(b) {
+  cheerBtn = b;
+  byId('chTitle').textContent = (b.dataset.who || '') + '님께 응원 한마디';
+  byId('chMsg').value = ''; byId('chYes').disabled = true; byId('chHint').hidden = false;
+  byId('chBg').hidden = false; byId('chMsg').focus();
+}
+function closeCheer() { cheerBtn = null; byId('chBg').hidden = true; }
+async function sendCheer() {
+  const b = cheerBtn, msg = byId('chMsg').value.trim();
+  if (!b || !msg) return;
+  byId('chYes').disabled = true;
+  try {
+    await rpc('life_cheer', { p_token: token, p_post: +b.dataset.cheer, p_msg: msg });
+    closeCheer(); b.classList.add('on'); toast('응원을 보냈어요 👏'); loadSocial();
+  } catch (x) { byId('chYes').disabled = false; toast(x.message); }
 }
 /* 앱 안 확인창(2026-11-24 룡): 폰 기본 확인창은 사이트 주소가 같이 떠서 쓰지 않는다. ask('글', '예 버튼', '아니오 버튼') → true/false */
 let askDone = null;
@@ -609,7 +644,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
+function logout() { dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; closeCheer(); byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -1357,7 +1392,8 @@ function historyHtml() {
       ${p.note ? `<p style="padding:0 14px 12px;font-size:15px">${esc(p.note)}</p>` : ''}
       ${p.shared === false ? `<p class="sub" style="padding:0 14px 12px">${p.mine ? '🔒 나만 보는 기록이에요' : '🔒 올렸어요 (내용은 본인만 봐요)'}</p>` : ''}
       ${p.photo ? `<img${p.kind === 'exercise' ? ' class="ex"' : ''} src="${esc(p.photo)}" alt="${label[p.kind]} 사진" loading="lazy">` : ''}
-      <div class="cheer"${p.photo ? ' style="padding-top:12px"' : ''}><button type="button" data-cheer="${p.id}"${p.mine ? ' disabled' : ''}>👏 응원</button><span class="sub"></span></div>
+      <div class="cheer"${p.photo ? ' style="padding-top:12px"' : ''}><button type="button" data-cheer="${p.id}" data-who="${esc(p.nickname)}"${p.mine ? ' disabled' : ''}>👏 응원</button><span class="sub"></span></div>
+      <div class="chMsgs" data-msgs="${p.id}"></div>
     </div>`).join('');
   return `<h1>히스토리</h1><p class="sub" style="margin-bottom:12px">내가 속한 조 사람들이 올린 것을 한 줄로 봐요</p>
     ${items || '<p class="sub">아직 올라온 것이 없어요. 첫 번째로 올려 보세요!</p>'}
@@ -1899,7 +1935,7 @@ function setInvCount(n) { if (n !== invCount) { invCount = n; if ($tabs.innerHTM
 /* 팝업을 띄워도 되는 때: 아래 버튼이 있는 보통 화면이고, 다른 창·입력 중인 것이 없을 때 */
 function invCanShow() {
   return byId('invBg').hidden && tab !== 'group' && $tabs.innerHTML && !pwForced && !(state.me && state.me.need_consent)
-    && byId('amBg').hidden && byId('cnBg').hidden && !askDone && !byId('go') && !byId('exGo');
+    && byId('amBg').hidden && byId('cnBg').hidden && byId('chBg').hidden && !askDone && !byId('go') && !byId('exGo');
 }
 function invClose() { byId('invBg').hidden = true; }
 async function checkInvites(force) {
@@ -1967,6 +2003,7 @@ async function freshCheck() {
 }
 freshCheck();
 async function checkNewSite() {
+  if (!byId('chBg').hidden) return false; /* 응원 한마디를 적는 중에는 다시 불러오지 않는다(적던 글이 지워진다) */
   const t = await siteVersion();
   if (t && siteTag && t !== siteTag && !document.getElementById('go')) { store.set('life_fresh', t); location.replace(location.pathname + '?v=' + Date.now()); return true; }
   if (!document.getElementById('go') && await freshCheck()) return true;
@@ -2387,12 +2424,17 @@ byId('cnNo').onclick = () => { byId('cnBg').hidden = true; };
 byId('cnBg').onclick = e => { if (e.target === byId('cnBg')) byId('cnBg').hidden = true; };
 byId('askYes').onclick = () => { if (askDone) askDone(true); };
 byId('askNo').onclick = () => { if (askDone) askDone(false); };
-document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (askDone) askDone(false); else if (!byId('cnBg').hidden) byId('cnBg').hidden = true; else if (!byId('invBg').hidden) byId('invLater').click(); });
+byId('chMsg').oninput = () => { const ok = !!byId('chMsg').value.trim(); byId('chYes').disabled = !ok; byId('chHint').hidden = ok; };
+byId('chYes').onclick = sendCheer;
+byId('chNo').onclick = closeCheer;
+byId('chBg').onclick = e => { if (e.target === byId('chBg')) closeCheer(); };
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (askDone) askDone(false); else if (!byId('chBg').hidden) closeCheer(); else if (!byId('cnBg').hidden) byId('cnBg').hidden = true; else if (!byId('invBg').hidden) byId('invLater').click(); });
 byId('askBg').onclick = e => { if (e.target === byId('askBg') && askDone) askDone(false); };
 byId('amBg').onclick = e => { if (e.target === byId('amBg') && !pwForced) byId('amBg').hidden = true; };
 // 앱의 뒤로 가기(2026-11-11 룡: 꺼지지 말고 전 단계로): 열린 계정 창 → 직전 탭 → 「오늘」 → 맨 위. 더 갈 데가 없을 때만 앱이 닫힌다.
 const tabTrail = [];
 window.appBack = () => {
+  if (!byId('chBg').hidden) { closeCheer(); return true; } /* 응원 한마디 창부터 닫는다 */
   if (!byId('cnBg').hidden) { byId('cnBg').hidden = true; return true; } /* 카드뉴스 팝업이 떠 있으면 그것부터 닫는다 */
   if (askDone) { askDone(false); return true; } /* 확인창이 떠 있으면 「아니오」로 닫는다 */
   if (!byId('invBg').hidden) { byId('invLater').click(); return true; } /* 초대 팝업은 「나중에 정할게요」로 닫는다 */
