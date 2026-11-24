@@ -537,8 +537,6 @@ function fixItems() {
   }
   if (!m.acc && phone.openPinSettings) L.push(['🌙 취침 잠금', '「잘게요」 뒤 다른 앱을 막아요', '켜기', () => phone.openPinSettings()]);
   if (!m.battery && phone.openBattery) L.push(['🔋 배터리 「제한 없음」', '제한이 걸리면 폰이 알림·잠금을 재워요', '켜기', () => phone.openBattery()]);
-  if (m.exact === false && phone.openExactAlarm) L.push(['⏰ 알람 제시간에', '기상 알람이 제시간에 울리게 「알람 및 리마인더」를 켜 주세요', '켜기', () => phone.openExactAlarm()]);
-  if (m.fsi === false) L.push(['⏰ 알람 화면', '잠금 화면 위에 알람을 띄워요', '켜기', () => phone.openAlarmSettings()]);
   return L;
 }
 function fixCard() {
@@ -567,10 +565,7 @@ function alarmOptions(sel) {
   }
   return h;
 }
-function alarmLine() {
-  if (!hasAlarm() || !moState.alarm) return '<span id="alarmLine"></span>';
-  return `<p class="sub" id="alarmLine" style="margin-top:6px">⏰ ${esc(moState.alarm)}에 깨워 드려요</p>`;
-}
+function alarmLine() { return '<span id="alarmLine"></span>'; } /* 기상 알람 뺌(2026-11-24 룡) */
 function momentsLine() {
   if (!hasMoments()) return '';
   const on = x => x === 'on' ? '켜짐' : '꺼짐';
@@ -606,7 +601,6 @@ function paintMoments() {
     <div class="mo-row"><div class="txt"><b>🏃 운동 (삼성 헬스)</b><small>갤럭시 핏·워치로 한 운동이 삼성 헬스에 들어오면 「걷기 20분, 운동으로 적을까요?」. 저절로 저장하지 않아요.</small><small>지금: ${exMsg}</small>
       ${m.ex === 'on' || m.ex === 'need' ? '<small>알림이 안 오면: 삼성 헬스 → 설정 → Health Connect에서 「운동」 공유 켜기</small>' : ''}</div>
       <button type="button" id="moEx">${exBtn}</button></div>
-    ${m.fsi === false ? `<div class="mo-row"><div class="txt"><b>⏰ 기상 알람 화면</b><small>잠금 화면 위에 알람을 띄우려면 「전체 화면 알림」 허락이 필요해요.</small></div><button type="button" id="moFsi">허락하기</button></div>` : ''}
     <p class="sub" style="margin-top:10px">건강 기록 앱과 라이프 RPG를 둘 다 쓰면 한 곳에서만 켜 주세요(두 번 물어요).</p>`;
   // 'none' = 이 판(구글 플레이용)에는 그 기능이 없다 → 줄을 숨긴다
   if (m.photo === 'none') { byId('moPhoto').closest('.mo-row').style.display = 'none'; body.querySelector('.mo-times').style.display = 'none'; byId('moTimes').style.display = 'none'; }
@@ -935,20 +929,9 @@ function renderToday() {
     byId('bedBox').dataset.k = 'bed';
     if (!d.bed) { /* 버튼 하나: 지금 시각으로 취침, 앱이면 폰 고정 */
       const sleep = () => { store.del('life_awake'); unlockAsked = false; bedAndLock({ p_token: token, p_which: 'today', p_time: nowHM() }, pick(CHEERS.bed)); };
-      if (!hasAlarm()) return sleep();
-      /* 기상 알람(2026-11-16 룡): 「잘게요」를 누르면 일어날 시각을 고르고, 그 시각에 앱이 깨운다 */
-      const box = byId('bedBox');
-      if (box.innerHTML) { box.innerHTML = ''; return; }
-      box.innerHTML = `<div class="card" style="margin-top:8px">
-        <label class="f" style="margin-top:0">⏰ 몇 시에 깨워 드릴까요?</label>
-        <select id="alarmT" style="margin-top:6px">${alarmOptions(moState.lastAlarm || store.get('life_alarm') || '06:30')}</select>
-        <div class="err" id="err"></div>
-        <button class="main" id="go">⏰ 맞추고 잘게요</button>
-        <button class="switch" type="button" id="noAlarm">알람 없이 잘게요</button></div>`;
-      byId('go').onclick = () => { const v = byId('alarmT').value; store.set('life_alarm', v); try { phone.setAlarm(v); } catch (e) {} sleep(); };
-      byId('noAlarm').onclick = () => { try { phone.cancelAlarm(); } catch (e) {} sleep(); };
-      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
+      /* 기상 알람은 뺐다(2026-11-24 룡). 예전에 맞춰 둔 알람이 있으면 끈다 */
+      if (hasAlarm()) try { phone.cancelAlarm(); } catch (e) {}
+      return sleep();
     }
     document.getElementById('bedBox').innerHTML = `<div class="card" style="margin-top:8px">
       <label class="f" style="margin-top:0">몇 시에 주무세요?</label>
