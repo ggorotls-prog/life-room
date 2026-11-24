@@ -138,8 +138,14 @@
   .cn.s2 .cn-top { color: #256348; } .cn.s2 .cn-big { color: #2f7d5b; } .cn.s2 .cn-b { color: #2f4438; }
   .cn.s2 .cn-do { background: #2f7d5b; box-shadow: 0 8px 20px rgba(47,125,91,.32); } .cn.s2 .cn-do b { color: #d6eede; }
   .cn.s2 .cn-s { color: #4f6b5b; } .cn.s2 .cn-s b { color: #256348; }
-  .sect-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .sect-h .backb { margin: 0; flex: none; }
+  /* 단계 줄(2026-11-24 룡 「관리자 페이지처럼 예쁘게」): 단계 색 제목 + 밑줄, 방 칸 왼쪽에 색 띠. 1 빨강 · 2 초록 · 3 파랑 */
+  .sect-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 40px; padding-bottom: 6px; border-bottom: 2px solid var(--sc); color: var(--sc); }
+  .sect-h small { font-size: 12px; font-weight: 400; color: var(--sub); margin-left: 4px; }
+  .sect-h .backb { margin: 0; flex: none; min-height: 36px; padding: 4px 10px; font-size: 13px; }
+  .st1 { --sc: #e06666; } .st2 { --sc: #3a9a6f; } .st3 { --sc: #4a7fc8; }
+  .gcards .gcard { border-left: 5px solid var(--sc); }
+  .gcard.gnew { border-style: dashed; border-left-width: 1.5px; color: var(--sc); font-weight: 700; }
+  .newbox { margin-top: 8px; } .newbox select { margin-top: 6px; }
   .thru { background: var(--main-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; text-align: center; font-size: 15px; line-height: 1.4; }
   .thru span { display: block; } .thru b { font-size: 26px; color: var(--main); }
   .backb { width: auto; margin: 0 0 8px; padding: 6px 12px; font-size: 14px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); }
@@ -1667,6 +1673,8 @@ function groupCards(v) {
 }
 function paintGroups() {
   const v = groupsView; if (!v || tab !== 'group') return;
+  /* 다시 그려도 쓰던 새 방 이름이 남게(서버 답이 늦게 와 한 번 더 그릴 때) */
+  const ob = $app.querySelector('[data-newbox]:not([hidden])'), keep = ob ? { st: ob.dataset.newbox, name: ob.querySelector('input').value } : null;
   const { cards, boss } = groupCards(v);
   const mine = cards.filter(c => boss(c.role));
   const warn = mine.flatMap(c => c.alerts.map(a => ({ ...a, group: c.name, what: c.what }))).sort((x, y) => y.days - x.days);
@@ -1675,10 +1683,17 @@ function paintGroups() {
   const roleName = c => c.role === 'leader' ? '조장' : c.role === 'owner' ? (c.leader ? '조장 ' + esc(c.leader) : '운영자') : '조원';
   const sect = st => {
     const list = cards.filter(c => c.stage === st);
-    if (!list.length) return '';
+    if (!list.length && !v.maker) return '';
     const cn = st < 3 && list.some(c => c.role === 'leader');
-    return `<h2 class="sect-h"><span>${st}단계</span>${cn ? `<button type="button" class="backb" data-cn="${st}">${cnSent(st) ? '✅ 보냄 · 다시' : '🖼 카드뉴스 보내기'}</button>` : ''}</h2><div class="gcards">${list.map(c => `<button type="button" class="gcard${c.key === groupOpen && c.role !== 'leader' ? ' on' : ''}" data-g="${esc(c.key)}"${boss(c.role) && c.alerts.length ? ` title="${esc(c.alerts.map(a => a.nickname + ' ' + a.days + '일째 ' + c.what).join(', '))}"` : ''}>
-        <b>${esc(c.name)}</b><small>${roleName(c)} · ${c.n}명${c.role === 'leader' ? ' ›' : ''}</small>${boss(c.role) && c.alerts.length ? `<i class="galert" aria-label="관심이 필요한 사람 ${c.alerts.length}명">${c.alerts.length}</i>` : ''}</button>`).join('')}</div>`;
+    const NAME = { 1: '1단계 · 운동방', 2: '2단계 · 생활개선', 3: '3단계 · 셀체인지 캠프' };
+    /* 「➕ 새 방」: 방을 만들 수 있는 계정에게만. 누르면 그 단계 줄 아래에 이름 칸이 펴진다 */
+    const add = v.maker ? `<button type="button" class="gcard gnew" data-new="${st}">➕<small>새 ${st === 1 ? '운동방' : '조'}</small></button>` : '';
+    const box = v.maker ? `<div class="card newbox" data-newbox="${st}" hidden><b>${st === 1 ? '새 운동방' : '새 ' + st + '단계 조'} 만들기</b>
+        <div class="exbox"><input maxlength="20" placeholder="${st === 1 ? '방 이름 (예: 새벽)' : '조 이름'}" autocomplete="off"><button class="pick" type="button">만들기</button></div>
+        ${st === 1 ? `<select>${[3, 4, 5, 6, 7].map(n => `<option value="${n}">내 결단 주 ${n}회</option>`).join('')}</select><p class="sub" style="margin:6px 0 0;font-size:12px">만든 사람도 참가자예요. 실명으로 첫 참가자가 돼요.</p>` : '<p class="sub" style="margin:6px 0 0;font-size:12px">만들면 조 코드가 생겨요. 조 화면에서 복사해 전해 주세요.</p>'}
+        <div class="err"></div></div>` : '';
+    return `<h2 class="sect-h st${st}"><span>${NAME[st]}<small>${list.length}개</small></span>${cn ? `<button type="button" class="backb" data-cn="${st}">${cnSent(st) ? '✅ 보냄 · 다시' : '🖼 카드뉴스 보내기'}</button>` : ''}</h2><div class="gcards st${st}">${list.map(c => `<button type="button" class="gcard${c.key === groupOpen && c.role !== 'leader' ? ' on' : ''}" data-g="${esc(c.key)}"${boss(c.role) && c.alerts.length ? ` title="${esc(c.alerts.map(a => a.nickname + ' ' + a.days + '일째 ' + c.what).join(', '))}"` : ''}>
+        <b>${esc(c.name)}</b><small>${roleName(c)} · ${c.n}명${c.role === 'leader' ? ' ›' : ''}</small>${boss(c.role) && c.alerts.length ? `<i class="galert" aria-label="관심이 필요한 사람 ${c.alerts.length}명">${c.alerts.length}</i>` : ''}</button>`).join('')}${add}</div>${box}`;
   };
   const detail = c => {
     if (!c) return '';
@@ -1699,7 +1714,7 @@ function paintGroups() {
     ${inv}
     ${v.through > 0 ? `<div class="thru">나를 통해 지금<span><b>${v.through}명</b>의</span>삶이 변하는 중</div>` : ''}
     ${warn.length ? `<div class="gwarn"><b>관심이 필요한 사람 ${warn.length}명</b>${warn.slice(0, 8).map(a => `<div>${esc(a.nickname)} · ${esc(a.group)} · ${a.days}일째 ${a.what}</div>`).join('')}${warn.length > 8 ? `<div>…그 밖에 ${warn.length - 8}명</div>` : ''}</div>` : ''}
-    ${cards.length ? sect(1) + sect(2) + sect(3) : ''}
+    ${cards.length || v.maker ? sect(1) + sect(2) + sect(3) : ''}
     <div id="gDetail">${detail(open)}</div>
 `;
   /* 내가 조장인 조 칸 = 그 조 화면으로 넘어간다. 조원인 조 칸 = 아래에 오늘 모습을 편다(2026-11-24 룡) */
@@ -1710,6 +1725,25 @@ function paintGroups() {
   });
   if (!social) loadSocial();
   $app.querySelectorAll('[data-cn]').forEach(b => b.onclick = () => cnOpen(+b.dataset.cn, b));
+  $app.querySelectorAll('[data-new]').forEach(b => b.onclick = () => {
+    const box = $app.querySelector('[data-newbox="' + b.dataset.new + '"]'), was = box.hidden;
+    $app.querySelectorAll('[data-newbox]').forEach(x => { x.hidden = true; });
+    box.hidden = !was; if (was) { box.querySelector('input').focus(); box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  });
+  $app.querySelectorAll('[data-newbox]').forEach(box => {
+    const st = +box.dataset.newbox, go = box.querySelector('.pick'), err = box.querySelector('.err');
+    box.querySelector('input').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go.click(); } };
+    if (keep && keep.st === box.dataset.newbox) { box.hidden = false; box.querySelector('input').value = keep.name; }
+    go.onclick = async () => {
+      const name = box.querySelector('input').value.trim(), sel = box.querySelector('select');
+      if (!name) { err.textContent = '이름을 적어 주세요.'; return; }
+      go.disabled = true; err.textContent = '';
+      try {
+        await rpc('life_new_room', { p_token: token, p_stage: st, p_name: name, p_goal: sel ? +sel.value : 3 });
+        toast('「' + name + '」 방을 만들었어요'); groupsView = null; refresh().catch(x => toast(x.message));
+      } catch (x) { err.textContent = x.message; go.disabled = false; }
+    };
+  });
   $app.querySelectorAll('[data-inv]').forEach(b => b.onclick = async () => {
     b.disabled = true;
     try {
