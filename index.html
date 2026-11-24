@@ -1655,14 +1655,17 @@ function paintGroups() {
   const inv = (v.invites || []).map(i => `<div class="card" style="margin:0 0 12px"><b>📩 ${esc(i.name)}</b> <span class="sub">${i.stage}단계${i.by ? ' · ' + esc(i.by) + '님이 초대했어요' : ''}</span>
       <p class="sub" style="margin:4px 0 0">들어가면 내 운동·식단·영양제 기록을 이 조 사람들이 함께 봐요.</p>
       <div class="exbox"><button type="button" data-inv="${i.group}" data-yes="1" style="flex:1">들어가기</button><button type="button" data-inv="${i.group}" style="flex:1;background:var(--card);border:1.5px solid var(--line);color:var(--ink)">거절</button></div></div>`).join('');
+  /* 「조 코드 넣기」는 위쪽 작은 버튼(2026-11-24 룡 「아래에 너무 크게 있어서 불편」). 누르면 칸이 펴진다. 조가 하나도 없으면 처음부터 펴 둔다 */
   $app.innerHTML = `<h1>조</h1>
+    <button type="button" class="backb" id="rjOpen"${cards.length ? '' : ' hidden'}>🔑 조 코드 넣기</button>
+    <div id="rjBox" style="margin:0 0 12px"${cards.length ? ' hidden' : ''}><p class="sub" style="margin:0">조장에게 받은 조 코드를 넣으면 그 조에 바로 들어가요.</p>
+      <div class="exbox" style="margin-top:6px"><input id="rjCode" maxlength="12" placeholder="조 코드" autocomplete="off" style="text-transform:uppercase"><button class="pick" id="rjGo" type="button">들어가기</button></div><div class="err" id="rjErr"></div></div>
     ${inv}
     ${v.through > 0 ? `<div class="thru">나를 통해 지금<span><b>${v.through}명</b>의</span>삶이 변하는 중</div>` : ''}
     ${warn.length ? `<div class="gwarn"><b>관심이 필요한 사람 ${warn.length}명</b>${warn.slice(0, 8).map(a => `<div>${esc(a.nickname)} · ${esc(a.group)} · ${a.days}일째 ${a.what}</div>`).join('')}${warn.length > 8 ? `<div>…그 밖에 ${warn.length - 8}명</div>` : ''}</div>` : ''}
     ${cards.length ? sect(1) + sect(2) + sect(3) : ''}
     <div id="gDetail">${detail(open)}</div>
-    <div class="card" style="margin-top:16px"><b>🔑 조 코드 넣기</b><p class="sub" style="margin:4px 0 8px">조장에게 받은 조 코드를 넣으면 그 조에 바로 들어가요.</p>
-      <div class="exbox"><input id="rjCode" maxlength="12" placeholder="조 코드" autocomplete="off" style="text-transform:uppercase"><button class="pick" id="rjGo" type="button">들어가기</button></div><div class="err" id="rjErr"></div></div>`;
+`;
   /* 내가 조장인 조 칸 = 그 조 화면으로 넘어간다. 조원인 조 칸 = 아래에 오늘 모습을 편다(2026-11-24 룡) */
   $app.querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
     const c = cards.find(x => x.key === b.dataset.g);
@@ -1678,6 +1681,7 @@ function paintGroups() {
       groupOpen = null; groupsView = null; refresh().catch(x => toast(x.message));
     } catch (x) { toast(x.message); b.disabled = false; }
   });
+  byId('rjOpen').onclick = () => { const b = byId('rjBox'); b.hidden = !b.hidden; if (!b.hidden) byId('rjCode').focus(); };
   const rj = byId('rjGo');
   if (rj) rj.onclick = async () => {
     const code = byId('rjCode').value.trim();
