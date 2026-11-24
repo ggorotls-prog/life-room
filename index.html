@@ -114,6 +114,36 @@
   .galert { position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--err); color: #fff; font-size: 13px; font-style: normal; font-weight: 900; line-height: 22px; text-align: center; }
   .gwarn { background: #fdecec; color: #8f1d1d; border-radius: 12px; padding: 12px 14px; margin: 12px 0; font-size: 14px; line-height: 1.6; }
   .gwarn b { display: block; margin-bottom: 2px; }
+  /* 1단계 운동표(관리자 사이트와 같은 모양) */
+  #shotArea .xt { overflow: visible; border-radius: 0; }
+  #shotArea { position: fixed; left: -10000px; top: 0; width: max-content; min-width: 780px; background: #fff; color: #111; font-family: 'Noto Sans KR', sans-serif; }
+  .xt { background: #fff; color: #111; border-radius: 8px; overflow: hidden; }
+  .xt table { border-collapse: collapse; width: 100%; font-size: 17px; font-variant-numeric: tabular-nums; --bold: 2px solid #111; }
+  .xt th, .xt td { border: 1px solid #c9c9c9; height: 40px; padding: 0 10px; text-align: center; white-space: nowrap; }
+  .xt .title td { background: #e06666; color: #fff; font-size: 23px; font-weight: 800; height: 60px; border-color: #e06666; border-bottom: var(--bold); }
+  .xt thead th { background: #f4cccc; font-weight: 800; font-size: 16px; color: #3b1414; }
+  .xt td.name { font-weight: 700; } .xt td.goal { color: #333; font-weight: 500; }
+  .xt td.d { min-width: 76px; } .xt td.d.on { background: #f9cb9c; font-weight: 800; color: #4a2300; }
+  .xt th.today { background: #eaa3a3; }
+  .xt thead tr:last-child th { border-bottom: var(--bold); }
+  .xt thead tr:last-child th:nth-child(2), .xt tbody td:nth-child(2), .xt thead tr:last-child th:nth-child(3), .xt tbody td:nth-child(3) { border-left: var(--bold); }
+  .xt thead tr:last-child th:last-child, .xt tbody td.rest { border-left: var(--bold); border-right: var(--bold); }
+  .xt .title td:last-child { border-right: var(--bold); }
+  .xt tbody tr:last-child td { border-bottom: var(--bold); }
+  .xt td.rest { min-width: 76px; font-weight: 700; }
+  .xt td.rest.zero { background: #b7e1cd; color: #0f4d2c; } .xt td.rest.bad { background: #cc0000; color: #fff; }
+  .xt td.rest.warn { background: #e69138; color: #fff; } .xt td.rest.off { background: #e8e8e8; color: #555; }
+  .xt .s { display: none; }
+  .xt.small .l { display: none; } .xt.small .s { display: inline; }
+  .xt.small table { table-layout: fixed; font-size: 14px; letter-spacing: -0.03em; }
+  .xt.small th, .xt.small td { height: 36px; padding: 0 1px; overflow: hidden; }
+  .xt.small td.d, .xt.small td.rest { min-width: 0; }
+  .xt.small col.c-name { width: 21%; } .xt.small col.c-goal { width: 11%; } .xt.small col.c-rest { width: 12%; }
+  .xt.small thead th { font-size: 13px; line-height: 1.15; height: 42px; }
+  .xt.small thead th small { display: block; font-size: 11px; font-weight: 500; color: #7a4a4a; }
+  .xt.small td.d.on { font-size: 17px; } .xt.small td.goal { font-size: 12px; color: #555; }
+  .xt.small .title td { font-size: 17px; height: 46px; }
+  .offwhy { margin-top: 8px; font-size: 13px; color: var(--sub); } .offwhy b { color: var(--ink); }
   /* 오늘의 카드뉴스(540×675 → 사진 1080×1350). 관리자 사이트와 같은 모양 */
   #cardArea { position: fixed; left: -10000px; top: 0; }
   .cn { width: 540px; height: 675px; box-sizing: border-box; padding: 40px 40px 30px; position: relative; overflow: hidden;
@@ -246,9 +276,10 @@
   </div>
 </div>
 <div id="cardArea" aria-hidden="true"></div>
-<div class="am-bg" id="cnBg" role="dialog" aria-modal="true" aria-label="보낼 카드뉴스" style="z-index:25" hidden>
+<div id="shotArea" aria-hidden="true"></div>
+<div class="am-bg" id="cnBg" role="dialog" aria-modal="true" aria-label="보낼 사진" style="z-index:25" hidden>
   <div class="am" style="max-width:420px;text-align:center;padding:14px">
-    <img id="cnImg" alt="오늘의 카드뉴스" style="display:block;width:100%;height:auto;max-height:66vh;object-fit:contain;border-radius:12px">
+    <img id="cnImg" alt="보낼 사진" style="display:block;width:100%;height:auto;max-height:66vh;object-fit:contain;border-radius:12px">
     <p class="sub" id="cnWhy" style="margin:10px 0 0" hidden></p>
     <a id="cnDl" style="display:block;margin-top:8px;font-weight:700;color:var(--main)" hidden>사진 내려받기</a>
     <div style="display:flex;gap:8px;margin-top:12px"><button type="button" id="cnNo" style="flex:1">닫기</button><button type="button" id="cnGo" class="main" style="flex:1;margin:0">공유하기</button></div>
@@ -340,7 +371,7 @@ function hm(t) { return t ? t.slice(0, 5) : '-'; }
 /* DB의 life_today()와 같은 계산: 서울 시각 새벽 4시가 하루 경계 */
 function seoulToday() { return new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10); }
 
-const READS = ['life_state', 'life_my_ex_photo', 'life_history', 'life_mine', 'life_group_manage', 'life_op_view', 'life_day', 'life_my_feedback'];
+const READS = ['life_state', 'life_my_ex_photo', 'life_history', 'life_mine', 'life_group_manage', 'life_room_table', 'life_op_view', 'life_day', 'life_my_feedback'];
 const APK_URL = 'https://ggorotls-prog.github.io/life-room/app/life-room.apk';
 async function rpc(fn, args) {
   let r;
@@ -1594,11 +1625,29 @@ async function renderLeader() {
   if (!key || !card || card.role !== 'leader') { tab = 'group'; renderTabs(); return renderGroup(); }
   const al = card.alerts.length ? `<div class="gwarn">${card.alerts.map(a => `<div>🚨 ${esc(a.nickname)} · ${a.days}일째 ${card.what}</div>`).join('')}</div>` : '';
   if (key[0] === 'r') {
-    /* 1단계 운동방: 운동표 · 참가자 관리 · 기수는 다음 칸에서 옮겨 온다 */
-    $app.innerHTML = `${back}<h1>${esc(card.name)} <span class="sub" style="font-weight:400;font-size:14px">1단계 운동방 · ${card.n}명</span></h1>${al}
-      <div class="card"><p class="sub" style="margin:0 0 10px">운동표 · 참가자 관리 · 기수는 곧 이 화면으로 옮겨 와요. 그때까지는 관리자 사이트에서 해 주세요.</p>
+    /* 1단계 운동방: 운동표를 보고 사진으로 공유(2026-11-24 룡). 참가자 관리 · 기수는 아직 관리자 사이트에서 */
+    const head = `${back}<h1>${esc(card.name)} <span class="sub" style="font-weight:400;font-size:14px">1단계 운동방 · ${card.n}명</span></h1>${al}`;
+    const foot = `<div class="card" style="margin-top:16px"><p class="sub" style="margin:0 0 10px">참가자 관리 · 기수 · 방 이름 바꾸기는 아직 관리자 사이트에서 해 주세요.</p>
       <button type="button" id="adminGo" style="width:100%">🛠 관리자 사이트 열기</button></div>`;
+    $app.innerHTML = head + '<div class="loading">불러오는 중…</div>' + foot;
     bindBack(); byId('adminGo').onclick = goAdmin;
+    let d;
+    try { d = await rpc('life_room_table', { p_token: token, p_room: key.slice(1) }); }
+    catch (x) { if (still() && token) { $app.innerHTML = `${head}<p class="err">${esc(x.message)}</p>${foot}`; bindBack(); byId('adminGo').onclick = goAdmin; } return; }
+    if (!still()) return;
+    let last = false;
+    const paint = () => {
+      const w = xtWeek(d, last ? xtAdd(d.week, -7) : d.week), off = w.members.filter(m => !m.goal);
+      $app.innerHTML = `${head}<h2 class="sect-h st1"><span>📊 ${last ? '지난주' : '이번 주'} 운동표</span><button type="button" class="backb" id="xtLast">${last ? '이번 주 보기' : '지난주 보기'}</button></h2>
+        <div class="xt small">${xtHtml(w)}</div>
+        ${off.length ? `<div class="offwhy"><b>🌴 이 주 휴무 ${off.length}명</b>${off.map(m => `<div>${esc(m.name)} — ${m.why ? esc(m.why) : '사유 없음'}</div>`).join('')}</div>` : ''}
+        <button type="button" class="main" id="xtGo" style="margin-top:12px">📤 운동표 공유하기</button>
+        <p class="sub" style="margin:6px 0 0;font-size:12px">사진 한 장으로 만들어 보여 드려요. 「공유하기」를 눌러 이 방 카톡에 올려 주세요.</p>${foot}`;
+      bindBack(); byId('adminGo').onclick = goAdmin;
+      byId('xtLast').onclick = () => { last = !last; paint(); };
+      byId('xtGo').onclick = () => xtShare(w, byId('xtGo'));
+    };
+    paint();
     return;
   }
   const gid = +key.slice(1);
@@ -1863,11 +1912,15 @@ function cnLoad(st) {
     if (!cnLib2) cnLib2 = loadScript('cards2.js').catch(e => { cnLib2 = null; throw e; });
     return Promise.all([cnLoad(1), cnLib2]);
   }
-  if (!cnLibs) cnLibs = Promise.all([
-    window.html2canvas ? null : loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA=='),
-    window.CARDS1 ? null : loadScript('../life-changer/cards.js'),
-  ]).catch(e => { cnLibs = null; throw e; });
+  if (!cnLibs) cnLibs = Promise.all([shotLib(), window.CARDS1 ? null : loadScript('../life-changer/cards.js')]).catch(e => { cnLibs = null; throw e; });
   return cnLibs;
+}
+/* 사진 뽑는 도구만(운동표는 카드 문구 파일이 없어도 되게) */
+let shotLibP = null;
+function shotLib() {
+  if (window.html2canvas) return Promise.resolve();
+  if (!shotLibP) shotLibP = loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==').catch(e => { shotLibP = null; throw e; });
+  return shotLibP;
 }
 function cnPick(st, today) {
   const mod = (a, b) => ((a % b) + b) % b;
@@ -1914,13 +1967,7 @@ async function cnMake(st) {
   await document.fonts.ready;
   const cv = await html2canvas(byId('cardArea').firstElementChild, { scale: 2, backgroundColor: null });
   byId('cardArea').innerHTML = '';
-  /* 앱 공유 창구는 JPEG을 받는다(투명 바탕은 흰색으로) */
-  const j = document.createElement('canvas'); j.width = cv.width; j.height = cv.height;
-  const x = j.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, j.width, j.height); x.drawImage(cv, 0, 0);
-  const jpg = j.toDataURL('image/jpeg', 0.92);
-  const blob = await new Promise(ok => j.toBlob(ok, 'image/jpeg', 0.92));
-  const md = today.slice(5);
-  return cnMade[st] = { day: today, url: jpg, b64: jpg.split(',')[1], file: new File([blob], '오늘의한장_' + md + '.jpg', { type: 'image/jpeg' }) };
+  return cnMade[st] = await shotPack(cv, '오늘의한장_' + today.slice(5) + '.jpg', today);
 }
 let cnBusy = false;
 async function cnOpen(st, btn) {
@@ -1931,9 +1978,13 @@ async function cnOpen(st, btn) {
   cnBusy = false; btn.textContent = old; btn.disabled = false;
   if (failed) { toast('카드를 만들지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.'); return; }
   if (!m) { toast(st + '단계 카드뉴스는 아직 만드는 중이에요.'); return; }
+  shotShow(m, () => { store.set(cnSentKey(st), m.day); if (tab === 'group' && groupsView) paintGroups(); });
+}
+/* 보낼 사진을 팝업으로 보여 주고, 「공유하기」를 눌러야 폰 공유 창이 열린다. m = { url, b64, file } */
+function shotShow(m, onDone) {
   byId('cnImg').src = m.url; byId('cnWhy').hidden = true; byId('cnDl').hidden = true; byId('cnBg').hidden = false;
   byId('cnGo').onclick = async () => {
-    const done = () => { store.set(cnSentKey(st), m.day); byId('cnBg').hidden = true; if (tab === 'group' && groupsView) paintGroups(); };
+    const done = () => { byId('cnBg').hidden = true; if (onDone) onDone(); };
     try {
       if (phone && phone.shareImage) { phone.shareImage(m.b64, ''); done(); return; }
       if (navigator.canShare && navigator.canShare({ files: [m.file] })) { await navigator.share({ files: [m.file] }); done(); return; }
@@ -1943,6 +1994,64 @@ async function cnOpen(st, btn) {
     w.textContent = phone ? '앱을 업데이트하면 바로 보낼 수 있어요. 지금은 사진을 길게 눌러 저장해 주세요.' : '이 화면은 공유 창이 없어요. 사진을 내려받아 카톡방에 올려 주세요.';
     w.hidden = false; d.href = m.url; d.download = m.file.name; d.hidden = false;
   };
+}
+/* 그림(canvas) → 공유용 JPEG(흰 바탕) */
+async function shotPack(cv, name, day) {
+  const j = document.createElement('canvas'); j.width = cv.width; j.height = cv.height;
+  const x = j.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, j.width, j.height); x.drawImage(cv, 0, 0);
+  const jpg = j.toDataURL('image/jpeg', 0.92), blob = await new Promise(ok => j.toBlob(ok, 'image/jpeg', 0.92));
+  return { day, url: jpg, b64: jpg.split(',')[1], file: new File([blob], name, { type: 'image/jpeg' }) };
+}
+/* 1단계 운동표(2026-11-24 룡): 조 화면에서 이번 주 표를 보고 사진으로 공유. 계산은 관리자 사이트 getWeek · tableHtml과 같다 */
+const xtAdd = (ymd, n) => { const p = ymd.split('-').map(Number); return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10); };
+function xtWeek(d, start) {
+  const days = [...Array(7)].map((_, i) => xtAdd(start, i)), changes = {}, why = {}, done = {};
+  d.changes.forEach(c => (changes[c.name] = changes[c.name] || []).push(c));
+  const goalFor = m => {
+    let g = m.goal, off = false;
+    (changes[m.name] || []).forEach(c => {
+      if (c.from > start) return;
+      if (c.goal === 0) { if (c.from === start) { off = true; why[m.name] = c.reason || ''; } }
+      else { g = c.goal; if (c.from === start) off = false; }
+    });
+    return off ? 0 : g;
+  };
+  d.records.forEach(([name, date]) => { if (date >= days[0] && date <= days[6]) (done[name] = done[name] || {})[date] = true; });
+  const members = d.members.map(m => ({ name: m.name, goal: goalFor(m) }));
+  members.forEach(m => { if (!m.goal) m.why = why[m.name] || ''; });
+  return { name: d.room.name, today: d.today, days, members, done };
+}
+function xtHtml(w) {
+  const two = (l, s2) => '<span class="l">' + l + '</span><span class="s">' + s2 + '</span>';
+  const md = x => (+x.slice(5, 7)) + '/' + (+x.slice(8)), wd = x => '일월화수목금토'[new Date(x + 'T00:00:00Z').getUTCDay()];
+  let h = '<table><colgroup><col class="c-name"><col class="c-goal">' + '<col>'.repeat(7) + '<col class="c-rest"></colgroup><thead><tr class="title"><td colspan="10">💪 ' + esc(w.name) +
+    ' 운동 챌린지</td></tr><tr><th>' + two('참가자', '이름') + '</th><th>결단</th>';
+  w.days.forEach(x => { h += '<th class="' + (x === w.today ? 'today' : '') + '">' + two(md(x), (+x.slice(8)) + '<small>' + wd(x) + '</small>') + '</th>'; });
+  h += '<th>' + two('남은 횟수', '남은') + '</th></tr></thead><tbody>';
+  w.members.forEach(m => {
+    const mine = w.done[m.name] || {}; let cnt = 0;
+    h += '<tr><td class="name">' + esc(m.name) + '</td><td class="goal">' + (m.goal ? two('주 ' + m.goal + '회', m.goal + '회') : '휴무') + '</td>';
+    w.days.forEach(x => { const on = !!mine[x]; if (on) cnt++; h += '<td class="d' + (on ? ' on' : '') + '">' + (on ? two('오운완', '✔') : '') + '</td>'; });
+    const rest = Math.max(0, m.goal - cnt), open = w.days.filter(x => x >= w.today && !mine[x]).length, live = w.days[6] >= w.today;
+    const cls = !m.goal ? 'off' : rest === 0 ? 'zero' : !live ? '' : rest >= open ? 'bad' : rest === open - 1 ? 'warn' : '';
+    h += '<td class="rest ' + cls + '">' + (m.goal ? rest + '회' : '휴무') + '</td></tr>';
+  });
+  return h + '</tbody></table>';
+}
+async function xtShare(w, btn) {
+  const old = btn.textContent; btn.textContent = '만드는 중…'; btn.disabled = true;
+  let m = null;
+  try {
+    await shotLib();
+    byId('shotArea').innerHTML = '<div class="xt">' + xtHtml(w) + '</div>';
+    await document.fonts.ready;
+    const cv = await html2canvas(byId('shotArea'), { scale: 2, backgroundColor: '#ffffff', windowWidth: 1000 });
+    m = await shotPack(cv, w.name.replace(/[\/:*?"<>|]/g, '') + '운동챌린지_' + w.days[0].slice(5) + '.jpg', w.today);
+  } catch (e) { m = null; }
+  finally { byId('shotArea').innerHTML = ''; }
+  btn.textContent = old; btn.disabled = false;
+  if (!m) { toast('표 사진을 만들지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.'); return; }
+  shotShow(m);
 }
 
 /* 가입 승인(2026-11-24 룡): 가입은 코드 없이 신청 → 운영자가 승인·반려. 승인 전에는 이 화면만 보인다 */
