@@ -115,7 +115,7 @@
   .gwarn { background: #fdecec; color: #8f1d1d; border-radius: 12px; padding: 12px 14px; margin: 12px 0; font-size: 14px; line-height: 1.6; }
   .gwarn b { display: block; margin-bottom: 2px; }
   .thru { background: var(--main-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; text-align: center; font-size: 15px; line-height: 1.4; }
-  .thru b { display: block; font-size: 26px; color: var(--main); }
+  .thru span { display: block; } .thru b { font-size: 26px; color: var(--main); }
   .backb { width: auto; margin: 0 0 8px; padding: 6px 12px; font-size: 14px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); }
   .mem { border-top: 1px solid var(--line); padding: 12px 0; }
   .mem:first-child { border-top: 0; }
@@ -1632,7 +1632,7 @@ function paintGroups() {
     return `<h2>${esc(c.name)} <span class="sub" style="font-weight:400">${c.role === 'owner' ? '명단' : '오늘'}</span></h2>${al}<div class="card" style="padding:4px 16px">${rows || '<p class="sub" style="margin:12px 0">아직 조원이 없어요.</p>'}</div>`;
   };
   $app.innerHTML = `<h1>조</h1>
-    ${v.through > 0 ? `<div class="thru">나를 통해 지금<b>${v.through}명</b>의 삶이 변하는 중</div>` : ''}
+    ${v.through > 0 ? `<div class="thru">나를 통해 지금<span><b>${v.through}명</b>의</span>삶이 변하는 중</div>` : ''}
     ${warn.length ? `<div class="gwarn"><b>관심이 필요한 사람 ${warn.length}명</b>${warn.slice(0, 8).map(a => `<div>${esc(a.nickname)} · ${esc(a.group)} · ${a.days}일째 ${a.what}</div>`).join('')}${warn.length > 8 ? `<div>…그 밖에 ${warn.length - 8}명</div>` : ''}</div>` : ''}
     ${cards.length ? sect(1) + sect(2) + sect(3) : ''}
     <div id="gDetail">${detail(open)}</div>
