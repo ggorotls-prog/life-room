@@ -373,7 +373,7 @@ function seoulToday() { return new Date(Date.now() + 5 * 3600000).toISOString().
 
 const READS = ['life_state', 'life_my_ex_photo', 'life_history', 'life_mine', 'life_group_manage', 'life_room_table', 'life_op_view', 'life_day', 'life_my_feedback'];
 const APK_URL = 'https://ggorotls-prog.github.io/life-room/app/life-room.apk';
-async function rpc(fn, args) {
+async function rpc(fn, args, keepLogin) {
   let r;
   try {
     r = await fetch(SB_URL + '/rest/v1/rpc/' + fn, {
@@ -384,7 +384,7 @@ async function rpc(fn, args) {
   } catch (e) { throw new Error('인터넷 연결을 확인해 주세요.'); }
   const d = await r.json().catch(() => null);
   if (!r.ok) {
-    if (d && d.message === 'auth') { logout(); throw new Error('다시 로그인해 주세요.'); }
+    if (d && d.message === 'auth') { if (keepLogin) throw new Error('auth'); logout(); throw new Error('다시 로그인해 주세요.'); }
     /* 새벽 4시를 넘겨 화면이 어제에 머문 경우: 새로 불러와 오늘 순서로 보낸다 */
     if (d && ['need_wake', 'need_bed', 'not_needed'].includes(d.message)) {
       tab = 'today'; await refresh(); throw new Error('날이 바뀌었어요. 오늘 기록을 시작해 주세요.');
@@ -597,7 +597,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { dropKeys(); token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
+function logout() { dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -1625,30 +1625,32 @@ async function renderLeader() {
   if (!key || !card || card.role !== 'leader') { tab = 'group'; renderTabs(); return renderGroup(); }
   const al = card.alerts.length ? `<div class="gwarn">${card.alerts.map(a => `<div>🚨 ${esc(a.nickname)} · ${a.days}일째 ${card.what}</div>`).join('')}</div>` : '';
   if (key[0] === 'r') {
-    /* 1단계 운동방: 운동표를 보고 사진으로 공유(2026-11-24 룡). 참가자 관리 · 기수는 아직 관리자 사이트에서 */
+    /* 1단계 운동방: 운동표를 보고 사진으로 공유 + 참가자 관리 · 기수 · 방 이름 · 내 실명(2026-11-24 룡) */
     const head = `${back}<h1>${esc(card.name)} <span class="sub" style="font-weight:400;font-size:14px">1단계 운동방 · ${card.n}명</span></h1>${al}`;
-    const foot = `<div class="card" style="margin-top:16px"><p class="sub" style="margin:0 0 10px">참가자 관리 · 기수 · 방 이름 바꾸기는 아직 관리자 사이트에서 해 주세요.</p>
-      <button type="button" id="adminGo" style="width:100%">🛠 관리자 사이트 열기</button></div>`;
+    const foot = `<div id="mgRoom"><div class="loading">참가자 불러오는 중…</div></div>
+      <p class="sub" style="text-align:center;margin-top:20px"><a href="#" id="adminGo">옛 관리자 사이트 열기</a></p>`;
     $app.innerHTML = head + '<div class="loading">불러오는 중…</div>' + foot;
-    bindBack(); byId('adminGo').onclick = goAdmin;
+    bindBack(); byId('adminGo').onclick = e => { e.preventDefault(); goAdmin(); };
     let d;
     try { d = await rpc('life_room_table', { p_token: token, p_room: key.slice(1) }); }
-    catch (x) { if (still() && token) { $app.innerHTML = `${head}<p class="err">${esc(x.message)}</p>${foot}`; bindBack(); byId('adminGo').onclick = goAdmin; } return; }
+    catch (x) { if (still() && token) { $app.innerHTML = `${head}<p class="err">${esc(x.message)}</p>${foot}`; bindBack(); byId('adminGo').onclick = e => { e.preventDefault(); goAdmin(); }; } return; }
     if (!still()) return;
     let last = false;
     const paint = () => {
       const w = xtWeek(d, last ? xtAdd(d.week, -7) : d.week), off = w.members.filter(m => !m.goal);
-      $app.innerHTML = `${head}<h2 class="sect-h st1"><span>📊 ${last ? '지난주' : '이번 주'} 운동표</span><button type="button" class="backb" id="xtLast">${last ? '이번 주 보기' : '지난주 보기'}</button></h2>
+      byId('xtBox').innerHTML = `<h2 class="sect-h st1"><span>📊 ${last ? '지난주' : '이번 주'} 운동표</span><button type="button" class="backb" id="xtLast">${last ? '이번 주 보기' : '지난주 보기'}</button></h2>
         <div class="xt small">${xtHtml(w)}</div>
         ${off.length ? `<div class="offwhy"><b>🌴 이 주 휴무 ${off.length}명</b>${off.map(m => `<div>${esc(m.name)} — ${m.why ? esc(m.why) : '사유 없음'}</div>`).join('')}</div>` : ''}
         <button type="button" class="main" id="xtGo" style="margin-top:12px">📤 운동표 공유하기</button>
-        <p class="sub" style="margin:6px 0 0;font-size:12px">사진 한 장으로 만들어 보여 드려요. 「공유하기」를 눌러 이 방 카톡에 올려 주세요.</p>${foot}`;
-      bindBack(); byId('adminGo').onclick = goAdmin;
+        <p class="sub" style="margin:6px 0 0;font-size:12px">사진 한 장으로 만들어 보여 드려요. 「공유하기」를 눌러 이 방 카톡에 올려 주세요.</p>`;
       byId('xtLast').onclick = () => { last = !last; paint(); };
       byId('xtGo').onclick = () => xtShare(w, byId('xtGo'));
       setTimeout(() => { if (still()) xtGet(w).catch(() => {}); }, 400);
     };
+    $app.innerHTML = head + '<div id="xtBox"></div>' + foot;
+    bindBack(); byId('adminGo').onclick = e => { e.preventDefault(); goAdmin(); };
     paint();
+    roomManage(key.slice(1), d.week, still);
     return;
   }
   const gid = +key.slice(1);
@@ -1667,6 +1669,8 @@ async function renderLeader() {
       <div class="codeRow"><span class="code">${esc(g.code || '-')}</span><span>${g.code ? `<button type="button" data-copy="${esc(g.code)}">복사</button>` : ''} <button type="button" class="switch" id="mgNewCode">새 코드 만들기</button></span></div>
       <p class="sub" style="margin:6px 0 0;font-size:12px">코드가 다른 사람에게 새면 새 코드를 만들어 주세요. 옛 코드로는 더 못 들어와요. 이미 들어온 사람은 그대로예요.</p>
       </div>
+    ${g.admin ? `<h2>⚙️ 조 이름</h2>
+    <div class="card"><div class="exbox" style="margin-top:0"><input id="mgGnIn" maxlength="30" value="${esc(g.name)}" autocomplete="off"><button class="pick" id="mgGnGo" type="button">바꾸기</button></div><div class="err" id="mgGnErr"></div></div>` : ''}
     <h2>👋 닉네임으로 초대</h2>
     <div class="card"><p class="sub" style="margin:0">이미 가입한 사람의 닉네임을 적어 주세요. 그 사람이 조 탭에서 「들어가기」를 누르면 들어와요.</p>
       <div class="exbox"><input id="mgInvNick" maxlength="12" placeholder="닉네임" autocomplete="off"><button class="pick" id="mgInvGo" type="button">초대</button></div><div class="err" id="mgInvErr"></div>
@@ -1694,6 +1698,15 @@ async function renderLeader() {
   };
   const nc = byId('mgNewCode');
   if (nc) nc.onclick = () => { if (nc.dataset.sure !== '1') { nc.dataset.sure = '1'; nc.textContent = '정말 새로 만들기'; return; } code('new', nc, '새 조 코드'); };
+  if (byId('mgGnGo')) byId('mgGnGo').onclick = async () => {
+    const v = byId('mgGnIn').value.trim(), go = byId('mgGnGo');
+    if (!v) { byId('mgGnErr').textContent = '새 조 이름을 적어 주세요.'; return; }
+    if (/[\\/:*?"<>|]/.test(v)) { byId('mgGnErr').textContent = '이름에 / \ : * ? " < > | 는 못 써요.'; return; }
+    if (v === g.name) return;
+    go.disabled = true;
+    try { await lcCall('lc_rename_room', { p_kind: 'group', p_id: String(gid), p_name: v }); toast('조 이름을 바꿨어요'); groupsView = null; manageKey = null; goTab('group'); }
+    catch (x) { byId('mgGnErr').textContent = x.message; go.disabled = false; }
+  };
   const ig = byId('mgInvGo');
   ig.onclick = async () => {
     const n = byId('mgInvNick').value.trim(), er = byId('mgInvErr');
@@ -2078,6 +2091,119 @@ async function xtMake(w) {
     m = await shotPack(cv, w.name.replace(/[\/:*?"<>|]/g, '') + '운동챌린지_' + w.days[0].slice(5) + '.jpg', w.today);
   } finally { byId('shotArea').innerHTML = ''; }
   return m;
+}
+
+/* 관리자 사이트의 일을 조 탭에서(2026-11-24 룡): 관리자 사이트 함수(lc_*)를 그대로 부른다. 권한 확인도 그 함수들이 한다.
+   lc_from_life가 건강 기록 로그인으로 12시간짜리 관리자 열쇠를 내준다. 열쇠는 폰에 저장하지 않고 기억만 한다(로그아웃하면 비운다) */
+let lcTok = null;
+async function lcCall(fn, args) {
+  for (let i = 0; i < 2; i++) {
+    if (!lcTok) {
+      const r = await rpc('lc_from_life', { p_token: token });
+      if (!r || !r.admin) throw new Error('관리하는 방이 없어요.');
+      lcTok = r.token;
+    }
+    /* 관리자 열쇠가 끝났으면(12시간) 건강 기록에서 로그아웃하지 않고 열쇠만 한 번 다시 받는다 */
+    try { return await rpc(fn, Object.assign({ p_token: lcTok }, args || {}), true); }
+    catch (x) { if (x.message !== 'auth') throw x; lcTok = null; if (i === 1) throw new Error('이 방을 관리할 권한이 없어요.'); }
+  }
+}
+/* 1단계 방 화면 아래쪽: 참가자 주소 · 참가자 관리 · 기수 · 참여 응답 · 방 이름 · 내 실명 */
+async function roomManage(rid, week, still) {
+  const box = () => byId('mgRoom');
+  let d, h;
+  try { [d, h] = await Promise.all([lcCall('lc_room_data', { p_room: rid, p_from: xtAdd(week, -7), p_to: xtAdd(week, 6) }), lcCall('lc_home')]); }
+  catch (x) { if (still() && box()) box().innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
+  if (!still() || !box()) return;
+  const md = x => (+x.slice(5, 7)) + '/' + (+x.slice(8)), wd = x => '일월화수목금토'[new Date(x + 'T00:00:00Z').getUTCDay()];
+  const on = d.all.filter(m => m.active), off = d.all.filter(m => !m.active);
+  const row = (m, act, txt) => `<div class="codeRow"><span>${esc(m.name)} <span class="sub">주 ${m.goal}회${m.me ? ' · ⭐ 나' : ''}</span></span><button type="button" class="switch" data-act="${act}" data-name="${esc(m.name)}">${txt}</button></div>`;
+  const last = d.rounds[d.rounds.length - 1], sunday = xtAdd(d.today, -new Date(d.today + 'T00:00:00Z').getUTCDay());
+  const nextStart = last ? xtAdd(last.end, 1) : sunday;
+  /* 다음 달 참여 응답: 지금 기수의 마지막 주에만 나온다(관리자 사이트 nextInfo와 같다) */
+  const cur = d.rounds.filter(x => x.start <= d.today).pop();
+  let next = '';
+  if (cur && d.today >= xtAdd(cur.end, -new Date(cur.end + 'T00:00:00Z').getUTCDay())) {
+    const ch = {}; (d.nextChoices || []).forEach(c => { if (c.round === cur.name) ch[c.name] = c.choice; });
+    const who = c => d.members.filter(m => (ch[m.name] || '') === c).map(m => esc(m.name));
+    const n = parseInt(cur.name, 10), go = who('go'), rest = who('rest'), none = who('');
+    const line = (t, a) => `<p style="margin:6px 0 0"><b>${t} ${a.length}명</b><br><span class="sub">${a.join(', ') || '-'}</span></p>`;
+    next = `<h2>🙋 ${n ? (n % 12 + 1) + '월' : '다음 달'} 참여 응답 <span class="sub" style="font-weight:400">${go.length + rest.length}/${d.members.length}명</span></h2>
+      <div class="card">${line('💪 도전', go)}${line('🌴 쉼', rest)}${line('❔ 아직 응답 안 함', none)}</div>`;
+  }
+  const url = 'https://ggorotls-prog.github.io/life-changer/room/?r=' + encodeURIComponent(rid);
+  box().innerHTML = `<h2>🔗 참가자 주소</h2>
+    <div class="card"><p class="sub" style="margin:0">단톡방에 올려 주세요. 로그인 없이 이름만 골라요.</p>
+      <div class="codeRow"><span style="font-size:12px;overflow-wrap:anywhere;min-width:0">${esc(url)}</span><button type="button" data-copy="${esc(url)}">복사</button></div></div>
+    <h2>👥 참가자 관리</h2>
+    <div class="card"><b>➕ 새 참가자</b>
+      <div class="exbox"><input id="mgNewName" maxlength="20" placeholder="이름" autocomplete="off"><button class="pick" id="mgNewGo" type="button">추가</button></div>
+      <select id="mgNewGoal" style="margin-top:6px">${[3, 4, 5, 6, 7].map(n => `<option value="${n}">주 ${n}회</option>`).join('')}</select>
+      <div class="err" id="mgMemErr"></div>
+      <p style="margin:14px 0 0"><b>💪 참가 중 ${on.length}명</b></p>${on.map(m => row(m, 'out', '빼기')).join('') || '<p class="sub" style="margin:6px 0 0">없음</p>'}
+      <p style="margin:14px 0 0"><b>🌴 쉬는 중 ${off.length}명</b></p>${off.map(m => row(m, 'back', '재참가')).join('') || '<p class="sub" style="margin:6px 0 0">없음</p>'}
+      <p class="sub" style="margin:10px 0 0;font-size:12px">빼도 기록은 남아요. 「재참가」로 다시 넣을 수 있어요.</p></div>
+    ${next}
+    <h2>🗓 기수</h2>
+    <div class="card">${d.rounds.slice().reverse().map(r => `<div class="codeRow"><span><b>${esc(r.name)}</b> <span class="sub">${md(r.start)}(${wd(r.start)}) ~ ${md(r.end)}(${wd(r.end)})</span></span></div>`).join('') || '<p class="sub" style="margin:0">아직 기수가 없어요. 기수가 있어야 주차별 결과와 다음 달 응답이 나와요.</p>'}
+      <p style="margin:14px 0 0"><b>➕ 새 기수</b></p>
+      <label class="f">이름<input id="mgRName" maxlength="20" placeholder="예: 12월" autocomplete="off"></label>
+      <label class="f">시작 (주일)<input type="date" id="mgRStart" value="${nextStart}"></label>
+      <label class="f">끝 (토요일)<input type="date" id="mgREnd" value="${xtAdd(nextStart, 34)}"></label>
+      <div class="err" id="mgRErr"></div><button type="button" id="mgRGo" style="width:100%;margin-top:8px">넣기</button>
+      <p class="sub" style="margin:8px 0 0;font-size:12px">기본은 지난 기수 다음 주일부터 5주예요. 새 기수를 넣으면 참가자에게 다음 달 묻기가 멈춰요.</p></div>
+    <h2>⚙️ 방 설정</h2>
+    <div class="card"><b>방 이름</b>
+      <div class="exbox"><input id="mgRnIn" maxlength="30" value="${esc(d.room.name)}" autocomplete="off"><button class="pick" id="mgRnGo" type="button">바꾸기</button></div><div class="err" id="mgRnErr"></div>
+      <p style="margin:14px 0 0"><b>🙋 1단계 방에서 쓰는 내 실명</b></p>
+      <div class="exbox"><input id="mgRealIn" maxlength="20" value="${esc(h.realName || '')}" placeholder="예: 홍길동" autocomplete="off"><button class="pick" id="mgRealGo" type="button">저장</button></div><div class="err" id="mgRealErr"></div>
+      <p class="sub" style="margin:6px 0 0;font-size:12px">한 번만 적으면 모든 운동방에서 나로 잡혀요.</p></div>`;
+  box().querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(b.dataset.copy));
+  const redo = async msg => {
+    if (msg) toast(msg);
+    try { const v = await rpc('life_groups_view', { p_token: token }); if (still()) groupsView = v; } catch (e) {}
+    if (still()) renderLeader();
+  };
+  const setMem = async (btn, name, goal, active, er) => {
+    btn.disabled = true;
+    try { await lcCall('lc_set_member', { p_room: rid, p_name: name, p_goal: goal, p_active: active }); redo('저장했어요'); }
+    catch (x) { (er || byId('mgMemErr')).textContent = x.message; btn.disabled = false; }
+  };
+  byId('mgNewGo').onclick = () => {
+    const name = byId('mgNewName').value.trim();
+    if (!name) { byId('mgMemErr').textContent = '새 참가자 이름을 적어 주세요.'; return; }
+    setMem(byId('mgNewGo'), name, +byId('mgNewGoal').value, true);
+  };
+  box().querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    if (b.dataset.act === 'back') return setMem(b, b.dataset.name, null, true);
+    if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '정말 빼기'; return; }
+    setMem(b, b.dataset.name, null, false);
+  });
+  byId('mgRGo').onclick = async () => {
+    const name = byId('mgRName').value.trim(), go = byId('mgRGo');
+    if (!name) { byId('mgRErr').textContent = '기수 이름을 적어 주세요. (예: 12월)'; return; }
+    go.disabled = true;
+    try { await lcCall('lc_add_round', { p_room: rid, p_name: name, p_start: byId('mgRStart').value, p_end: byId('mgREnd').value }); redo(name + ' 기수를 넣었어요'); }
+    catch (x) { byId('mgRErr').textContent = x.message; go.disabled = false; }
+  };
+  byId('mgRnGo').onclick = async () => {
+    const v = byId('mgRnIn').value.trim(), go = byId('mgRnGo');
+    if (!v) { byId('mgRnErr').textContent = '새 방 이름을 적어 주세요.'; return; }
+    if (/[\\/:*?"<>|]/.test(v)) { byId('mgRnErr').textContent = '이름에 / \ : * ? " < > | 는 못 써요.'; return; }
+    if (v === d.room.name) return;
+    go.disabled = true;
+    try {
+      await lcCall('lc_rename_room', { p_kind: 'room', p_id: rid, p_name: v });
+      toast('방 이름을 바꿨어요'); manageKey = null; groupsView = null; goTab('group');
+    } catch (x) { byId('mgRnErr').textContent = x.message; go.disabled = false; }
+  };
+  byId('mgRealGo').onclick = async () => {
+    const v = byId('mgRealIn').value.trim(), go = byId('mgRealGo');
+    if (!v) { byId('mgRealErr').textContent = '실명을 적어 주세요.'; return; }
+    go.disabled = true;
+    try { await lcCall('lc_set_real_name', { p_name: v }); redo('저장했어요. 모든 1단계 방에서 나로 잡혀요'); }
+    catch (x) { byId('mgRealErr').textContent = x.message; go.disabled = false; }
+  };
 }
 
 /* 가입 승인(2026-11-24 룡): 가입은 코드 없이 신청 → 운영자가 승인·반려. 승인 전에는 이 화면만 보인다 */
