@@ -892,8 +892,8 @@ function renderToday() {
     e.preventDefault();
     const box = document.getElementById('goalBox');
     if (box.innerHTML) { box.innerHTML = ''; return; }
-    box.innerHTML = `<label class="f">이번 주 운동, 며칠 하기로 결단했어요? (일~토, 하루 몇 번 해도 1일)</label>
-      <div class="slots" style="grid-template-columns:repeat(7,1fr)">${[1,2,3,4,5,6,7].map(n => `<button type="button" data-goal="${n}" class="${n === state.me.goal ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+    box.innerHTML = `<label class="f">이번 주 운동, 며칠 하기로 결단했어요? (일~토, 최소 3일)</label>
+      <div class="slots" style="grid-template-columns:repeat(5,1fr)">${[3,4,5,6,7].map(n => `<button type="button" data-goal="${n}" class="${n === state.me.goal ? 'on' : ''}">${n}</button>`).join('')}</div>`;
     box.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => {
       box.querySelectorAll('[data-goal]').forEach(x => x.disabled = true);
       act('life_set_goal', { p_token: token, p_goal: +b.dataset.goal }, `이번 주 ${b.dataset.goal}일! 💪`);
