@@ -1646,6 +1646,7 @@ async function renderLeader() {
       bindBack(); byId('adminGo').onclick = goAdmin;
       byId('xtLast').onclick = () => { last = !last; paint(); };
       byId('xtGo').onclick = () => xtShare(w, byId('xtGo'));
+      setTimeout(() => { if (still()) xtGet(w).catch(() => {}); }, 400);
     };
     paint();
     return;
@@ -1774,6 +1775,7 @@ function paintGroups() {
   });
   if (!social) loadSocial();
   $app.querySelectorAll('[data-cn]').forEach(b => b.onclick = () => cnOpen(+b.dataset.cn, b));
+  cnWarm([...$app.querySelectorAll('[data-cn]')].map(b => +b.dataset.cn));
   $app.querySelectorAll('[data-new]').forEach(b => b.onclick = () => {
     const box = $app.querySelector('[data-newbox="' + b.dataset.new + '"]'), was = box.hidden;
     $app.querySelectorAll('[data-newbox]').forEach(x => { x.hidden = true; });
@@ -1969,12 +1971,26 @@ async function cnMake(st) {
   byId('cardArea').innerHTML = '';
   return cnMade[st] = await shotPack(cv, '오늘의한장_' + today.slice(5) + '.jpg', today);
 }
+/* 사진은 미리 만들어 둔다(2026-11-24 룡 「왜 이렇게 오래 걸리지?」): 조 탭이 열리면 화면이 한가할 때 한 장씩.
+   그리는 자리가 하나라 차례로 만든다. 누르면 이미 만든 것을 바로 보여 준다 */
+let cnQueue = Promise.resolve();
+const cnJobs = {};
+function cnGet(st) {
+  const today = cnToday();
+  if (cnMade[st] && cnMade[st].day === today) return Promise.resolve(cnMade[st]);
+  if (!cnJobs[st]) cnJobs[st] = cnQueue = cnQueue.catch(() => {}).then(() => cnMake(st)).finally(() => { delete cnJobs[st]; });
+  return cnJobs[st];
+}
+function cnWarm(list) {
+  if (!list.length) return;
+  setTimeout(() => list.forEach(st => cnGet(st).catch(() => {})), 600);
+}
 let cnBusy = false;
 async function cnOpen(st, btn) {
   if (cnBusy) return;
   cnBusy = true; const old = btn.textContent; btn.textContent = '만드는 중…'; btn.disabled = true;
   let m = null, failed = false;
-  try { m = await cnMake(st); } catch (e) { failed = true; }
+  try { m = await cnGet(st); } catch (e) { failed = true; }
   cnBusy = false; btn.textContent = old; btn.disabled = false;
   if (failed) { toast('카드를 만들지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.'); return; }
   if (!m) { toast(st + '단계 카드뉴스는 아직 만드는 중이에요.'); return; }
@@ -2038,8 +2054,21 @@ function xtHtml(w) {
   });
   return h + '</tbody></table>';
 }
+const xtMade = {}; /* 방·주 → 만들어 둔 사진 */
+function xtGet(w) {
+  const k = w.name + '|' + w.days[0] + '|' + JSON.stringify(w.done) + JSON.stringify(w.members);
+  if (!xtMade[k]) xtMade[k] = cnQueue = cnQueue.catch(() => {}).then(() => xtMake(w)).catch(e => { delete xtMade[k]; throw e; });
+  return xtMade[k];
+}
 async function xtShare(w, btn) {
   const old = btn.textContent; btn.textContent = '만드는 중…'; btn.disabled = true;
+  let m = null;
+  try { m = await xtGet(w); } catch (e) { m = null; }
+  btn.textContent = old; btn.disabled = false;
+  if (!m) { toast('표 사진을 만들지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.'); return; }
+  shotShow(m);
+}
+async function xtMake(w) {
   let m = null;
   try {
     await shotLib();
@@ -2047,11 +2076,8 @@ async function xtShare(w, btn) {
     await document.fonts.ready;
     const cv = await html2canvas(byId('shotArea'), { scale: 2, backgroundColor: '#ffffff', windowWidth: 1000 });
     m = await shotPack(cv, w.name.replace(/[\/:*?"<>|]/g, '') + '운동챌린지_' + w.days[0].slice(5) + '.jpg', w.today);
-  } catch (e) { m = null; }
-  finally { byId('shotArea').innerHTML = ''; }
-  btn.textContent = old; btn.disabled = false;
-  if (!m) { toast('표 사진을 만들지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.'); return; }
-  shotShow(m);
+  } finally { byId('shotArea').innerHTML = ''; }
+  return m;
 }
 
 /* 가입 승인(2026-11-24 룡): 가입은 코드 없이 신청 → 운영자가 승인·반려. 승인 전에는 이 화면만 보인다 */
