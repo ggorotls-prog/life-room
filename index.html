@@ -132,6 +132,12 @@
   .cn-do small { display: block; font-size: 14px; font-weight: 700; color: rgba(255,255,255,.88); }
   .cn-s { position: absolute; left: 40px; right: 40px; bottom: 22px; font-size: 12.5px; line-height: 1.45; color: #7a5a4e; word-break: keep-all; }
   .cn-s b { color: #b5523f; font-weight: 800; margin-right: 4px; }
+  /* 2단계 카드 = 초록(색 = 방의 단계, 2026-11-24 룡). 값은 카드뉴스\card.html과 같다 */
+  .cn.s2 { background: linear-gradient(160deg, #f6fbf7 0%, #dff0e5 55%, #bfdfcc 100%); color: #16261d; }
+  .cn.s2::after { background: rgba(47,125,91,.12); }
+  .cn.s2 .cn-top { color: #256348; } .cn.s2 .cn-big { color: #2f7d5b; } .cn.s2 .cn-b { color: #2f4438; }
+  .cn.s2 .cn-do { background: #2f7d5b; box-shadow: 0 8px 20px rgba(47,125,91,.32); } .cn.s2 .cn-do b { color: #d6eede; }
+  .cn.s2 .cn-s { color: #4f6b5b; } .cn.s2 .cn-s b { color: #256348; }
   .sect-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .sect-h .backb { margin: 0; flex: none; }
   .thru { background: var(--main-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; text-align: center; font-size: 15px; line-height: 1.4; }
@@ -1802,8 +1808,10 @@ document.addEventListener('visibilitychange', async () => {
 
 /* 카드뉴스 보내기(2026-11-24 룡): 조 탭 「1단계」「2단계」 제목 옆 버튼. 내가 조장인 방이 그 단계에 있을 때만 보인다.
    누르면 오늘 카드를 팝업으로 보여 주고, 「공유하기」를 눌러야 공유 창이 열린다(관리자 사이트 「오늘 보낼 것」과 같은 흐름).
-   카드 문구는 관리자 사이트의 cards.js를 그대로 읽는다(한 곳만 고치면 되게). 1단계 = CARDS1, 2단계 = CARDS2(만드는 중) */
-const CN_LABEL = { 1: '💪 운동방 · 오늘의 한 장', 2: '🌱 생활개선 · 오늘의 한 장' };
+   1단계 문구는 관리자 사이트의 cards.js(CARDS1)를 그대로 읽는다. 2단계 문구는 이 사이트의 cards2.js(원본: 드라이브 건강 기록\카드뉴스\cards2.js, 고치면 사본도 같이).
+   2단계 순서(룡 확정): 시작일부터 날마다 수면 → 식단 → 운동(운동 날은 CARDS1 문구를 초록 틀에) */
+const CN_LABEL = { 1: '💪 운동방 · 오늘의 한 장', 2: '🌱 생활개선방 · 오늘의 한 장' };
+const CN2_START = Date.UTC(2026, 10, 24); /* 2단계 방을 연 날 = 수면 1번 */
 const cnToday = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 const cnSentKey = st => 'life_cn_sent_' + st;
 const cnSent = st => store.get(cnSentKey(st)) === cnToday();
@@ -1815,8 +1823,12 @@ function loadScript(src, sri) {
     document.head.appendChild(s);
   });
 }
-let cnLibs = null;
-function cnLoad() {
+let cnLibs = null, cnLib2 = null;
+function cnLoad(st) {
+  if (st === 2 && !window.CARDS2_SLEEP) {
+    if (!cnLib2) cnLib2 = loadScript('cards2.js').catch(e => { cnLib2 = null; throw e; });
+    return Promise.all([cnLoad(1), cnLib2]);
+  }
   if (!cnLibs) cnLibs = Promise.all([
     window.html2canvas ? null : loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA=='),
     window.CARDS1 ? null : loadScript('../life-changer/cards.js'),
@@ -1824,6 +1836,12 @@ function cnLoad() {
   return cnLibs;
 }
 function cnPick(st, today) {
+  const mod = (a, b) => ((a % b) + b) % b;
+  if (st === 2) {
+    const q = today.split('-').map(Number), d = Math.round((Date.UTC(q[0], q[1] - 1, q[2]) - CN2_START) / 864e5);
+    const kind = mod(d, 3), turn = Math.floor(d / 3), l = kind === 0 ? window.CARDS2_SLEEP : kind === 1 ? window.CARDS2_DIET : window.CARDS1;
+    return l && l.length ? l[mod(turn, l.length)] : null;
+  }
   const list = window['CARDS' + st] || [];
   if (!list.length) return null;
   const p = today.split('-').map(Number), n = Math.round((Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(2026, 10, 15)) / 864e5);
@@ -1833,12 +1851,12 @@ function cnHtml(c, today, st) {
   const p = today.split('-'), wd = '일월화수목금토'[new Date(today + 'T00:00:00Z').getUTCDay()];
   const parts = (c.s || '').split(' · '), cite = parts.pop();
   const src = cite + (parts.length ? ' · ' + parts.join(' · ') : '') + (c.p ? ' · PubMed ' + c.p : '');
-  return `<div class="cn">
+  return `<div class="cn${st === 2 ? ' s2' : ''}">
     <div class="cn-top"><span>${CN_LABEL[st] || ''}</span><span>${+p[1]}월 ${+p[2]}일 ${wd}요일</span></div>
     <div class="cn-big${c.n.length > 7 ? ' long' : ''}">${esc(c.n)}</div>
     <div class="cn-t">${esc(c.t)}</div>
     <div class="cn-b">${esc(c.b)}</div>
-    <div class="cn-do"><i class="cn-box"></i><div><b>오늘 오후 미션</b><span class="cn-m">${esc(c.d)}</span><small>끝내면 오운완 인증 ✅</small></div></div>
+    <div class="cn-do"><i class="cn-box"></i><div><b>${esc(c.w || '오늘 오후 미션')}</b><span class="cn-m">${esc(c.d)}</span><small>${st === 2 ? '끝내면 건강 기록에 체크 ✅' : '끝내면 오운완 인증 ✅'}</small></div></div>
     <div class="cn-s"><b>📚 근거 연구</b> ${esc(src)}</div>
     </div>`;
 }
@@ -1855,7 +1873,7 @@ const cnMade = {}; /* 단계 → { day, url, b64, file } */
 async function cnMake(st) {
   const today = cnToday();
   if (cnMade[st] && cnMade[st].day === today) return cnMade[st];
-  await cnLoad();
+  await cnLoad(st);
   const c = cnPick(st, today);
   if (!c) return null;
   byId('cardArea').innerHTML = cnHtml(c, today, st); cnFit();
