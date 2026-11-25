@@ -1025,6 +1025,7 @@ const SLOT_ICON = { breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '
 /* 운동방에 같이 넣기(2026-11-24 법무 검토): 1단계 운동방은 실명 명단이라, 본인이 「같이 넣기」를 고른 사람만 넣는다. 처음 한 번 묻는다 */
 let heroInfo = null;
 async function askHeroLink() {
+  if (pushOpen()) return; /* 12-02부터는 묻지 않고 늘 넣는다(2026-11-25 룡) */
   try { if (!heroInfo) heroInfo = await rpc('life_hero_info', { p_token: token }); } catch (e) { return; }
   if (!(heroInfo.rooms > 0) || heroInfo.link != null) return;
   const ok = await ask('내가 속한 1단계 운동방(실명 명단)에도 운동 인증을 같이 넣을까요?\n\n☰ 설정에서 언제든 바꿀 수 있어요.', '같이 넣기', '건강 기록에만');
