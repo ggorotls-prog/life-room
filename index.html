@@ -61,6 +61,21 @@
   .supp5 button { background: var(--card); border: 1px solid var(--line); min-height: 56px; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; line-height: 1.2; }
   .supp5 button b { font-size: 13px; white-space: normal; word-break: keep-all; } .supp5 button small { font-size: 11px; font-weight: 600; word-break: keep-all; }
   .supp5 button.on { background: #c9822b; border-color: #c9822b; color: #fff; }
+  /* 3단계 일정표(셀체인지 애드온, 2026-11-25) */
+  .sch h3 { font-size: 14px; margin: 14px 0 2px; }
+  .srow { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--line); min-height: 44px; padding: 6px 10px; margin-top: 4px; font-size: 14px; font-weight: 600; line-height: 1.35; }
+  .srow i { flex: 0 0 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); font-style: normal; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .srow.on i { background: var(--main); border-color: var(--main); color: var(--main-ink); }
+  .srow span { flex: 1; min-width: 0; word-break: keep-all; } .srow small { font-weight: 600; opacity: .75; }
+  .srow em { font-style: normal; font-size: 12px; border: 1px solid var(--main); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+  .srow.info { min-height: 36px; border-style: dashed; font-weight: 500; }
+  .schbox { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 6px; background: var(--fill); font-size: 14px; }
+  .schbox p { margin: 6px 0 0; line-height: 1.5; }
+  .dl { display: block; width: 100%; text-align: left; margin-top: 4px; background: var(--card); border: 1px solid var(--line); font-size: 14px; min-height: 40px; padding: 6px 10px; }
+  .dl.on { outline: 2px solid var(--main); }
+  .kt { white-space: pre-wrap; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; font-size: 14px; margin: 10px 0 0; }
+  .sc6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; } .sc6 button { min-height: 40px; padding: 0; background: var(--card); border: 1px solid var(--line); }
+  .sc6 button.on { background: var(--main); border-color: var(--main); color: var(--main-ink); }
   /* 오늘 끼니 버튼: 아침·점심·저녁이 한눈에 보이게 그림+이름 두 줄, 흰 바탕 테두리, 먹은 끼니는 진한 초록(2026-11-20 룡) */
   .slots.meal button { min-height: 62px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); font-weight: 700; line-height: 1.25; }
   .slots.meal button b { display: block; font-size: 20px; }
@@ -528,7 +543,143 @@ function campForm(box) {
     catch (x) { err.textContent = x.message; byId('cGo').disabled = false; }
   };
 }
-function paintCamp() {
+/* 3단계 애드온(2026-11-25 룡 「와우 애드온」): 본판은 카톡방의 셀체인지 캠프, 앱은 본사 하루 일정표 순서로 오늘 할 일을 보여 주고
+   카톡방에 올릴 글을 오늘 기록으로 만들어 준다(복사 → 붙여 넣기). 글의 틀·문장은 본사 가이드북 그대로(대조표: 가이드북-대조표.md).
+   서버가 camp.open을 줄 때만 나온다(방침 시행 2026-12-02 전에는 운영자만). 선포·셀프 체크는 따로 동의한 뒤에만 서버로 간다.
+   소화·배변은 화면 안에서만 쓰고 어디에도 저장하지 않는다(복사하면 비운다) */
+const DECL4 = ['나는 존귀한 사람입니다.', '나는 존재만으로도 충분히 가치 있는 사람입니다.', '나는 좋은 것을 이어받고, 좋은 것을 남기는 사람입니다.', '나는 복덩이입니다.'];
+let schOpen = null, amPick = { decl: 0, digest: null, bowel: null }, pmDraft = null, schDay = null; /* schDay: 날짜가 넘어가면 쓰다 만 값을 비운다 */
+const hmKo = t => { if (!t) return ''; const h = +t.slice(0, 2), m = +t.slice(3, 5); return (h % 12 || 12) + '시' + (m ? ' ' + m + '분' : ''); }; /* 가이드북 예시처럼 「11시에 자고 6시 30분 기상」 */
+const evSum = e => (e.meal || 0) + (e.move || 0) + (e.supp || 0);
+function amText() {
+  const d = state.day || {};
+  return ['✔ 수면: ' + (state.yesterday_bed ? hmKo(state.yesterday_bed) + '에 자고 ' : '') + (d.wake ? hmKo(d.wake) + ' 기상' : ''),
+    '✔ 아침 컨디션: ' + (d.condition ? FACE_NAMES[d.condition - 1] : '') + (d.condition_note ? ' (' + d.condition_note + ')' : ''),
+    '✔ 소화: ' + (amPick.digest || ''),
+    '✔ 배변·배뇨: ' + (amPick.bowel || '')].join('\n') + '\n\n' + DECL4[amPick.decl].replace(/\.$/, '') + ' 😊';
+}
+function pmText(e) {
+  return `[오늘의 셀프 체크] 🌙\n✔ 식단 ${e.meal}점\n✔ 운동 ${e.move}점\n✔ 영양제 ${e.supp}점\n✔ 합계 ${evSum(e)}점\n✔ 잘한 한 가지: ${e.note || ''}`;
+}
+function consentHtml() {
+  return `<div class="schbox" id="c3Box"><b>[필수] 캠프(3단계) 건강 정보 처리 동의</b>
+    <p><b>받는 것:</b> 선포를 했는지, 밤 셀프 체크(식단·운동·영양제 점수 0~5점, 「잘한 한 가지」), 습관 기록(수면 시간, 세 끼 시각, 운동 일수·시간, 내가 쓴 글), 세포 돌봄 점검의 습관별 ✔ 개수, 내가 고른 영양제 일정</p>
+    <p><b>쓰는 곳:</b> 내 기록 보여 주기, 주간 합계 만들기, 조장이 보고 돌보기</p>
+    <p><b>보는 사람:</b> 그 조의 조장(캠프 코치)과 관리자는 점수·글·습관 기록·✔ 개수를 봅니다. 숨길 수 없습니다. 같은 조 사람은 했는지만 봅니다. 조장은 이 기록을 물건을 권하는 데 쓰지 않습니다.</p>
+    <p><b>보관:</b> 탈퇴하면 바로 지웁니다. 마지막으로 쓴 날부터 1년이 지나면 지웁니다.</p>
+    <p>동의하지 않아도 됩니다. 동의하지 않으면 3단계의 이 기능만 쓸 수 없고, 앱의 나머지 기능은 그대로 쓸 수 있습니다. <a href="privacy.html#바뀐것">방침 보기</a></p>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-weight:700"><input type="checkbox" id="c3Ok" style="width:22px;height:22px">위 내용에 동의합니다</label>
+    <button class="main" type="button" id="c3Go" disabled>동의하고 시작</button></div>`;
+}
+function schAmBox() {
+  if (!camp.consent) return consentHtml();
+  const two = (name, cur, opts) => `<div class="slots" style="grid-template-columns:repeat(2,1fr)">${opts.map(o => `<button type="button" data-${name}="${o}" class="${cur === o ? 'on' : ''}">${o}</button>`).join('')}</div>`;
+  return `<div class="schbox">
+    <label class="f" style="margin-top:0">오늘의 선포 <span class="sub" style="font-weight:400">한 문장을 골라 소리 내어 읽어요</span></label>
+    ${DECL4.map((s, i) => `<button type="button" class="dl${amPick.decl === i ? ' on' : ''}" data-decl="${i}">${s}</button>`).join('')}
+    <button type="button" class="${camp.declared ? '' : 'pick'}" id="declBtn" style="width:100%;margin-top:8px">${camp.declared ? '선포했어요 ✓ (누르면 취소)' : '선포했어요'}</button>
+    <label class="f">소화 <span class="sub" style="font-weight:400">이 두 칸은 폰 안에서만 쓰고 저장하지 않아요</span></label>
+    ${two('dg', amPick.digest, ['편안했어요', '불편했어요'])}
+    <label class="f">배변·배뇨</label>
+    ${two('bw', amPick.bowel, ['원활해요', '불편했어요'])}
+    <pre class="kt" id="amPrev">${esc(amText())}</pre>
+    <button class="main" type="button" id="amCopy">카톡에 올릴 글 복사</button></div>`;
+}
+function schPmBox() {
+  if (!camp.consent) return consentHtml();
+  const d = state.day || {}, on = camp.supps || [], saved = camp.evening;
+  const e = pmDraft || (saved ? { ...saved } : { meal: null, move: null, supp: null, note: '' });
+  const mealN = MEAL3.filter(([k]) => (d.meals || []).includes(k)).length;
+  const row = (k, name, hint) => `<label class="f"${k === 'meal' ? ' style="margin-top:0"' : ''}>${name} <span class="sub" style="font-weight:400">${hint}</span></label>
+    <div class="sc6">${[0, 1, 2, 3, 4, 5].map(v => `<button type="button" data-sc="${k}" data-v="${v}" class="${e[k] === v ? 'on' : ''}">${v}</button>`).join('')}</div>`;
+  return `<div class="schbox">
+    ${row('meal', '식단', `오늘 끼니 ${mealN}번 기록`)}
+    ${row('move', '운동', d.exercise ? '오늘 운동했어요' : '오늘 운동 기록 없음')}
+    ${row('supp', '영양제', `오늘 ${on.length}/${SUPP5.length}번`)}
+    <p class="sub" style="font-size:12px">5 잘함 · 3~4 보통 · 1~2 부족 · 0 못함</p>
+    <label class="f">잘한 한 가지</label>
+    <input id="pmNote" maxlength="60" value="${esc(e.note || '')}" placeholder="예) 30분 걷기" autocomplete="off">
+    <p class="sub" style="font-size:12px">병 이름이나 먹는 약은 적지 마세요.</p>
+    <div class="err" id="pmErr"></div>
+    <button class="${saved && !pmDraft ? '' : 'main'}" type="button" id="pmSave" style="width:100%">${saved ? '고쳐서 저장' : '저장'}</button>
+    ${saved && !pmDraft ? `<pre class="kt">${esc(pmText(saved))}</pre><button class="main" type="button" id="pmCopy">카톡에 올릴 글 복사</button>` : ''}</div>`;
+}
+function campSchedule() {
+  const d = state.day || {}, on = camp.supps || [], plan = camp.plan, ev = camp.evening;
+  const ate = k => (d.meals || []).includes(k) || (d.fasts || []).includes(k);
+  const tick = ok => `<i>${ok ? '✓' : ''}</i>`;
+  const sup = k => { const s = SUPP5.find(x => x[0] === k), ok = on.includes(k); return `<button type="button" class="srow${ok ? ' on' : ''}" data-supp="${k}">${tick(ok)}<span>${s[1].slice(3)}: 영양제 <small>${s[2].replace('#', plan)}</small></span></button>`; };
+  const go = (ok, k, txt) => `<button type="button" class="srow${ok ? ' on' : ''}" data-go="${k}">${tick(ok)}<span>${txt}</span></button>`;
+  const kt = (ok, k, txt) => `<button type="button" class="srow${ok ? ' on' : ''}" data-sch="${k}">${tick(ok)}<span>${txt}</span><em>카톡 글</em></button>`;
+  return `<div class="card sch" id="schCard" style="margin-bottom:10px">
+    <h2 style="margin:0">📋 셀체인지 ${camp.day_no}일째 · 오늘 일정표</h2>
+    ${camp.dow === 0 ? '<p class="sub" style="margin-top:4px">일요일엔 셀프 체크만 카톡방에 올려요.</p>' : ''}
+    <h3>☀️ 아침</h3>
+    ${kt(camp.declared, 'am', '일어나서: 물 한 컵 · 컨디션 체크 · 선포')}
+    ${schOpen === 'am' ? schAmBox() : ''}
+    ${sup('am_pre')}
+    ${go(ate('breakfast'), 'slot:breakfast', '식사: 에이스발란스 📸 + 사과·샐러드·계란 중 골라서')}
+    ${sup('am_post')}
+    <h3>🍚 점심</h3>
+    ${go(ate('lunch'), 'slot:lunch', '식사: 거꾸로 식사 📸 채소 → 단백질 → 탄수화물 순서로')}
+    ${sup('pm_post')}
+    <h3>🌇 저녁</h3>
+    ${go(!!d.exercise, 'ex', '운동: 내가 정한 운동 인증')}
+    ${sup('eve_pre')}
+    ${go(ate('dinner'), 'slot:dinner', '식사: 거꾸로 식사 📸')}
+    ${sup('eve_post')}
+    <h3>🌙 밤</h3>
+    ${kt(!!ev, 'pm', '자기 전: 셀프 체크 올리기' + (ev ? ` · ${evSum(ev)}점` : ''))}
+    ${schOpen === 'pm' ? schPmBox() : ''}
+    <div class="srow info"><span>1시간 전: 휴대폰 끄고 불빛 차단</span></div>
+    ${go(!!d.bed, 'bed', '11~12시 전: 잠들기')}
+    <p class="sub" style="margin-top:8px;font-size:12px">${plan}안 · 이=이뮨 · 제=제놀 · 오=오메가3 · 데=데일리 · 숫자는 알 수 · ${md(camp.end)}까지 · <a href="#" data-campset="1">캠프 설정</a>${camp.consent ? ' · <a href="#" id="c3Off">캠프 기록 동의 거두기</a>' : ''}</p>
+    <p class="sub" style="margin-top:4px;font-size:12px">📷 식단 사진은 나만 봐요. 히스토리에서 「조에 보이기」를 누른 사진만 조에 보여요.</p>
+  </div>`;
+}
+function bindSchedule(box) {
+  const re = () => paintCamp(true);
+  box.querySelectorAll('[data-sch]').forEach(b => b.onclick = () => { schOpen = schOpen === b.dataset.sch ? null : b.dataset.sch; re(); });
+  box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
+    const k = b.dataset.go, see = el => el && el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (k === 'bed') return see(byId('bedBtn'));
+    if (k === 'ex') { const x = byId('exBtn'); if (x && !x.disabled && !byId('exBox').innerHTML) x.click(); return see(x); }
+    const s = $app.querySelector(`[data-slot="${k.slice(5)}"]`); if (!s) return;
+    if (!(byId('mealBox').dataset.k === k.slice(5) && byId('mealBox').innerHTML)) s.click();
+    see(byId('mealBox'));
+  });
+  const c3 = byId('c3Go');
+  if (c3) {
+    byId('c3Ok').onchange = () => { c3.disabled = !byId('c3Ok').checked; };
+    c3.onclick = async () => { c3.disabled = true; try { camp = await rpc('life_camp3_consent', { p_token: token, p_on: true }); toast('동의했어요'); re(); } catch (x) { toast(x.message); c3.disabled = false; } };
+  }
+  box.querySelectorAll('[data-decl]').forEach(b => b.onclick = () => { amPick.decl = +b.dataset.decl; re(); });
+  box.querySelectorAll('[data-dg]').forEach(b => b.onclick = () => { amPick.digest = b.dataset.dg; re(); });
+  box.querySelectorAll('[data-bw]').forEach(b => b.onclick = () => { amPick.bowel = b.dataset.bw; re(); });
+  const db = byId('declBtn');
+  if (db) db.onclick = async () => { db.disabled = true; try { camp = await rpc('life_declare', { p_token: token, p_on: !camp.declared }); re(); loadSocial(); } catch (x) { toast(x.message); db.disabled = false; } };
+  const ac = byId('amCopy');
+  if (ac) ac.onclick = async () => { if (await copyText(amText())) { amPick.digest = null; amPick.bowel = null; re(); } }; /* 소화·배변은 복사되면 비운다. 안 되면 길게 눌러 복사하게 그대로 둔다 */
+  const keep = () => { const cur = pmDraft || (camp.evening ? { ...camp.evening } : { meal: null, move: null, supp: null, note: '' }); cur.note = byId('pmNote') ? byId('pmNote').value : cur.note; return cur; };
+  box.querySelectorAll('[data-sc]').forEach(b => b.onclick = () => { pmDraft = keep(); pmDraft[b.dataset.sc] = +b.dataset.v; re(); });
+  const pn = byId('pmNote'); if (pn) pn.oninput = () => { pmDraft = keep(); };
+  const ps = byId('pmSave');
+  if (ps) ps.onclick = async () => {
+    const e = keep(), err = byId('pmErr');
+    if ([e.meal, e.move, e.supp].some(v => v == null)) { err.textContent = '식단·운동·영양제 점수를 모두 눌러 주세요.'; return; }
+    ps.disabled = true;
+    try { camp = await rpc('life_evening_save', { p_token: token, p_meal: e.meal, p_move: e.move, p_supp: e.supp, p_note: (e.note || '').trim() }); pmDraft = null; toast('셀프 체크를 저장했어요 🌙'); re(); }
+    catch (x) { err.textContent = x.message; ps.disabled = false; }
+  };
+  const pc = byId('pmCopy'); if (pc) pc.onclick = () => copyText(pmText(camp.evening));
+  const off = byId('c3Off');
+  if (off) off.onclick = async e => {
+    e.preventDefault();
+    if (!await ask('캠프 기록 동의를 거둘까요?\n지금까지 적은 선포·셀프 체크가 지워져요. 되돌릴 수 없어요.', '동의 거두기', '그대로 두기')) return;
+    try { camp = await rpc('life_camp3_consent', { p_token: token, p_on: false }); schOpen = null; pmDraft = null; toast('동의를 거뒀어요'); re(); } catch (x) { toast(x.message); }
+  };
+}
+function paintCamp(force) {
   const box = byId('campBox'); if (!box) return;
   if (camp && !camp.allowed) { campEdit = false; campDraft = null; box.innerHTML = ''; return; } /* 열어 준 사람(캠프 조)에게만 보인다 */
   if (campEdit) { if (camp) campForm(box); return; }
@@ -540,6 +691,16 @@ function paintCamp() {
         <div class="ico">💊</div><div class="txt"><strong>셀체인지 캠프</strong><span class="sub">유형·시작일·마침일을 넣으면 그날부터 영양제 칸이 나와요</span></div>
         <div class="btns"><button class="pick" type="button" data-campset="1">설정</button></div></div></div>`
       : camp.start ? `<p class="sub" style="margin-top:8px">💊 캠프 ${md(camp.start)} ~ ${md(camp.end)} · ${camp.before ? '아직 시작 전이에요' : '끝났어요'} · ${setLink}</p>` : '';
+  } else if (camp.open) {
+    /* 3단계 일정표: 본사 하루 일정표 순서. 기록 카드(수면·운동·식단) 위에 놓는다 */
+    /* 적는 중에 밖에서 부른 다시 그리기는 미뤘다가 글 칸에서 손을 떼면 그린다. 일정표 안에서 누른 것(force)은 바로 그린다 */
+    const typing = document.activeElement && document.activeElement.id === 'pmNote' ? document.activeElement : null;
+    if (typing && !force) { typing.onblur = () => setTimeout(() => { if (!byId('pmNote') || document.activeElement !== byId('pmNote')) paintCamp(); }, 200); return; }
+    if (schDay !== state.today) { schDay = state.today; schOpen = null; pmDraft = null; amPick = { decl: 0, digest: null, bowel: null }; }
+    const ch = $app.querySelector('.checks'); if (ch && box.nextElementSibling !== ch) ch.before(box);
+    const q = CAMP_Q[camp.day_no];
+    box.innerHTML = campSchedule() + (q ? `<div class="got" style="margin:0 0 10px">🚩 ${camp.day_no}일 이정표 · ${q}</div>` : '');
+    bindSchedule(box);
   } else {
     const on = camp.supps || [], q = CAMP_Q[camp.day_no], plan = camp.plan;
     box.innerHTML = `<div class="check${on.length ? ' done' : ''}" style="display:block;margin-top:8px">
@@ -1681,8 +1842,8 @@ function memberCard(m, admin) {
     <details><summary>날짜별 표 보기 (2주)</summary><div class="scroll">${recordTable(all)}</div></details></div>`;
 }
 async function copyText(t) {
-  try { await navigator.clipboard.writeText(t); toast('복사했어요'); }
-  catch (e) { toast('복사가 안 돼요. 길게 눌러 복사해 주세요.'); }
+  try { await navigator.clipboard.writeText(t); toast('복사했어요'); return true; }
+  catch (e) { toast('복사가 안 돼요. 길게 눌러 복사해 주세요.'); return false; }
 }
 async function renderLeader() {
   const key = manageKey, seq = screenSeq, tk = token;
