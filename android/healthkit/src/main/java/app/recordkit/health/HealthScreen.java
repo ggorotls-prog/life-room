@@ -28,6 +28,7 @@ import java.io.File;
 // 접근성·배터리 안내, 뒤로 가기만 맡는다. 새 버전 확인(건강 기록 앱)·자동 로그인(라이프 RPG)처럼 앱마다 다른 것은 이어받는 쪽에서.
 public abstract class HealthScreen extends Activity {
     public static final String BASE = "https://ggorotls-prog.github.io/life-room/";
+    static final String ADMIN_BASE = "https://ggorotls-prog.github.io/life-changer/";
     private static final int PICK = 7, PHOTO_PERM = 8, HC_REQ = 9, NOTIF_PERM = 10;
 
     protected WebView web;
@@ -74,7 +75,9 @@ public abstract class HealthScreen extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
-                if (Uri.parse(BASE).getHost().equals(req.getUrl().getHost())) return false;
+                // 앱 기능(LifeRoom)을 쓸 수 있는 곳은 건강 기록과 관리자 화면(라이프 체인저)만. 같은 github.io의 다른 저장소는 폰 브라우저로 (2026-11-25 보안 점검)
+                String u = req.getUrl().toString();
+                if (u.startsWith(BASE) || u.startsWith(ADMIN_BASE)) return false;
                 try { startActivity(new Intent(Intent.ACTION_VIEW, req.getUrl())); } catch (Exception ignored) {}
                 return true;
             }

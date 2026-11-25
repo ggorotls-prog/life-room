@@ -849,7 +849,7 @@ function renderAuth(mode) {
     <div class="card" style="margin-top:20px">
       <form id="f">
         ${signup && !apply ? '<label class="f">조 코드 (조장에게 받아요)<input id="code" autocomplete="off" autocapitalize="characters" required></label>' : ''}
-        <label class="f">${signup ? '닉네임 (꼭 4자 · 꾸미는 말 2자 + 이름 2자)' : '아이디'}<input id="nick" maxlength="${signup ? 4 : 12}" ${signup ? 'placeholder="예: 깐깐룡이, 깐깐귀룡"' : ''} autocomplete="username" required></label>
+        <label class="f">${signup ? '닉네임 (꼭 4자 · 꾸미는 말 2자 + 이름 2자)' : '아이디'}<input id="nick" maxlength="${signup ? 4 : 12}" ${signup ? 'placeholder="예: 튼튼하늘, 씩씩지우"' : ''} autocomplete="username" required></label>
         ${signup ? '<p id="nickHint" style="margin:-4px 0 8px;font-size:13px;color:var(--err)" hidden></p>' : ''}
         <label class="f">${signup ? '비밀번호 (6자 이상, 영어+숫자)' : '비밀번호'}<input id="pw" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required></label>
         ${apply ? '<label class="f">누구와 함께하나요? (초대한 분의 앱 닉네임)<input id="withNick" maxlength="12" autocomplete="off" required></label><p class="sub" style="margin:6px 0 0;font-size:13px">본명이나 전화번호는 적지 마세요. 가입 신청을 하면 운영자가 확인하고 승인해요. 승인 전에는 기록할 수 없어요.</p>' : ''}
@@ -885,7 +885,7 @@ function renderAuth(mode) {
     go.disabled = true; err.textContent = '';
     try {
       const nick = document.getElementById('nick').value.trim(), pw = document.getElementById('pw').value;
-      if (signup && [...nick].length !== 4) { err.textContent = '닉네임은 꼭 4자로 적어 주세요. (예: 깐깐룡이, 깐깐귀룡)'; go.disabled = false; return; }
+      if (signup && [...nick].length !== 4) { err.textContent = '닉네임은 꼭 4자로 적어 주세요. (예: 튼튼하늘, 씩씩지우)'; go.disabled = false; return; }
       const d = signup
         ? (apply ? await rpc('life_apply', { p_nick: nick, p_pw: pw, p_with: byId('withNick').value, p_consent: true })
                  : await rpc('life_signup', { p_code: byId('code').value, p_nick: nick, p_pw: pw, p_consent: true }))
@@ -965,7 +965,7 @@ function renderSleeping() {
   $app.innerHTML = `<div class="ask"><div class="big">🌙</div><h1>자는 중 · 취침 ${hm(d.bed)}</h1>
     <p class="sub">잘 자요. 일어나면 눌러 주세요</p>${alarmLine()}${lockLine()}${pinGuide()}
     <div class="card">${store.get('life_unlocked') === '1' && store.get('life_lock') !== '1'
-      /* 긴급 해제한 뒤(2026-11-24 룡: 어머니가 큰 「일어났어요」를 눌러 다시 못 잠금): 다시 자는 쪽이 큰 버튼 */
+      /* 긴급 해제한 뒤(2026-11-24 룡: 큰 「일어났어요」를 눌러 다시 못 잠그는 일이 있었음): 다시 자는 쪽이 큰 버튼 */
       ? `<button class="main" type="button" id="reBed">🌙 다시 잘게요</button><button type="button" id="go" style="width:100%;margin-top:8px">일어났어요 ☀️</button>`
       : `<button class="main" id="go">일어났어요 ☀️</button>
     ${store.get('life_lock') === '1' ? emergencyBtn() : `<button class="switch" type="button" id="reBed">🌙 다시 잘게요</button>`}`}</div></div>`;
@@ -2328,7 +2328,7 @@ function renderWait() {
     <div class="card" style="margin-top:20px">
       <p style="margin:0 0 4px"><span class="sub">신청한 닉네임</span> <b>${esc(state.nickname || '')}</b></p>
       <p class="sub" style="margin:0 0 8px">${esc(state.with || '')}님과 함께</p>
-      ${rej ? `<label class="f">새 닉네임 (꼭 4자 · 꾸미는 말 2자 + 이름 2자)<input id="reNick" maxlength="4" placeholder="예: 깐깐룡이" autocomplete="off"></label>
+      ${rej ? `<label class="f">새 닉네임 (꼭 4자 · 꾸미는 말 2자 + 이름 2자)<input id="reNick" maxlength="4" placeholder="예: 튼튼하늘" autocomplete="off"></label>
       <div class="err" id="reErr"></div><button class="main" id="reGo">다시 신청하기</button>`
     : '<div class="err" id="reErr"></div><button class="main" id="reChk">승인됐는지 확인하기</button>'}
       <button class="switch" id="reOut">${rej ? '나가기 (나가면 처음부터 다시 신청해야 해요)' : '나가기 (다시 들어오면 이어서 봐요)'}</button>
