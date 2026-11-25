@@ -576,7 +576,7 @@ function schPmBox() {
     ${row('meal', '식단', `오늘 끼니 ${mealN}번 기록`)}
     ${row('move', '운동', d.exercise ? '오늘 운동했어요' : '오늘 운동 기록 없음')}
     ${row('supp', '영양제', `오늘 ${on.length}/${SUPP5.length}번`)}
-    <p class="sub" style="font-size:12px">5 잘함 · 3~4 보통 · 1~2 부족 · 0 못함</p>
+    <p class="sub" style="font-size:12px">0 못함 · 1~2 부족 · 3~4 보통 · 5 잘함</p>
     <label class="f">잘한 한 가지</label>
     <input id="pmNote" maxlength="60" value="${esc(e.note || '')}" placeholder="예) 30분 걷기" autocomplete="off">
     <p class="sub" style="font-size:12px">병 이름이나 먹는 약은 적지 마세요.</p>
@@ -587,13 +587,15 @@ function schPmBox() {
 /* ---- 3단계 참가자 화면(2026-11-25 룡 「참가자 할 일에 잘 맞춰」): 참가자 가이드북 「하루 다섯 걸음」·「나의 하루」·「첫 주」·「4·8·12주」 순서 그대로 ----
    매일 누르는 것에서 시각·분이 저절로 남고(기상·취침·끼니 사진·영양제·운동 분), 카톡방에 올릴 글은 가이드북 예시 꼴로 만들어 복사만 한다.
    소화·배변·밤에 깬 횟수는 화면 안에서만 쓰고 저장하지 않는다(처리방침). */
-let amOpt = { wakes: null, digest: null, bowel: null, wake: null, cond: null, why: null }, exPick = { min: null, what: '' }, mealShot = {}, wkDraft = {}, chkDraft = null;
-const hmBan = t => { if (!t) return ''; const h = +t.slice(0, 2), m = +t.slice(3, 5); return (h % 12 || 12) + '시' + (m === 30 ? ' 반' : m ? ' ' + m + '분' : ''); };
+let mealOpen = null, bedOpen = false;
+let amOpt = { wakes: null, digest: null, bowel: null, wake: null, cond: null, why: null, bed: null }, exPick = { min: null, what: '' }, mealShot = {}, wkDraft = {}, chkDraft = null;
+const hmBan = t => { if (!t) return ''; const h = +t.slice(0, 2), m = +t.slice(3, 5); return h + '시' + (m === 30 ? ' 반' : m ? ' ' + m + '분' : ''); }; /* 24시 표기(2026-11-25 룡) */
 function amText() {
   const d0 = state.day || {}, w = amOpt.wakes;
   const d = { ...d0, wake: amOpt.wake ? amOpt.wake + ':00' : d0.wake, condition: amOpt.cond || d0.condition, condition_note: amOpt.why != null ? amOpt.why : d0.condition_note };
   if (d.condition === 2) d.condition_note = '';
-  const sleep = (state.yesterday_bed ? hmBan(state.yesterday_bed) + '에 자서 ' : '') + (d.wake ? hmBan(d.wake) + ' 기상' : '') + (w == null ? '' : (d.wake || state.yesterday_bed ? ', ' : '') + (w === 0 ? '한 번도 안 깼어요.' : `${w === 3 ? '3번 넘게' : w + '번'} 깼어요.`));
+  const yb = state.yesterday_bed || (amOpt.bed ? amOpt.bed + ':00' : null);
+  const sleep = (yb ? hmBan(yb) + '에 자서 ' : '') + (d.wake ? hmBan(d.wake) + ' 기상' : '') + (w == null ? '' : (d.wake || state.yesterday_bed ? ', ' : '') + (w === 0 ? '한 번도 안 깼어요.' : `${w === 3 ? '3번 넘게' : w + '번'} 깼어요.`));
   const cond = d.condition_note ? d.condition_note.replace(/[.!]?$/, '.') : d.condition ? `컨디션 ${FACE_NAMES[d.condition - 1]}이에요.` : '';
   const dg = amOpt.digest ? ` 소화 ${amOpt.digest}.` : '', bw = amOpt.bowel ? ` 배변 ${amOpt.bowel}!` : '';
   return (sleep.endsWith('.') ? sleep : sleep + (sleep ? '.' : '')) + '\n' + (cond + dg + bw).trim();
@@ -614,11 +616,12 @@ function schAmBox() {
   const bad = amOpt.digest === '불편했어요' || amOpt.bowel === '불편했어요';
   return `<div class="schbox">
     <p style="margin:0" class="sub">☀️ 일어나서 따뜻한 물 한 컵 드시고, 코치님 아침 양식에 짧게 답해요.</p>
+    ${state.yesterday_bed ? '' : `<label class="f">어젯밤 몇 시에 잤어요?</label><select id="amBed">${timeOptions(18, amOpt.bed || '23:00')}</select>`}
     <label class="f">몇 시에 일어났어요?</label><select id="amWake">${timeOptions(0, wk)}</select>
     <label class="f">중간에 잠에서 깬 횟수</label>${ch('wk', amOpt.wakes, [[0, '0번'], [1, '1번'], [2, '2번'], [3, '3번 넘게']])}
     <label class="f">오늘 아침 몸과 마음의 상태</label>
     <div class="faces">${FACES.map((f, i) => `<button type="button" data-cond="${i + 1}" class="${cond === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
-    ${cond && cond !== 2 ? `<input id="amWhy" maxlength="60" value="${esc(why)}" placeholder="${cond === 3 ? '예) 몸이 가벼워요' : '예) 늦게 자서 피곤해요'}" autocomplete="off" style="margin-top:8px">` : ''}
+    ${cond && cond !== 2 ? `<input id="amWhy" maxlength="60" value="${esc(why)}" placeholder="몸과 마음의 상태 이유를 적어 주세요" autocomplete="off" style="margin-top:8px">` : ''}
     <label class="f">어제 식사 후 소화</label>${ch('dg', amOpt.digest, [['편했어요', '편했어요'], ['더부룩했어요', '더부룩했어요'], ['불편했어요', '불편했어요']])}
     <label class="f">배변·배뇨</label>${ch('bw', amOpt.bowel, [['원활해요', '원활해요'], ['불편했어요', '불편했어요']])}
     <p class="sub" style="font-size:12px;margin-top:6px">기상 시각·컨디션은 내 기록에 남아요. 깬 횟수·소화·배변은 저장하지 않아요.</p>
@@ -638,7 +641,7 @@ function schExBox() {
   if (d.exercise) return '';
   return `<div class="schbox"><p style="margin:0" class="sub">내가 정한 실천을 한 날, 사진이나 걸음 수 캡처로 인증해요.</p>
     <label class="f">몇 분 했어요?</label>
-    <div class="slots" style="grid-template-columns:repeat(4,1fr)">${[10, 20, 30, 60].map(n => `<button type="button" data-exmin="${n}" class="${exPick.min === n ? 'on' : ''}">${n}분</button>`).join('')}</div>
+    <div class="slots" style="grid-template-columns:repeat(5,1fr)">${[10, 20, 30, 60, 90].map(n => `<button type="button" data-exmin="${n}" class="${exPick.min === n ? 'on' : ''}">${n}분</button>`).join('')}</div>
     <label class="f">무슨 운동?</label><input id="exWhat" maxlength="30" value="${esc(exPick.what)}" placeholder="예) 걷기, 관절 운동, 스트레칭" autocomplete="off">
     <div class="exphoto" style="margin-top:8px">${exDraft.photo ? `<img src="${exDraft.photo}" alt="고른 사진"><a href="#" id="exPhDel">사진 빼기</a>` : '<button type="button" id="exPh" style="width:100%">📷 사진·걸음 수 캡처 넣기</button>'}</div>
     <div class="err" id="exErr"></div><input type="hidden" id="exNote"><button class="main" type="button" id="exGo">운동했어요</button></div>`;
@@ -649,7 +652,7 @@ function campSchedule() {
   const sup = k => { const s = SUPP5.find(x => x[0] === k), ok = on.includes(k); return `<button type="button" class="srow${ok ? ' on' : ''}" data-supp="${k}">${tick(ok)}<span>${s[1].slice(3)} 영양제 <small>${s[2].replace('#', plan)}</small>${ok ? tm(sa[k]) : ''}</span></button>`; };
   const meal = (k, txt) => {
     const done = (d.meals || []).includes(k), fast = (d.fasts || []).includes(k);
-    return `<button type="button" class="srow${done || fast ? ' on' : ''}" data-meal="${k}">${tick(done || fast)}<span>${txt}${fast ? ' · 금식' : done ? tm(ma[k]) : ''}</span><em>${done && !fast ? (mealShot[k] ? '카톡에 올리기' : '바꾸기') : fast ? '바꾸기' : '📷 사진·글·금식'}</em></button>`;
+    return `<button type="button" class="srow${done || fast ? ' on' : ''}" data-meal="${k}">${tick(done || fast)}<span>${txt}${fast ? ' · 금식' : done ? tm(ma[k]) : ''}</span><em>${done && !fast ? (mealShot[k] ? '카톡에 올리기' : '바꾸기') : fast ? '바꾸기' : '📷 사진·글·금식'}</em></button>` + `<div data-mealslot="${k}"></div>`;
   };
   const kt = (ok, k, txt, btn) => `<button type="button" class="srow${ok ? ' on' : ''}" data-sch="${k}">${tick(ok)}<span>${txt}</span><em>${btn}</em></button>`;
   const exDone = !!d.exercise;
@@ -678,7 +681,7 @@ function campSchedule() {
     ${kt(!!ev, 'pm', '오늘의 셀프 체크' + (ev ? ` · ${evSum(ev)}점` : ''), '카톡 글')}
     ${schOpen === 'pm' ? schPmBox() : ''}
     <div class="srow info"><span>1시간 전: 휴대폰 끄고 불빛 차단</span></div>
-    <button type="button" class="srow${d.bed ? ' on' : ''}" data-go="bed">${tick(!!d.bed)}<span>11~12시 전: 잠들기${d.bed ? tm(hm(d.bed)) : ''}</span><em>${d.bed ? '고치기' : '잘게요'}</em></button>
+    <button type="button" class="srow${d.bed ? ' on' : ''}" data-go="bed">${tick(!!d.bed)}<span>11~12시 전: 잠들기${d.bed ? tm(hm(d.bed)) : ''}</span><em>${d.bed ? '고치기' : '잘게요'}</em></button><div data-bedslot="1"></div>
     <details style="margin-top:10px"><summary>💡 이럴 땐 이렇게 해요</summary><div style="font-size:14px;line-height:1.6">${HELP_P}</div></details>
     <p class="sub" style="margin-top:8px;font-size:12px">${plan}안 · 이=이뮨 · 제=제놀 · 오=오메가3 · 데=데일리 · 숫자는 알 수 · ${md(camp.end)}까지 · <a href="#" data-campset="1">캠프 설정</a>${camp.consent ? ' · <a href="#" id="c3Off">캠프 기록 동의 거두기</a>' : ''}</p>
   </div>`;
@@ -705,7 +708,7 @@ const CHECK15 = [['식사', ['아침을 거르거나 빵·떡·면으로 때울 
   ['마음', ['나에게 칭찬보다 꾸중을 더 많이 한다', '스트레스를 먹는 것으로 풀 때가 많다', '요즘 즐거운 일이 별로 없다']]];
 const CHK_KEYS = ['meal', 'move', 'sleep_n', 'nutri', 'mind'];
 const chkMsg = n => n <= 4 ? '좋은 출발이에요. 지금 습관을 다지며 함께 가요.' : n <= 9 ? '작은 변화가 큰 차이를 만들 때예요.' : '지금이 시작하기 딱 좋은 때예요. 코치님과 함께 한 걸음씩 가요.';
-const bedKo = s => { const h = +s.slice(0, 2); return (h === 0 ? '밤 ' : h < 5 ? '새벽 ' : '') + hmBan(s + ':00'); };
+const bedKo = s => hmBan(s + ':00');
 const toM = s => s ? +s.slice(0, 2) * 60 + +s.slice(3, 5) : null;
 const sleepOf = r => { const b = toM(r.bed), w = toM(r.wake); return b == null || w == null ? (r.sleep || null) : ((w - b) % 1440 + 1440) % 1440; };
 const minKo = m0 => { if (m0 == null) return ''; const m = Math.round(m0); return `${Math.floor(m / 60)}시간${m % 60 ? ' ' + m % 60 + '분' : ''}`; };
@@ -762,7 +765,7 @@ function beforeHtml(inner) {
   if (sv && !wkDraft.before) { const tx = habitText('before', sv); return `<pre class="kt">${esc(tx)}</pre><button type="button" data-copy="${esc(tx)}">카톡방에 다시 공유</button>`; }
   const r = wkDraft.before || (wkDraft.before = { sleep: null, bed: null, wake: null, am: null, pm: null, ev: null, ex_days: null, ex_min: null, wish: '' });
   const sel = (k, opts, ph) => `<select data-bf="${k}"><option value="">${ph}</option>${opts.map(([v, l]) => `<option value="${v}"${String(r[k]) === String(v) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
-  const tlist = (hs) => hs.flatMap(h => [[`${String(h).padStart(2, '0')}:00`, (h % 12 || 12) + '시'], [`${String(h).padStart(2, '0')}:30`, (h % 12 || 12) + '시 반']]);
+  const tlist = (hs) => hs.flatMap(h => [[`${String(h).padStart(2, '0')}:00`, h + '시'], [`${String(h).padStart(2, '0')}:30`, h + '시 반']]);
   const sl = sleepOf(r);
   const times = (a, b) => { const o = [['거름', '거름']]; for (let h = a; h <= b; h++) { o.push([`${String(h).padStart(2, '0')}:00`, h + '시']); o.push([`${String(h).padStart(2, '0')}:30`, h + '시 반']); } return o; };
   return `<p class="sub" style="margin:4px 0 6px">지금이 아니라 최근 3개월의 평소 모습을 적어요. 4·8·12주에 지금 모습과 나란히 비교해 봐요.</p>
@@ -823,12 +826,15 @@ function bindSchedule(box) {
   box.querySelectorAll('[data-meal]').forEach(b => b.onclick = () => {
     const k = b.dataset.meal, done = (d.meals || []).includes(k);
     if (done && !(d.fasts || []).includes(k) && mealShot[k]) return shareShot(mealShot[k].split(',')[1], '');
-    const sb = $app.querySelector(`.checks [data-slot="${k}"]`); if (!sb) return;
-    sb.click(); const mb = byId('mealBox'); if (mb && mb.innerHTML) mb.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const sb = $app.querySelector(`.checks [data-slot="${k}"]`), mb = byId('mealBox'); if (!sb || !mb) return;
+    if (mealOpen === k && mb.innerHTML) { mb.innerHTML = ''; mealOpen = null; byId('schPane').appendChild(mb); return; } /* 다시 누르면 접힘 */
+    sb.click(); mealOpen = k; const slot = box.querySelector(`[data-mealslot="${k}"]`); if (slot && mb.innerHTML) slot.appendChild(mb);
   });
   box.querySelectorAll('[data-go]').forEach(b => b.onclick = async () => {
     if (!d.bed && state.camp3) { if (!await ask('지금 잘게요?', '잘게요')) return; act('life_bed', { p_token: token, p_which: 'today', p_time: nowHM() }, pick(CHEERS.bed)); return; } /* 3단계: 화면 잠금 없음(2026-11-25 룡) */
-    const x = byId('bedBtn'); if (x) { x.click(); const bb = byId('bedBox'); if (bb && bb.innerHTML) bb.scrollIntoView({ behavior: 'smooth', block: 'center' }); } });
+    const x = byId('bedBtn'), bb = byId('bedBox'); if (!x || !bb) return;
+    if (bedOpen && bb.innerHTML) { bb.innerHTML = ''; bedOpen = false; byId('schPane').appendChild(bb); return; }
+    x.click(); bedOpen = true; const slot = box.querySelector('[data-bedslot]'); if (slot && bb.innerHTML) slot.appendChild(bb); });
   box.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => shareKakao(b.dataset.copy));
   const c3 = byId('c3Go');
   if (c3) {
@@ -838,6 +844,7 @@ function bindSchedule(box) {
   box.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => { amOpt.wakes = +b.dataset.wk; re(); });
   box.querySelectorAll('[data-dg]').forEach(b => b.onclick = () => { amOpt.digest = b.dataset.dg; re(); });
   box.querySelectorAll('[data-bw]').forEach(b => b.onclick = () => { amOpt.bowel = b.dataset.bw; re(); });
+  const abd = byId('amBed'); if (abd) { if (!amOpt.bed) amOpt.bed = abd.value; abd.onchange = () => { amOpt.bed = abd.value; const pv = byId('amPrev'); if (pv) pv.textContent = amText(); }; }
   const aw = byId('amWake'); if (aw) aw.onchange = () => { amOpt.wake = aw.value; const pv = byId('amPrev'); if (pv) pv.textContent = amText(); };
   box.querySelectorAll('[data-cond]').forEach(b => b.onclick = () => { amOpt.wake = byId('amWake') ? byId('amWake').value : amOpt.wake; amOpt.cond = +b.dataset.cond; re(); });
   const awy = byId('amWhy'); if (awy) awy.oninput = () => { amOpt.why = awy.value; const pv = byId('amPrev'); if (pv) pv.textContent = amText(); };
@@ -849,10 +856,11 @@ function bindSchedule(box) {
     amOpt.wake = wk; amOpt.cond = cond; amOpt.why = why;
     ac.disabled = true;
     const shared = await shareKakao(amText());
+    if (!state.yesterday_bed && byId('amBed')) { try { state = await rpc('life_bed', { p_token: token, p_which: 'yesterday', p_time: byId('amBed').value }); } catch (x) { toast(x.message); ac.disabled = false; return; } }
     if (hm(dd.wake) !== wk || dd.condition !== cond || (dd.condition_note || '') !== (cond === 2 ? '' : why)) {
       try { state = await rpc('life_wake', { p_token: token, p_time: wk, p_condition: cond, p_note: cond === 2 ? '' : why }); } catch (x) { toast(x.message); ac.disabled = false; return; }
     }
-    if (shared) { amOpt = { wakes: null, digest: null, bowel: null, wake: null, cond: null, why: null }; schOpen = null; }
+    if (shared) { amOpt = { wakes: null, digest: null, bowel: null, wake: null, cond: null, why: null, bed: null }; schOpen = null; }
     render();
   };
   box.querySelectorAll('[data-decl]').forEach(b => b.onclick = () => { amPick.decl = +b.dataset.decl; re(); });
@@ -879,6 +887,7 @@ function bindSchedule(box) {
     if (!exPick.min) { byId('exErr').textContent = '몇 분 했는지 눌러 주세요.'; return; }
     byId('exNote').value = note; exPick = { min: null, what: '' }; schOpen = null;
     await saveEx();
+    if (state.day && state.day.exercise) { await new Promise(r => setTimeout(r, 50)); if (exPrepping) await exPrepping; shareEx(); } /* 기존 운동 인증 카드(사진 아래 날짜·내용 띠)로 바로 공유 */
   };
   /* 점검 15문항 */
   box.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => { const id = +b.dataset.chk, a = chkDraft || []; chkDraft = a.includes(id) ? a.filter(x => x !== id) : [...a, id]; re(); });
@@ -965,13 +974,16 @@ function paintCamp(force) {
     /* 적는 중에 밖에서 부른 다시 그리기는 미뤘다가 글 칸에서 손을 떼면 그린다. 일정표 안에서 누른 것(force)은 바로 그린다 */
     const ae = document.activeElement, typing = ae && ae.tagName === 'INPUT' && byId('schCard') && byId('schCard').contains(ae) ? ae : null;
     if (typing && !force) { typing.onblur = () => setTimeout(() => { const a2 = document.activeElement; if (!(a2 && a2.tagName === 'INPUT' && byId('schCard') && byId('schCard').contains(a2))) paintCamp(); }, 200); return; }
-    if (schDay !== state.today) { schDay = state.today; schOpen = null; pmDraft = null; amPick = { decl: 0, digest: null, bowel: null }; amOpt = { wakes: null, digest: null, bowel: null, wake: null, cond: null, why: null }; exPick = { min: null, what: '' }; mealShot = {}; wkDraft = {}; chkDraft = null; }
+    if (schDay !== state.today) { schDay = state.today; schOpen = null; pmDraft = null; amPick = { decl: 0, digest: null, bowel: null }; amOpt = { wakes: null, digest: null, bowel: null, wake: null, cond: null, why: null, bed: null }; exPick = { min: null, what: '' }; mealShot = {}; wkDraft = {}; chkDraft = null; }
     const ch = $app.querySelector('.checks');
     if (ch) ch.hidden = true; /* 3단계는 일정표 한 화면(2026-11-25 룡 「잘게요·운동했어요·식단이 다 위로 녹아들어야 해, 남아 있으면 안 돼」) */
     let pane = byId('schPane'); if (!pane) { pane = document.createElement('div'); pane.id = 'schPane'; }
     if (ch) { if (pane.nextElementSibling !== ch) ch.before(pane); if (box.nextElementSibling !== pane) pane.before(box); } /* 차례: 일정표 → 입력 상자 → (숨긴) 옛 카드 */
     ['bedBox', 'mealBox'].forEach(id => { const el = byId(id); if (el && el.parentElement !== pane) pane.appendChild(el); });
-    box.innerHTML = campSchedule(); /* 옛 이정표(7·21·50·84일)는 가이드북 4·8·12주 습관 기록으로 바뀜(2026-11-25 룡 「가이드북 지침이 우선」) */
+    box.innerHTML = campSchedule();
+    /* 끼니·잠들기 상자는 그 줄 바로 아래에 토글처럼(2026-11-25 룡) */
+    const mb = byId('mealBox'), mslot = mealOpen && box.querySelector(`[data-mealslot="${mealOpen}"]`); if (mb && mslot && mb.innerHTML) mslot.appendChild(mb); else if (mb && !mb.innerHTML) mealOpen = null;
+    const bb = byId('bedBox'), bslot = bedOpen && box.querySelector('[data-bedslot]'); if (bb && bslot && bb.innerHTML) bslot.appendChild(bb); else if (bb && !bb.innerHTML) bedOpen = false; /* 옛 이정표(7·21·50·84일)는 가이드북 4·8·12주 습관 기록으로 바뀜(2026-11-25 룡 「가이드북 지침이 우선」) */
     bindSchedule(box);
   } else {
     const on = camp.supps || [], q = CAMP_Q[camp.day_no], plan = camp.plan;
@@ -1655,7 +1667,7 @@ function renderToday() {
     <div id="gotBox"></div>
     ${fixCard()}
 
-    <div class="checks">
+    <div class="checks"${s.camp3 ? ' hidden' : ''}>
       <div class="check${d.bed ? ' done' : ''}" style="display:block">
         <div style="display:flex;align-items:center;gap:12px">
           <div class="ico">🌙</div>
@@ -1668,7 +1680,7 @@ function renderToday() {
       ${exerciseCard(d)}
       ${dietCard(d)}
     </div>
-    <div id="campBox"></div>
+    <div id="campBox">${s.camp3 && !camp ? '<div class="loading">오늘 일정표 불러오는 중…</div>' : ''}</div>
     ${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
   byId('weekGo').onclick = e => { e.preventDefault(); goTab('mine'); };
