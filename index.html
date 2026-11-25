@@ -1703,10 +1703,11 @@ function bindFeedback(list) {
     byId('fbGo').disabled = false;
   };
 }
-function recordTable(rows, mine) {
-  return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th>${mine ? '<th>해제</th>' : ''}</tr>
+function recordTable(rows, mine, c3) {
+  const ev = r => { const e = r.evening; return e ? `<b>${(+e.meal || 0) + (+e.move || 0) + (+e.supp || 0)}</b><br><small>식${+e.meal} 운${+e.move} 영${+e.supp}${e.thanks ? '<br>' + esc(e.thanks) : ''}</small>` : 'x'; };
+  return `<table class="tbl"><tr><th>날짜</th><th>기상</th><th>취침</th><th>컨디션</th><th>운동</th><th>식단</th>${c3 ? '<th>셀프 체크</th>' : ''}${mine ? '<th>해제</th>' : ''}</tr>
     ${rows.map(r => `<tr${mine && r.day >= mine ? ` data-day="${r.day}"` : ''}><td>${r.day.slice(5).replace('-', '/')}</td><td>${hm(r.wake)}</td><td>${hm(r.bed)}</td>
-      <td>${r.condition ? FACES[r.condition - 1] : '-'}${r.condition_note ? `<br><small>${esc(r.condition_note)}</small>` : ''}</td><td>${r.exercise ? '✅' : '-'}</td><td>${mealCell(r)}</td>
+      <td>${r.condition ? FACES[r.condition - 1] : '-'}${r.condition_note ? `<br><small>${esc(r.condition_note)}</small>` : ''}</td><td>${r.exercise ? '✅' : '-'}</td><td>${mealCell(r)}</td>${c3 ? `<td>${ev(r)}</td>` : ''}
       ${mine ? `<td class="why-td">${unlockCell(r.unlocks)}</td>` : ''}</tr>`).join('')}</table>`;
 }
 /* 해제 칸: 횟수만 보이고, 누르면 사유가 펼쳐진다(2026-11-16 룡) */
@@ -1813,7 +1814,87 @@ function condWhy(btn) {
   box.hidden = on; box.dataset.v = btn.dataset.v;
   if (!on) box.innerHTML = btn.dataset.list ? decodeURIComponent(btn.dataset.list) : '<span class="sub">이 컨디션인 날이 없어요.</span>';
 }
-function memberCard(m, admin) {
+/* 3단계 조장 = 캠프 코치(2026-11-25 룡 「조장의 일을 더 편하게 볼 수 있도록 돕는 도구」). 글은 본사 코치 가이드북 문장 그대로, 누르면 복사.
+   신호 색 = 월~토 셀프 체크 합계(안 올린 날 0점): 초록 60점 이상 · 노랑 36~59점 · 빨강 35점 이하. 일요일은 코치가 쉬는 날 */
+const COACH_AM = '좋은 아침이에요 ☀️\n따뜻한 물 한 컵 드시고,\n아래 양식으로 오늘 안부를 남겨 주세요.\n\n거울 속 나에게도 한마디!\n"나는 존귀한 사람입니다."';
+const COACH_FORM = '🔆 오늘 아침, 몸과 마음의 안부를 나눠주세요\n\n✔ 수면\n어젯밤 몇 시에 잠들고, 오늘 몇 시에 일어나셨나요?\n중간에 잠에서 깨셨다면 횟수도 함께 알려주세요\n\n✔ 아침 컨디션\n오늘 아침 몸과 마음의 상태는 어떠신가요?\n개운함이나 피로감 등 느껴지는 상태를 편하게 적어주세요\n\n✔ 소화\n어제 식사 후 소화는 편안하셨나요?\n더부룩함이나 불편함이 있었다면 함께 알려주세요\n\n✔ 배변·배뇨\n어제 배변은 원활하셨나요?\n오늘 아침 첫 소변 후 불편하셨다면 알려주세요\n\n작은 변화를 살피는 아침 습관,\n오늘도 나를 돌보는 하루를 시작해요 🌿';
+const COACH_PM = '오늘도 수고 많으셨어요 🌙\nOO님, 오늘 OO 정말 잘하셨어요!\n\n자기 전 셀프 체크 올려 주시고\n11~12시 전에 편안히 주무세요.';
+const COACH_DAY = [
+  null,
+  ['이번 주 건강 동영상 안내, 이번 주 실천 한 가지 정하기', '이번 주 영상이 올라왔어요! 보시고 이번 주에 해볼 한 가지를 적어 주세요.'],
+  ['영상 본 소감 나누기', '영상에서 가장 기억에 남는 한 문장은 무엇이었나요?'],
+  ['주중 응원, 올린 게 적은 분 개인톡', '벌써 한 주의 절반이에요. 여기까지 오신 것만으로도 충분해요.'],
+  ['거꾸로 식판 사진 소개', '오늘의 거꾸로 식판! OO님 채소 칸이 정말 넓어졌어요.'],
+  ['주간 돌아보기, 다음 주 한 단계 정하기', '한 주 동안 수고하셨어요 👏\n한 줄씩 남겨 주세요.\n\n1. 이번 주 이어간 습관\n2. 어려웠던 순간\n3. 다음 주에 해볼 한 가지'],
+  ['저녁에 신호 색 보고 한마디, 일요일 안내', '이번 주도 수고 많으셨어요!\n\n📌 내일 일요일은 셀프 체크만 올려 주세요.\n식단 ( ) · 운동 ( ) · 영양제 ( ) = ( )점\n\n코치는 하루 쉬고, 월요일에 만나요 😊']];
+const COACH_BACK = n => `${n}님, 요즘 어떻게 지내세요?\n바쁜 날엔 다 못 해도 괜찮아요.\n\n오늘은 식사 사진 한 장부터\n다시 올려 볼까요? 기다릴게요 😊`;
+const COACH_MORE = [
+  ['축하 메시지', '축하해요, OO님! 🎉\n이번 주 매일 OO을(를) 해내셨어요.\n\n작은 습관이 쌓여 달라지고 있어요.\n다음 주엔 한 단계만 더 해 볼까요?'],
+  ['셀프 체크 양식', '[오늘의 셀프 체크] 🌙\n✔ 식단 ( )점\n✔ 운동 ( )점\n✔ 영양제 ( )점\n✔ 합계 ( )점\n✔ 잘한 한 가지:\n5 잘함 · 3~4 보통 · 1~2 부족 · 0 못함'],
+  ['방 약속 공지', '[셀체인지 캠프 소그룹방 약속]\n✔ 매일 하루 다섯 걸음을 나눠요\n컨디션 체크 · 마인드 선포\n세 끼 사진 · 실천 인증 · 셀프 체크\n✔ 서로 응원해요\n나누고 싶지 않은 이야기는\n코치와 개인톡으로 나눠요\n✔ 일요일엔 셀프 체크만 올려요\n코치는 이날 하루 쉬어요'],
+  ['하루 일정표 공지', '[셀체인지 캠프 하루 일정표]\n\n☀️ 아침\n✔ 일어나서: 물 한 컵 · 컨디션 체크 · 선포\n✔ 식전: 에이스이뮨 2캡슐 또는 3캡슐\n✔ 식사: 에이스발란스 📸\n+ 사과·샐러드·계란 중 골라서\n✔ 식후: 제놀 1 · 오메가3 1 · 데일리 1\n\n🍚 점심\n✔ 식사: 거꾸로 식사 📸\n채소 → 단백질 → 탄수화물 순서로\n✔ 식후: 제놀 2 · 오메가3 1 · 데일리 1\n\n🌇 저녁\n✔ 운동: 내가 정한 운동 인증\n✔ 식전: 에이스이뮨 2캡슐 또는 3캡슐\n✔ 식사: 거꾸로 식사 📸\n✔ 식후: 제놀 1 · 오메가3 1\n\n🌙 밤\n✔ 자기 전: 셀프 체크 올리기\n✔ 1시간 전: 휴대폰 끄고 불빛 차단\n✔ 11~12시 전: 잠들기'],
+  ['1일차 · 환영과 자기소개', '안녕하세요! O조 코치 OOO입니다 😊\n12주 동안 이 방에서 매일 함께해요.\n\n📌 매일 나눌 다섯 가지\n1. 아침 컨디션 체크\n2. 마인드 선포\n3. 세 끼 식사 사진\n4. 운동·생활습관 인증\n5. 자기 전 셀프 체크\n\n오늘은 자기소개와 함께\n아래 \'캠프 전 습관 기록\'을 남겨 주세요.'],
+  ['캠프 전 습관 기록 양식', '[캠프 전 습관 기록] 최근 3개월\n✔ 이름:\n✔ 수면: 하루 ( )시간\n✔ 식사: 아침 ( )시 / 점심 ( )시 / 저녁 ( )시\n✔ 운동: 일주일 ( )일, 한 번에 ( )분\n✔ 12주 뒤 해보고 싶은 일:'],
+  ['4~5일차 · 내 운동 정하고 인증 시작', '이제 내 운동을 하나 정해 볼까요? 🏃\n본인 컨디션에 맞는 운동이면 돼요.\n\n예) 30분 걷기 / 10분 관절 운동 / 스트레칭 5분\n\n집에서 따라 하기 좋은 10분 운동 영상\n1) youtu.be/dv5F0knh-ns\n2) youtu.be/LgwJ-8eZoW8\n3) youtu.be/AXW4WpnpQoM\n4) youtu.be/ZSlp52IDzu0\n5) youtu.be/viihnRbDsQQ\n\n정한 운동을 댓글로 남기고,\n한 날에는 사진이나 걸음 수로 인증해 주세요.'],
+  ['6~7일차 · 첫 주 돌아보기', '첫 주 정말 수고하셨어요 👏\n한 줄씩 남겨 주세요.\n1. 이번 주 가장 잘한 일\n2. 가장 어려웠던 일\n3. 다음 주에 해볼 한 가지'],
+  ['4·8·12주차 토요일 · 지금 내 습관 기록', '[지금 내 습관 기록] ( )주차\n✔ 이름:\n✔ 수면: 하루 ( )시간\n✔ 식사: 아침 ( )시 / 점심 ( )시 / 저녁 ( )시\n✔ 운동: 일주일 ( )일, 한 번에 ( )분\n✔ 가장 좋아진 것:\n✔ 가장 어려웠던 것:\n✔ 다음 4주에 해볼 한 가지:']];
+const COACH_HELP = `<p><b>응답법: 칭찬 → 공감 → 작은 제안</b><br>① 칭찬: 해낸 것을 먼저 말해요 “점심에 채소부터 드셨네요!”<br>② 공감: 마음을 알아줘요 “바쁜 날 챙기기 쉽지 않았죠.”<br>③ 작은 제안: 다음 한 가지만 “저녁엔 밥 한 숟갈만 줄여 볼까요?”<br>칭찬만 해도 충분한 날이 더 많아요.</p>
+  <p><b>이렇게 말하면 마음이 열려요 (↔ 닫혀요)</b><br>“오늘 채소부터 드신 거 너무 좋아요!” ↔ “밥이 너무 많아요.”<br>“내일은 5분만 걷는 것부터 해볼까요?” ↔ “어제는 왜 안 하셨어요?”<br>“어제보다 30분 일찍 주무셨네요.” ↔ “다른 분들은 다 하셨는데요.”<br>“불편하신 점은 개인톡으로 자세히 여쭤볼게요.” ↔ “그건 원래 그런 거예요.”<br>“정확하게 확인해서 다시 알려드릴게요.” ↔ “그 약은 안 드셔도 돼요.”</p>
+  <p><b>하루 다섯 걸음, 이렇게 반응해요</b><br>새벽 늦게 잠들었을 때: “늦게 주무셔서 피곤하시죠. 오늘 밤엔 30분만 일찍 누워 볼까요?”<br>자주 깼다고 할 때: “자주 깨셔서 피곤하셨겠어요. 오늘 밤에는 잠들기 1시간 전에 휴대폰을 꺼 볼까요?”<br>소화·배변이 불편할 때: “불편하셨군요. 내일도 같으면 개인톡으로 조금 더 자세히 여쭤볼게요.”<br>선포를 올렸을 때: “OO님, 정말 그래요. 오늘도 존귀한 하루 보내세요.”<br>마음이 힘들다고 할 때: “그런 날도 있어요. 오늘은 ‘나는 존재만으로도 충분하다’ 한 문장만 말해 봐요.”<br>거꾸로 식판을 잘 지켰을 때: “채소 칸이 제일 넓네요! 거꾸로 식판 완벽해요.”<br>밀가루·단 음식을 먹었을 때: “솔직하게 올려 주셔서 고마워요. 다음 끼니는 채소부터 드셔 보세요.”<br>사진을 못 올렸을 때: “바쁘셨죠? 다음 끼니는 먹기 전에 사진 한 장 꼭 찍어 주세요!”<br>운동 목표를 지켰을 때: “오늘도 30분 걷기 성공! 이번 주 벌써 4일째예요.”<br>목표보다 짧게 했을 때: “5분이라도 움직이신 게 중요해요. 내일도 걸음을 떼 보아요.”<br>셀프 체크 점수가 높을 때: “오늘 세 가지 모두 5점! 하루를 정말 잘 챙기셨네요.”<br>점수가 낮을 때: “솔직하게 적어 주셔서 고마워요. 내일은 한 가지만 1점 올려 봐요.”</p>
+  <p><b>신호 색 (월~토 합계)</b><br>초록 60점 이상: 소그룹방에서 칭찬하기 “이번 주 정말 꾸준하셨어요!”<br>노랑 36~59점: 가장 낮은 항목 하나만 작게 제안하기 “식단은 잘하셨어요! 다음 주엔 운동만 1점 올려 볼까요?”<br>빨강 35점 이하: 개인톡으로 안부 묻기 “요즘 어떻게 지내세요? 한 가지만 같이 정해 봐요.”<br>x가 3일 연속이면 색과 상관없이 개인톡으로 안부를 묻고 운영진에게 알려요. 일요일 셀프 체크는 적지 않고 쉬어요.</p>
+  <p><b>걱정되는 신호가 보이면</b> 개인톡으로 안부를 묻고, 그날 운영진에게 알려요.<br>2일 이상 아무것도 안 올림 → 개인톡으로 가볍게 안부, 이유는 묻지 않기<br>3일 이상 답이 없음 → 운영진에게 공유, 한 번 더 안부 “답은 천천히 주셔도 돼요. 언제든 다시 시작할 수 있어요.”<br>불편이 사흘 이상 이어짐 → 개인톡으로 확인, 전문가 상담 권유, 운영진 공유 “불편함이 이어지니 걱정돼요. 가까운 전문가와 상담해 보시는 게 좋겠어요.”<br>통증이나 어지럼증을 말함 → 운동 중단 권유, 전문가 상담 권유, 운영진 공유 “오늘은 운동을 쉬어 주세요. 증상이 계속되면 꼭 진료를 받아 보세요.”<br>질환·약·검사 결과를 물음 → 판단하지 않고 전문가·운영진에게 연결 “그 부분은 제가 판단하기 어려워요. 담당 전문가와 상담해 주세요.”<br>남과 비교하며 좌절함 → 어제의 나와 비교하도록 돕기 “시작할 때보다 수면이 1시간 늘었어요. 그것도 큰 변화예요.”<br>마인드 선포가 종교 같다고 불편해함 → 종교와 무관한 자기 존중 습관임을 설명 “종교와 상관없이 나를 아끼는 연습이에요. 편한 문장 하나만 골라 보세요.”<br>소그룹방에 건강 정보를 올림 → 개인톡으로 옮겨 이야기 “중요한 이야기라 개인톡으로 자세히 들을게요.”<br>마음이 무너진다는 말, 삶을 포기하고 싶다는 말이 나오면 코치 혼자 대응하지 않고 즉시 운영진에게 알리고, 자살예방상담전화 109 등 도움을 받을 수 있는 곳을 안내합니다.</p>
+  <p><b>제품은 표시 문구 그대로만 말해요</b><br>에이스이뮨: 피부건강, 장 건강, 면역력 증진에 도움을 줄 수 있음 · 아침·저녁 식전 2캡슐 또는 3캡슐<br>에이스제놀: 항산화에 도움을 줄 수 있음 · 아침 1 · 점심 2 · 저녁 1 식후<br>에이스발란스: 건강한 한 끼 식사, 1개 214kcal · 아침 1개<br>에이스데일리: 에너지, 항산화, 정상적인 면역기능을 위한 종합 영양 · 아침·점심 식후 1<br>알티지오메가3: 건조한 눈, 혈중 중성지질, 혈행, 기억력 개선에 도움 · 아침·점심·저녁 식후 1<br>“이거 먹으면 OO병이 낫나요?” → “제품은 표시된 기능성 범위에서만 말씀드릴 수 있어요. 질환은 담당 전문가와 상담해 주세요.”<br>“약을 먹고 있어요.” → “드시는 약이 있으면 섭취 전에 전문가와 상담해 주세요.”</p>
+  <p><b>코치의 일곱 가지 약속</b><br>1. 건강 정보는 개인톡에서만: 질환명·처방약·검사 결과·상세 증상은 동의한 개인 경로에서만 다루고, 다른 사람에게 전하지 않아요.<br>2. 약과 용량은 전문가·운영진에게: 증상의 원인을 말하거나, 약·영양제 용량을 바꾸라고 하지 않아요.<br>3. 제품은 표시 문구 그대로: ‘치료’, ‘완치’, ‘예방’, ‘약 대신’ 같은 표현은 쓰지 않아요.<br>4. 사진과 사례는 동의 후에만: 참가자의 사진이나 변화를 소그룹방 밖에 쓰려면 본인의 동의를 받아요.<br>5. 체중이나 외모보다 습관: 말의 중심은 생활습관과 몸의 느낌에 둡니다.<br>6. 공개된 방에서는 칭찬만: 조언은 개인톡에서 해요. 비교·비난은 하지 않아요.<br>7. 모르는 건 모른다고: “확인해서 다시 알려드릴게요”라고 말하고 운영진에게 물어요.<br>코치님도 꼭 쉬어 가세요. 혼자 해결하려 하지 마세요. 어려운 상황은 운영진과 나누는 것이 원칙입니다.</p>`;
+const dayAdd = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const dowOf = s => new Date(s + 'T00:00:00Z').getUTCDay();
+function coachSend(gname) {
+  const dw = dowOf(state.today || seoulToday()), day = COACH_DAY[dw], cp = (t, label) => `<button type="button" data-copy="${esc(t)}">${label || '복사'}</button>`;
+  const line = (name, t) => `<div class="codeRow" style="align-items:flex-start"><span style="flex:1;min-width:0"><b>${name}</b><br><span class="sub" style="white-space:pre-line;font-size:13px">${esc(t)}</span></span><span>${cp(t)}</span></div>`;
+  if (!dw) return `<h2>📣 오늘 보낼 것</h2><div class="card"><p class="sub" style="margin:0">일요일은 코치가 쉬는 날이에요. 참가자는 셀프 체크만 올려요. 답하지 않아도 돼요.</p></div>`;
+  return `<h2>📣 오늘 보낼 것 <span class="sub" style="font-weight:400;font-size:13px">${'일월화수목금토'[dw]}요일 · 누르면 복사돼요</span></h2>
+    <div class="card" style="padding:4px 16px">
+      ${line('아침 인사', COACH_AM)}
+      <div class="codeRow"><span><b>아침 컨디션 체크 양식</b></span><span>${cp(COACH_FORM)}</span></div>
+      ${line(day[0], day[1])}
+      ${line('저녁 마무리', COACH_PM)}
+      <details style="margin:8px 0"><summary>그 밖의 메시지·양식</summary>${COACH_MORE.map(([n, t]) => `<div class="codeRow"><span>${n}</span><span>${cp(t)}</span></div>`).join('')}</details>
+    </div>`;
+}
+/* 조원 한 사람의 셀프 체크: 이번 주(월~토) 날마다 점수, 지난주 합계와 신호 색, 안 올린 날수 */
+function coachScore(m) {
+  /* 세는 날 = 그 조원이 셀프 체크를 처음 올린 날부터(방침 시행일 12-02 앞은 세지 않는다). 그 뒤로 안 올린 날은 0점.
+     일요일에는 막 끝난 주(월~토)를 「이번 주」로 보여 준다. 색은 월~토가 다 지났거나 토요일 점수가 들어온 뒤, 그 주 월요일부터 세는 사람에게만 */
+  const rec = Object.fromEntries((m.records || []).map(r => [r.day, r])), t = state.today || seoulToday(), dw = dowOf(t);
+  const sc = k => { const e = rec[k] && rec[k].evening; return e ? (+e.meal || 0) + (+e.move || 0) + (+e.supp || 0) : null; };
+  const evDays = (m.records || []).filter(r => r.evening).map(r => r.day).sort();
+  const floor = evDays.length ? (evDays[0] < '2026-12-02' ? '2026-12-02' : evDays[0]) : null;
+  const mon = dayAdd(t, dw ? -(dw - 1) : -6), week = st => [0, 1, 2, 3, 4, 5].map(i => dayAdd(st, i));
+  const cur = week(mon).filter(k => k <= t), lastMon = dayAdd(mon, -7), last = week(lastMon);
+  const sum = ks => ks.reduce((a, k) => a + (sc(k) || 0), 0);
+  const sig = n => n >= 60 ? ['🟢', '초록', '소그룹방에서 칭찬하기'] : n >= 36 ? ['🟡', '노랑', '가장 낮은 항목 하나만 작게 제안하기'] : ['🔴', '빨강', '개인톡으로 안부 묻기'];
+  const idle = r => !r || !(r.wake || r.bed || r.condition || r.exercise || r.diet || (r.meals || []).length || r.supps || r.evening);
+  const allIdle = (m.records || []).every(idle);
+  let none = 0, x = 0;
+  if (!allIdle) for (let k = dayAdd(t, -1), i = 0; i < 13 && idle(rec[k]); k = dayAdd(k, -1), i++) none++;
+  if (floor) for (let k = dayAdd(t, -1), i = 0; i < 13 && k >= floor; k = dayAdd(k, -1), i++) { if (!dowOf(k)) continue; if (sc(k) != null) break; x++; }
+  const done = !dw || (cur.length === 6 && sc(cur[5]) != null);
+  return { any: !!floor, allIdle, cur: cur.map(k => [k, sc(k)]), curSum: sum(cur), curSig: floor && done && floor <= mon ? sig(sum(cur)) : null,
+    lastSum: sum(last), lastSig: floor && floor <= lastMon ? sig(sum(last)) : null, none, x, ended: !dw };
+}
+function coachScoreHtml(m, gname) {
+  if (m.me) return '';
+  const s = coachScore(m);
+  const back = n => `<div style="margin-top:6px"><button type="button" data-copy="${esc(COACH_BACK(m.nickname))}">💬 ${n} · 안부 메시지 복사</button></div>`;
+  if (!s.any) return `<div class="schbox" style="margin-top:8px"><b>셀프 체크</b> <span class="sub">최근 2주 동안 올린 셀프 체크가 없어요.</span>${s.allIdle ? back('최근 2주 기록 없음') : s.none >= 2 ? back(s.none + '일째 기록 없음') : ''}</div>`;
+  const g = s.curSig, lg = s.lastSig;
+  return `<div class="schbox" style="margin-top:8px"><b>셀프 체크 · ${s.ended ? '끝난 주' : '이번 주'} ${s.curSum}점${g ? ' ' + g[0] + ' ' + g[1] : ''}</b>
+    <div style="margin-top:4px">${s.cur.map(([k, v]) => `${'일월화수목금토'[dowOf(k)]} ${v == null ? 'x' : v}`).join(' · ')}</div>
+    ${g ? `<div class="sub" style="margin-top:4px">${g[2]}</div>` : ''}
+    ${lg ? `<div class="sub" style="margin-top:4px">${s.ended ? '그 앞 주' : '지난주'} ${s.lastSum}점 ${lg[0]} ${lg[1]} · ${lg[2]}</div>` : ''}
+    ${s.none >= 2 ? back(s.none + '일째 기록 없음') : ''}
+    ${s.x >= 3 ? `<div style="margin-top:6px"><button type="button" data-copy="${esc(`${gname} ${m.nickname}님이 ${s.x}일째 셀프 체크가 없어요. 개인톡으로 안부를 물었어요.`)}">📮 x ${s.x}일 연속 · 운영진에게 알릴 말 복사</button></div>` : ''}</div>`;
+}
+function memberCard(m, admin, c3, gname) {
   const all = m.records || [], w = all.slice(0, 7), byDay = Object.fromEntries(all.map(r => [r.day, r]));
   const wake = w.map(r => toMin(r.wake)).filter(x => x != null);
   /* 취침은 정오 전이면 다음 날로 쳐서 평균(새벽 1시 = 25시). 잠 = 전날 취침 → 그날 기상 */
@@ -1838,8 +1919,9 @@ function memberCard(m, admin) {
       <div><small>컨디션 · 눌러 보기</small><b class="cbtns">${condBtn(3)}${condBtn(2)}${condBtn(1)}</b></div>
     </div>
     <div class="mem-why" hidden></div>
+    ${c3 ? coachScoreHtml(m, gname) : ''}
     ${feedbackPin(m.feedback, '스스로 정한 적용점')}
-    <details><summary>날짜별 표 보기 (2주)</summary><div class="scroll">${recordTable(all)}</div></details></div>`;
+    <details><summary>날짜별 표 보기 (2주)</summary><div class="scroll">${recordTable(all, null, c3)}</div></details></div>`;
 }
 async function copyText(t) {
   try { await navigator.clipboard.writeText(t); toast('복사했어요'); return true; }
@@ -1906,12 +1988,17 @@ async function renderLeader() {
   try { g = await rpc('life_group_manage', { p_token: token, p_group: gid }); }
   catch (x) { if (still() && token) { $app.innerHTML = `${back}<p class="err">${esc(x.message)}</p>`; bindBack(); } return; }
   if (!still()) return;
+  /* 3단계 조장 = 캠프 코치 도구. 서버가 열어 준 때(camp.open)만 */
+  if (g.stage === 3 && !camp) { try { camp = await rpc('life_camp', { p_token: token }); } catch (e) {} if (!still()) return; }
+  const c3 = g.stage === 3 && !!(camp && camp.open);
   const rows = (card.members || []).map(b => `<div class="row${b.mine ? ' mine' : ''}"><div class="nm">${esc(b.nickname)}<span class="fire">${b.streak >= 2 ? '🔥 ' + b.streak + '일째' : ''}</span></div><div class="dots icons">${boardIcons(b, !!b.camp)}</div></div>`).join('');
   $app.innerHTML = `${back}<h1>${esc(g.name)} <span class="sub" style="font-weight:400;font-size:14px">${g.stage}단계 · ${g.members.length}명</span></h1>${al}
+    ${c3 ? coachSend(g.name) : ''}
     ${rows ? `<h2>오늘</h2><div class="card" style="padding:4px 16px">${rows}</div>` : ''}
     <div id="ctBox"><div class="loading">체크표 불러오는 중…</div></div>
     <h2>조원</h2><p class="sub" style="margin:-4px 0 8px">심방 때 참고해 주세요. 여기 내용은 다른 곳에 옮기지 않아요.</p>
-    <div class="card" style="padding:4px 16px">${g.members.map(m => memberCard(m, g.admin)).join('') || '<p class="sub" style="margin:12px 0">아직 조원이 없어요. 아래 조 코드를 전해 주세요.</p>'}</div>
+    <div class="card" style="padding:4px 16px">${g.members.map(m => memberCard(m, g.admin, c3, g.name)).join('') || '<p class="sub" style="margin:12px 0">아직 조원이 없어요. 아래 조 코드를 전해 주세요.</p>'}</div>
+    ${c3 ? `<h2>📖 코치 도움말</h2><div class="card"><details><summary>응답법 · 걸음별 말 예시 · 신호 색 · 걱정 신호 · 표시 문구 · 일곱 약속</summary><div style="font-size:14px;line-height:1.6">${COACH_HELP}</div></details></div>` : ''}
     <h2>🔑 조 코드</h2>
     <div class="card"><p class="sub" style="margin:0">조원이 될 사람에게만 전해 주세요. 조 탭 「조 코드 넣기」에 넣으면 바로 들어와요. 조원 화면에는 이 코드가 안 보여요.</p>
       <div class="codeRow"><span class="code">${esc(g.code || '-')}</span><span>${g.code ? `<button type="button" data-copy="${esc(g.code)}">복사</button>` : ''} <button type="button" class="switch" id="mgNewCode">새 코드 만들기</button></span></div>
