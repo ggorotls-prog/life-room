@@ -102,8 +102,11 @@ public abstract class HealthScreen extends Activity {
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> cb, FileChooserParams params) {
                 if (pickCallback != null) pickCallback.onReceiveValue(null);
                 pickCallback = cb;
-                Intent chooser = Intent.createChooser(
-                        new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"), "사진 올리기");
+                // 파일 앱이 아니라 갤러리가 뜨게(2026-11-25 룡). 안드로이드 13 이상은 사진 고르기 화면(권한 없음), 그 아래는 갤러리
+                Intent pick = Build.VERSION.SDK_INT >= 33
+                        ? new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES)
+                        : new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI).setType("image/*");
+                Intent chooser = Intent.createChooser(pick, "사진 올리기");
                 Intent camera = cameraIntent();
                 if (camera != null) chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{camera});
                 try {

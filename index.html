@@ -639,11 +639,12 @@ function schDeclBox() {
 function schExBox() {
   const d = state.day || {};
   if (d.exercise) return '';
-  return `<div class="schbox"><p style="margin:0" class="sub">내가 정한 실천을 한 날, 사진이나 걸음 수 캡처로 인증해요.</p>
+  /* 사진 위 · 글 아래(2026-11-25 룡). 사진은 갤러리에서 */
+  return `<div class="schbox"><p style="margin:0" class="sub">내가 정한 실천을 한 날 인증해요.</p>
+    <div class="exphoto" style="margin-top:8px">${exDraft.photo ? `<img src="${exDraft.photo}" alt="고른 사진"><a href="#" id="exPhDel">사진 빼기</a>` : '<button type="button" id="exPh" style="width:100%">📷 사진 등록</button>'}</div>
+    <label class="f">무슨 운동?</label><input id="exWhat" maxlength="30" value="${esc(exPick.what)}" placeholder="예) 걷기, 관절 운동, 스트레칭" autocomplete="off">
     <label class="f">몇 분 했어요?</label>
     <div class="slots" style="grid-template-columns:repeat(5,1fr)">${[10, 20, 30, 60, 90].map(n => `<button type="button" data-exmin="${n}" class="${exPick.min === n ? 'on' : ''}">${n}분</button>`).join('')}</div>
-    <label class="f">무슨 운동?</label><input id="exWhat" maxlength="30" value="${esc(exPick.what)}" placeholder="예) 걷기, 관절 운동, 스트레칭" autocomplete="off">
-    <div class="exphoto" style="margin-top:8px">${exDraft.photo ? `<img src="${exDraft.photo}" alt="고른 사진"><a href="#" id="exPhDel">사진 빼기</a>` : '<button type="button" id="exPh" style="width:100%">📷 사진·걸음 수 캡처 넣기</button>'}</div>
     <div class="err" id="exErr"></div><input type="hidden" id="exNote"><button class="main" type="button" id="exGo">운동했어요</button></div>`;
 }
 function campSchedule() {
@@ -887,7 +888,7 @@ function bindSchedule(box) {
   const epd = byId('exPhDel'); if (epd) epd.onclick = e => { e.preventDefault(); exDraft.photo = exDraft.thumb = null; re(); };
   const eg = byId('exGo');
   if (eg && byId('schCard').contains(eg)) eg.onclick = async () => {
-    const what = (byId('exWhat').value || '').trim(), note = [what, exPick.min ? exPick.min + '분' : ''].filter(Boolean).join(' ');
+    const what = (byId('exWhat').value || '').trim().replace(/\s*\d+\s*분$/, ''), note = [what, exPick.min ? exPick.min + '분' : ''].filter(Boolean).join(' '); /* 「걷기 30분」 + 30분 → 「걷기 30분」 */
     if (!exPick.min) { byId('exErr').textContent = '몇 분 했는지 눌러 주세요.'; return; }
     byId('exNote').value = note; exPick = { min: null, what: '' }; schOpen = null;
     await saveEx();
