@@ -75,6 +75,7 @@
   .dl.on { outline: 2px solid var(--main); }
   .kt { white-space: pre-wrap; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; font-size: 14px; margin: 10px 0 0; }
   .sc6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 6px; } .sc6 button { min-height: 40px; padding: 0; background: var(--card); border: 1px solid var(--line); }
+  .bfr { display: flex; align-items: center; gap: 8px; margin-top: 4px; } .bfr span { flex: 0 0 40px; font-size: 14px; font-weight: 700; } .bfr select { flex: 1; min-width: 0; margin: 0; }
   .sc6 button.on { background: var(--main); border-color: var(--main); color: var(--main-ink); }
   /* 오늘 끼니 버튼: 아침·점심·저녁이 한눈에 보이게 그림+이름 두 줄, 흰 바탕 테두리, 먹은 끼니는 진한 초록(2026-11-20 룡) */
   .slots.meal button { min-height: 62px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); font-weight: 700; line-height: 1.25; }
@@ -696,12 +697,15 @@ const CHECK15 = [['식사', ['아침을 거르거나 빵·떡·면으로 때울 
   ['마음', ['나에게 칭찬보다 꾸중을 더 많이 한다', '스트레스를 먹는 것으로 풀 때가 많다', '요즘 즐거운 일이 별로 없다']]];
 const CHK_KEYS = ['meal', 'move', 'sleep_n', 'nutri', 'mind'];
 const chkMsg = n => n <= 4 ? '좋은 출발이에요. 지금 습관을 다지며 함께 가요.' : n <= 9 ? '작은 변화가 큰 차이를 만들 때예요.' : '지금이 시작하기 딱 좋은 때예요. 코치님과 함께 한 걸음씩 가요.';
+const bedKo = s => { const h = +s.slice(0, 2); return (h === 0 ? '밤 ' : h < 5 ? '새벽 ' : '') + hmBan(s + ':00'); };
+const toM = s => s ? +s.slice(0, 2) * 60 + +s.slice(3, 5) : null;
+const sleepOf = r => { const b = toM(r.bed), w = toM(r.wake); return b == null || w == null ? (r.sleep || null) : ((w - b) % 1440 + 1440) % 1440; };
 const minKo = m0 => { if (m0 == null) return ''; const m = Math.round(m0); return `${Math.floor(m / 60)}시간${m % 60 ? ' ' + m % 60 + '분' : ''}`; };
 const mealKo = v => !v ? '( )' : v === '거름' ? '거름' : hmBan(v + ':00').replace(' 반', '시 반').replace('시시', '시');
 function habitText(kind, r) {
   const nick = state.me.nickname, wk = { w4: 4, w8: 8, w12: 12 }[kind];
   const head = kind === 'before' ? '[캠프 전 습관 기록] 최근 3개월' : `[지금 내 습관 기록] ${wk}주차`;
-  const lines = [head, '', '✔ 이름: ' + nick, '✔ 수면: 하루 ' + (r.sleep ? minKo(r.sleep) : '( )시간'),
+  const lines = [head, '', '✔ 이름: ' + nick, '✔ 수면: 하루 ' + (sleepOf(r) ? minKo(sleepOf(r)) : '( )시간') + (r.bed && r.wake ? ` (평균 취침 ${bedKo(r.bed)} · 기상 ${hmBan(r.wake + ':00')})` : ''),
     `✔ 식사: 아침 ${mealKo(r.am)} / 점심 ${mealKo(r.pm)} / 저녁 ${mealKo(r.ev)}`,
     `✔ 운동: 일주일 ${r.ex_days != null ? r.ex_days + '일' : '( )일'}, 한 번에 ${r.ex_min != null ? r.ex_min + '분' : '( )분'}`];
   if (kind === 'before') lines.push('✔ 12주 뒤 해보고 싶은 일: ' + (r.wish || ''));
@@ -709,8 +713,8 @@ function habitText(kind, r) {
   return lines.join('\n');
 }
 function sideBy(a, b, wk) {
-  const row = r => [r.sleep ? '수면 ' + minKo(r.sleep) : '수면 -', '아침 ' + (r.am ? mealKo(r.am) : '-'), '운동 주 ' + (r.ex_days != null ? r.ex_days : '-') + '일' + (r.ex_min ? ', ' + r.ex_min + '분' : '')];
-  const A = row(a), B = row(b), up = [b.sleep && a.sleep && b.sleep > a.sleep, a.am === '거름' && b.am && b.am !== '거름', (b.ex_days || 0) > (a.ex_days || 0)];
+  const row = r => [sleepOf(r) ? '수면 ' + minKo(sleepOf(r)) + (r.bed && r.wake ? `<br><small>${esc(bedKo(r.bed))} → ${esc(hmBan(r.wake + ':00'))}</small>` : '') : '수면 -', '아침 ' + (r.am ? mealKo(r.am) : '-'), '운동 주 ' + (r.ex_days != null ? r.ex_days : '-') + '일' + (r.ex_min ? ', ' + r.ex_min + '분' : '')];
+  const A = row(a), B = row(b), up = [sleepOf(b) && sleepOf(a) && sleepOf(b) > sleepOf(a), a.am === '거름' && b.am && b.am !== '거름', (b.ex_days || 0) > (a.ex_days || 0)];
   return `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;margin-top:8px">
     <div class="schbox" style="margin:0;background:#fdf3d8"><b>첫날</b><br>${A.join('<br>')}</div><span class="sub">→</span>
     <div class="schbox" style="margin:0;background:#fbe5a8"><b>${wk}주</b><br>${B.map((x, i) => up[i] ? `<b style="background:#f2c14a;border-radius:4px;padding:0 3px">${x}</b>` : x).join('<br>')}</div></div>`;
@@ -748,13 +752,20 @@ function chkHtml(kind, inner) {
 function beforeHtml(inner) {
   const sv = (camp.notes || {}).before;
   if (sv && !wkDraft.before) { const tx = habitText('before', sv); return `<pre class="kt">${esc(tx)}</pre><button type="button" data-copy="${esc(tx)}">카톡방에 다시 공유</button>`; }
-  const r = wkDraft.before || (wkDraft.before = { sleep: null, am: null, pm: null, ev: null, ex_days: null, ex_min: null, wish: '' });
+  const r = wkDraft.before || (wkDraft.before = { sleep: null, bed: null, wake: null, am: null, pm: null, ev: null, ex_days: null, ex_min: null, wish: '' });
   const sel = (k, opts, ph) => `<select data-bf="${k}"><option value="">${ph}</option>${opts.map(([v, l]) => `<option value="${v}"${String(r[k]) === String(v) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
-  const hours = []; for (let m = 240; m <= 600; m += 30) hours.push([m, minKo(m)]);
+  const tlist = (hs) => hs.flatMap(h => [[`${String(h).padStart(2, '0')}:00`, (h % 12 || 12) + '시'], [`${String(h).padStart(2, '0')}:30`, (h % 12 || 12) + '시 반']]);
+  const sl = sleepOf(r);
   const times = (a, b) => { const o = [['거름', '거름']]; for (let h = a; h <= b; h++) { o.push([`${String(h).padStart(2, '0')}:00`, h + '시']); o.push([`${String(h).padStart(2, '0')}:30`, h + '시 반']); } return o; };
   return `<p class="sub" style="margin:4px 0 6px">지금이 아니라 최근 3개월의 평소 모습을 적어요. 4·8·12주에 지금 모습과 나란히 비교해 봐요.</p>
-    <label class="f">수면: 하루</label>${sel('sleep', hours, '몇 시간')}
-    <label class="f">식사: 아침 / 점심 / 저녁</label><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">${sel('am', times(5, 11), '아침')}${sel('pm', times(11, 15), '점심')}${sel('ev', times(16, 22), '저녁')}</div>
+    <label class="f">수면: 평균 몇 시에 자고 몇 시에 일어나요?</label>
+    <div class="bfr"><span>취침</span>${sel('bed', tlist([20, 21, 22, 23, 0, 1, 2, 3]), '고르기')}</div>
+    <div class="bfr"><span>기상</span>${sel('wake', tlist([4, 5, 6, 7, 8, 9, 10, 11]), '고르기')}</div>
+    <p class="sub" id="bfSleep" style="margin:4px 0 0">${sl ? '하루 ' + minKo(sl) + ' 자요' : ''}</p>
+    <label class="f">식사: 평소 먹는 시각</label>
+    <div class="bfr"><span>아침</span>${sel('am', times(5, 11), '고르기')}</div>
+    <div class="bfr"><span>점심</span>${sel('pm', times(11, 15), '고르기')}</div>
+    <div class="bfr"><span>저녁</span>${sel('ev', times(16, 22), '고르기')}</div>
     <label class="f">운동: 일주일 / 한 번에</label><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px">${sel('ex_days', [0, 1, 2, 3, 4, 5, 6, 7].map(x => [x, x + '일']), '며칠')}${sel('ex_min', [0, 10, 20, 30, 40, 60, 90].map(x => [x, x + '분']), '몇 분')}</div>
     <label class="f">12주 뒤 해보고 싶은 일</label><input data-bf="wish" maxlength="60" value="${esc(r.wish || '')}" placeholder="예) 30분을 쉬지 않고 걸어 보고 싶어요" autocomplete="off">
     <div class="err" id="bfErr"></div>${inner ? '' : '<button class="main" type="button" id="bfSave">저장하고 카톡방에 공유</button>'}`;
@@ -780,9 +791,9 @@ function lookHtml(first) {
 }
 function nowHtml(kind) {
   const n = camp.notes || {}, a = n.before || {}, g = camp.avg4 || {}, saved = n[kind];
-  const auto = { sleep: g.sleep, am: g.am, pm: g.pm, ev: g.ev, ex_days: g.ex_days, ex_min: g.ex_min };
+  const auto = { sleep: g.sleep, bed: g.bed, wake: g.wake, am: g.am, pm: g.pm, ev: g.ev, ex_days: g.ex_days, ex_min: g.ex_min };
   const wk = { w4: 4, w8: 8, w12: 12 }[kind];
-  const sug = auto.sleep && a.sleep && auto.sleep > a.sleep ? `수면이 ${minKo(a.sleep)}에서 ${minKo(auto.sleep)}으로 늘었어요` : (auto.ex_days || 0) > (a.ex_days || 0) ? `운동이 주 ${a.ex_days || 0}일에서 ${auto.ex_days}일로 늘었어요` : a.am === '거름' && auto.am ? '아침을 챙겨 먹게 됐어요' : '';
+  const sug = sleepOf(auto) && sleepOf(a) && sleepOf(auto) > sleepOf(a) ? `수면이 ${minKo(sleepOf(a))}에서 ${minKo(sleepOf(auto))}으로 늘었어요` : (auto.ex_days || 0) > (a.ex_days || 0) ? `운동이 주 ${a.ex_days || 0}일에서 ${auto.ex_days}일로 늘었어요` : a.am === '거름' && auto.am ? '아침을 챙겨 먹게 됐어요' : '';
   const r = wkDraft[kind] || (wkDraft[kind] = { best: saved ? saved.best : sug, hard: saved ? saved.hard : '', next: saved ? saved.next : '' });
   const all = { ...auto, ...r };
   return `<p class="sub" style="margin:4px 0 0">수면·식사·운동은 지난 4주 기록에서 앱이 채웠어요.</p>${sideBy(a, auto, wk)}
@@ -859,7 +870,7 @@ function bindSchedule(box) {
   const ss = byId('startSave');
   if (ss) ss.onclick = async () => {
     const r = wkDraft.before || {};
-    if (r.sleep == null || !r.am || !r.pm || !r.ev || r.ex_days == null || r.ex_min == null) { byId('bfErr').textContent = '② 수면·식사·운동을 모두 골라 주세요.'; byId('bfErr').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    if (!r.bed || !r.wake || !r.am || !r.pm || !r.ev || r.ex_days == null || r.ex_min == null) { byId('bfErr').textContent = '② 수면·식사·운동을 모두 골라 주세요.'; byId('bfErr').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     const cd = chkData(chkDraft || []);
     ss.disabled = true;
     await shareKakao(startText(r, cd.top));
@@ -868,11 +879,11 @@ function bindSchedule(box) {
   };
   box.querySelectorAll('[data-sharetx]').forEach(b => b.onclick = () => shareKakao(b.dataset.copy));
   /* 캠프 전 습관 기록 */
-  box.querySelectorAll('[data-bf]').forEach(el => el.onchange = el.oninput = () => { const k = el.dataset.bf, v = el.value; wkDraft.before[k] = k === 'wish' || k === 'am' || k === 'pm' || k === 'ev' ? v : v === '' ? null : +v; });
+  box.querySelectorAll('[data-bf]').forEach(el => el.onchange = el.oninput = () => { const k = el.dataset.bf, v = el.value; wkDraft.before[k] = ['wish', 'am', 'pm', 'ev', 'bed', 'wake'].includes(k) ? v : v === '' ? null : +v; if (k === 'bed' || k === 'wake') { const s = sleepOf(wkDraft.before), e = byId('bfSleep'); wkDraft.before.sleep = s; if (e) e.textContent = s ? '하루 ' + minKo(s) + ' 자요' : ''; } });
   const bs = byId('bfSave');
   if (bs) bs.onclick = async () => {
     const r = wkDraft.before;
-    if (r.sleep == null || !r.am || !r.pm || !r.ev || r.ex_days == null || r.ex_min == null) { byId('bfErr').textContent = '수면·식사·운동을 모두 골라 주세요.'; return; }
+    if (!r.bed || !r.wake || !r.am || !r.pm || !r.ev || r.ex_days == null || r.ex_min == null) { byId('bfErr').textContent = '수면·식사·운동을 모두 골라 주세요.'; return; }
     bs.disabled = true;
     await shareKakao(habitText('before', r));
     try { camp = await rpc('life_camp_note_save', { p_token: token, p_kind: 'before', p_data: r }); delete wkDraft.before; re(); }
@@ -887,7 +898,7 @@ function bindSchedule(box) {
   box.querySelectorAll('[data-nw]').forEach(el => el.oninput = () => { const k = Object.keys(wkDraft).find(x => /^w\d/.test(x)); if (k) wkDraft[k][el.dataset.nw] = el.value; });
   const ns = byId('nwSave');
   if (ns) ns.onclick = async () => {
-    const kind = ns.dataset.kind, g = camp.avg4 || {}, all = { sleep: g.sleep, am: g.am, pm: g.pm, ev: g.ev, ex_days: g.ex_days, ex_min: g.ex_min, ...wkDraft[kind] };
+    const kind = ns.dataset.kind, g = camp.avg4 || {}, all = { sleep: g.sleep, bed: g.bed, wake: g.wake, am: g.am, pm: g.pm, ev: g.ev, ex_days: g.ex_days, ex_min: g.ex_min, ...wkDraft[kind] };
     ns.disabled = true;
     await shareKakao(habitText(kind, all));
     try { camp = await rpc('life_camp_note_save', { p_token: token, p_kind: kind, p_data: all }); re(); } catch (x) { toast(x.message); ns.disabled = false; }
