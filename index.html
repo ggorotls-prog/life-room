@@ -596,7 +596,7 @@ function amText() {
   if (d.condition === 2) d.condition_note = '';
   const yb = state.yesterday_bed || (amOpt.bed ? amOpt.bed + ':00' : null);
   const sleep = (yb ? hmBan(yb) + '에 자서 ' : '') + (d.wake ? hmBan(d.wake) + ' 기상' : '') + (w == null ? '' : (d.wake || state.yesterday_bed ? ', ' : '') + (w === 0 ? '한 번도 안 깼어요.' : `${w === 3 ? '3번 넘게' : w + '번'} 깼어요.`));
-  const cond = d.condition_note ? d.condition_note.replace(/[.!]?$/, '.') : d.condition ? `컨디션 ${FACE_NAMES[d.condition - 1]}이에요.` : '';
+  const cond = d.condition ? ['컨디션 나빠요.', '컨디션 보통이에요.', '컨디션 좋아요.'][d.condition - 1] : ''; /* 이유는 조장·나만 보는 것이라 카톡 글에는 안 넣는다(2026-11-25 룡) */
   const dg = amOpt.digest ? ` 소화 ${amOpt.digest}.` : '', bw = amOpt.bowel ? ` 배변 ${amOpt.bowel}!` : '';
   return (sleep.endsWith('.') ? sleep : sleep + (sleep ? '.' : '')) + '\n' + (cond + dg + bw).trim();
 }
@@ -623,7 +623,7 @@ function schAmBox() {
     <div class="faces">${FACES.map((f, i) => `<button type="button" data-cond="${i + 1}" class="${cond === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
     ${cond && cond !== 2 ? `<input id="amWhy" maxlength="60" value="${esc(why)}" placeholder="이유를 적어 주세요" autocomplete="off" style="margin-top:8px">` : ''}
     <label class="f">어제 식사 후 소화</label>${ch('dg', amOpt.digest, [['편했어요', '편했어요'], ['더부룩했어요', '더부룩했어요'], ['불편했어요', '불편했어요']])}
-    <label class="f">배변·배뇨</label>${ch('bw', amOpt.bowel, [['원활해요', '원활해요'], ['불편했어요', '불편했어요']])}
+    <label class="f">어제 배변·배뇨</label>${ch('bw', amOpt.bowel, [['원활해요', '원활해요'], ['불편했어요', '불편했어요']])}
     <p class="sub" style="font-size:12px;margin-top:6px">기상 시각·컨디션은 내 기록에 남아요. 깬 횟수·소화·배변은 저장하지 않아요.</p>
     ${bad ? '<div class="got" style="margin-top:6px">불편함이 이어지면 코치님께 개인톡으로도 알려 주세요.</div>' : ''}
     <pre class="kt" id="amPrev">${esc(amText())}</pre>
@@ -737,7 +737,9 @@ function weekTask() {
   const out = [];
   const today = state.today, savedToday = k => n[k] && n[k].day === today;
   const startOpen = (!n.check0 || savedToday('check0')) && (!n.before || savedToday('before'));
-  if (startOpen) out.push(box('1일차 · 시작 전 점검 + 캠프 전 습관 기록', startHtml()));
+  if (startOpen) out.push(n.before && n.check0 && !wkDraft.before && !chkDraft
+    ? `<div class="srow on" style="margin:8px 0 4px"><i>✓</i><span>1일차 점검 + 캠프 전 습관 기록 완료</span><em data-copy="${esc(startText(n.before, n.check0.top))}" role="button">다시 공유</em></div>`
+    : box('1일차 · 시작 전 점검 + 캠프 전 습관 기록', startHtml()));
   if ((!startOpen && (!n.check0 || savedToday('check0'))) || (wk >= 12 && dw === 6 && (!n.check12 || savedToday('check12')))) out.push(box(n.check0 && !savedToday('check0') ? '12주 뒤 · 나의 세포 돌봄 점검' : '시작 전 · 나의 세포 돌봄 점검', chkHtml(n.check0 && !savedToday('check0') ? 'check12' : 'check0')));
   if (!startOpen && (!n.before || savedToday('before'))) out.push(box('1일차 · 캠프 전 습관 기록 (최근 3개월)', beforeHtml()));
   if (day >= 4 && day <= 5) out.push(box('4~5일차 · 내 운동 하나 정하기', `<p class="sub" style="margin:4px 0 0">본인 컨디션에 맞는 운동이면 돼요. 예) 30분 걷기 / 10분 관절 운동 / 스트레칭 5분. 정한 운동을 댓글로 남기고, 한 날에는 인증해요.</p>`));
@@ -1663,7 +1665,7 @@ function renderToday() {
   const s = state, d = s.day;
   $app.innerHTML = `
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
-    <p class="sub" style="margin:-4px 0 12px"><a href="#" id="weekGo">📊 내 한 주 보기 ›</a>${s.in_group === false ? ' · <a href="#" id="noGroupGo">조가 없어요. 조 탭에서 들어가기 ›</a>' : ''}</p>
+    <p class="sub" style="margin:-4px 0 12px">${s.camp3 ? '' : '<a href="#" id="weekGo">📊 내 한 주 보기 ›</a>'}${s.in_group === false ? ' · <a href="#" id="noGroupGo">조가 없어요. 조 탭에서 들어가기 ›</a>' : ''}</p>
     ${feedbackPin(s.feedback, '이번 주 적용점 (내가 정함)')}
     ${state.today < '2026-12-09' && store.get('life_pv1201b') !== '1' ? '<div class="got" id="pvNote">📄 12월 1일부터 개인정보처리방침이 바뀌어요. <a href="privacy.html#바뀐것">바뀐 곳 보기</a> · <a href="#" id="pvOk">닫기</a></div>' : ''}
     <div id="gotBox"></div>
@@ -1685,7 +1687,7 @@ function renderToday() {
     <div id="campBox">${s.camp3 && !camp ? '<div class="loading">오늘 일정표 불러오는 중…</div>' : ''}</div>
     ${momentsLine()}`;
   const ml = byId('moLine'); if (ml) ml.onclick = openMoments;
-  byId('weekGo').onclick = e => { e.preventDefault(); goTab('mine'); };
+  const wg = byId('weekGo'); if (wg) wg.onclick = e => { e.preventDefault(); goTab('mine'); };
   const pv = byId('pvOk'); if (pv) pv.onclick = e => { e.preventDefault(); store.set('life_pv1201b', '1'); byId('pvNote').remove(); };
   const ng = byId('noGroupGo'); if (ng) ng.onclick = e => { e.preventDefault(); goTab('group'); };
   if (camp) paintCamp(); /* 다시 그릴 때 캠프 칸이 비지 않게 */
@@ -2237,7 +2239,7 @@ async function renderLeader() {
   const key = manageKey, seq = screenSeq, tk = token;
   const still = () => tab === 'leader' && key === manageKey && seq === screenSeq && tk === token;
   const back = '<button type="button" class="backb" id="mgBack">‹ 조</button>';
-  const bindBack = () => { const b = byId('mgBack'); if (b) b.onclick = () => goTab('group'); };
+  const bindBack = () => { const b = byId('mgBack'); if (b) { if (state.only3) b.hidden = true; b.onclick = () => goTab('group'); } };
   const card = groupsView ? groupCards(groupsView).cards.find(c => c.key === key) : null;
   if (!key || !card) { tab = 'group'; renderTabs(); return renderGroup(); }
   const boss = card.role === 'leader';
@@ -2478,14 +2480,22 @@ async function renderGroup() {
   catch (x) { if (token && tab === 'group' && seq === screenSeq && !groupsView) $app.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 function goTab(k) {
+  if (k === 'lead3') { (async () => { try { if (!groupsView) groupsView = await rpc('life_groups_view', { p_token: token }); } catch (e) {} manageKey = 'g' + state.lead3; if (tab !== 'leader') tabTrail.push(tab); tab = 'leader'; window.scrollTo(0, 0); render(); })(); return; }
+  if (state && state.only3 && (k === 'history' || k === 'group')) k = state.camp3 || !state.lead3 ? 'today' : 'lead3';
+  if (k === 'lead3') return goTab('lead3');
   if (k !== tab && tab !== 'leader') tabTrail.push(tab); /* 조 화면에서 나갈 때는 뒤로 가기 기록에 넣지 않는다(다시 들어가지 않게) */
   tab = k; window.scrollTo(0, 0);
   if (tab === 'today' || tab === 'group') refresh().catch(x => toast(x.message)); else render();
 }
 /* 아래 버튼 3개(2026-11-24 룡 「탭 5개는 많다」): 기록 · 히스토리 · 조. 「내 한 주」는 기록 안, 「조원 살피기」는 조 안 */
 function renderTabs() {
-  const items = [['today', '기록'], ['history', '히스토리'], ['group', '조' + (invCount ? '<span class="dot" aria-label="초대 있음"></span>' : '')]];
-  const on = tab === 'mine' ? 'today' : tab === 'leader' ? 'group' : tab;
+  const lead3 = state && state.lead3, only3 = state && state.only3;
+  let items = [['today', '기록'], ['history', '히스토리'], ['group', '조' + (invCount ? '<span class="dot" aria-label="초대 있음"></span>' : '')]];
+  /* 셀체인지만 하는 사람은 히스토리·조가 필요 없다. 3단계 조장은 「조장」 탭으로 바로(2026-11-25 룡) */
+  if (only3) items = (state.camp3 || !lead3) ? [['today', '기록']] : [];
+  if (lead3) items.push(['lead3', '조장']);
+  const on = tab === 'mine' ? 'today' : tab === 'leader' ? (lead3 && manageKey === 'g' + lead3 ? 'lead3' : 'group') : tab;
+  if (items.length < 2 && !lead3) { $tabs.innerHTML = ''; return; }
   $tabs.innerHTML = `<div class="tabs"><div>${items.map(([k, n]) => `<button data-tab="${k}" class="${on === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
   $tabs.querySelectorAll('button').forEach(b => b.onclick = () => goTab(b.dataset.tab));
 }
@@ -2498,6 +2508,7 @@ function render() {
   if (state.me.must_change_pw) forcePw();
   if (state.need === 'bed_yesterday') return renderBedYesterday();
   if (state.need === 'wake') return renderWake();
+  if (state.only3 && !state.camp3 && state.lead3 && (tab === 'today' || tab === 'mine')) return goTab('lead3');
   if (state.day && state.day.bed && store.get('life_awake') !== state.today) return renderSleeping();
   /* 자는 중이 아닌데 잠금이 남아 있으면 푼다(취침 기록을 지웠거나 날이 바뀐 경우) */
   if (store.get('life_lock') === '1') { unlockAsked = false; unlockPhone(); }
