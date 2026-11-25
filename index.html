@@ -2558,7 +2558,7 @@ byId('amPush').onclick = async () => {
     try { await rpc('life_push_off', { p_token: token, p_endpoint: pushSub.endpoint }); await pushSub.unsubscribe(); } catch (e) {}
     pushSub = null; paintPushItem(); toast('알림을 껐어요'); return;
   }
-  if (!await ask('[선택] 조원 기록·받은 응원·아침 8시·밤 10시 안내를 알림으로 받아요.\n알림은 Apple·Google 알림 서버(미국 등)를 거쳐 가고, 내용은 암호화돼요.\n켜지 않아도 앱은 그대로 쓸 수 있어요.', '알림 켜기')) return;
+  if (!await ask('[선택] 조원이 올린 기록, 내가 받은 응원, 아침 8시·밤 10시 안내를 알림으로 받아요.\n알림은 Apple·Google 알림 서버(미국 등)를 거쳐 가요. 내용은 암호화돼요.\n켜지 않아도 앱은 그대로 쓸 수 있어요.', '알림 켜기')) return;
   if (await Notification.requestPermission() !== 'granted') { alert('알림이 꺼져 있어요.\n아이폰 설정 → 알림 → 건강 기록에서 「알림 허용」을 켜 주세요.'); return; }
   try {
     const reg = await navigator.serviceWorker.ready, key = await rpc('life_push_key', {});
