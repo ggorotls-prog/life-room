@@ -362,6 +362,7 @@
       <div class="consent" id="pwConsent" hidden><b>시작하기 전에</b><ul>
         <li>식단과 운동은 우리 조 사람들과 함께 봅니다.</li>
         <li>수면과 컨디션은 조장과 나만 봅니다.</li>
+        <li>조장은 체크표 사진을 조 카톡방에 올려요. 체크표에는 내 닉네임과 식단을 올렸는지, 운동했는지가 나와요. 1단계 운동방에도 들어가 있으면 내 「운동했어요」가 그 운동방에도 실명으로 올라가요. 그 운동방 조장은 운동표 사진을 카톡방에 올려요.</li>
         <li>기록은 돌봄과 건강 관리에만 씁니다. 나중에 분석을 시작할 때는 먼저 알려 드립니다.</li>
         <li>원하면 언제든 기록을 모두 지워 드립니다.</li>
       </ul></div>
@@ -668,7 +669,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { pushLogout(); ctShareOn = null; dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; closeCheer(); byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
+function logout() { pushLogout(); ctShareOn = null; store.del('life_ct_ok'); store.del('life_ct_later'); dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; closeCheer(); byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -873,6 +874,7 @@ function renderAuth(mode) {
           <li><b>받는 것</b>: 아이디·비밀번호, ${apply ? '「누구와 함께하나요?」에 적은 닉네임(가입 승인에만 쓰고 승인되면 지웁니다), ' : ''}건강에 관한 기록(기상·취침 시각, 컨디션, 운동, 식단 사진·글(금식 포함), 영양제 체크, 「잘게요」를 푼 사유)</li>
           <li><b>쓰는 곳</b>: 내 기록 보관, 우리 조와 함께 보고 응원, 조장·관리자의 돌봄, 운영자의 조 운영 살피기. 광고·판매에는 쓰지 않습니다. 다른 목적에 쓰려면 그때 다시 동의를 받습니다.</li>
           <li><b>보는 사람</b>: 운동·식단·영양제와 「했는지」 표시는 내가 속한 모든 조의 사람이 봅니다. 금식은 처음에는 나만 봅니다. 글·사진마다 「나만 보기」로 숨길 수 있습니다. 기상·취침 시각과 컨디션은 조장·관리자만 봅니다. 운영자는 조 이름·조장·조원 아이디와 기록 없는 날수를 보고, 글·사진·시각은 앱을 고칠 때만 필요한 만큼 봅니다.</li>
+          <li><b>카톡방에 올리는 표</b>: 조장은 체크표 사진을 조 카톡방에 올려요. 체크표에는 내 닉네임과 식단을 올렸는지, 운동했는지가 나와요. 1단계 운동방에도 들어가 있으면 내 「운동했어요」가 그 운동방에도 실명으로 올라가요. 그 운동방 조장은 운동표 사진을 카톡방에 올려요. 카톡에 올라간 사진은 카카오에 남고 운영자가 지울 수 없어요.</li>
           <li><b>보관</b>: 탈퇴할 때까지 보관하고, 탈퇴하면 바로 지웁니다. 1년 동안 쓰지 않으면 지웁니다. 저장은 Supabase에 합니다(서버는 서울, 관리 중 싱가포르·미국에서 처리될 수 있음).</li>
           <li><b>동의하지 않을 수 있습니다.</b> 다만 이 앱은 기록이 전부라 동의하지 않으면 가입할 수 없습니다.</li>
           <li><a href="privacy.html">개인정보처리방침 전체 보기</a></li>
@@ -1692,7 +1694,7 @@ async function renderLeader() {
   if (key[0] === 'r' && !boss) {
     $app.innerHTML = `${back}<h1>${esc(card.name)} <span class="sub" style="font-weight:400;font-size:14px">1단계 운동방 · ${card.n}명</span></h1>
       <div id="rmView" data-room="${esc(key.slice(1))}"><div class="loading">운동표 불러오는 중…</div></div>
-      <p class="sub" style="margin:8px 0 0;font-size:12px">☰ 설정에서 「운동방에도 같이 넣기」를 켜 두면, 「운동했어요」를 누를 때 이 방에도 같이 올라가요.</p>`;
+      <p class="sub" style="margin:8px 0 0;font-size:12px">${pushOpen() ? '건강 기록에서 「운동했어요」를 누르면 이 방에도 같이 올라가요.' : '☰ 설정에서 「운동방에도 같이 넣기」를 켜 두면, 「운동했어요」를 누를 때 이 방에도 같이 올라가요.'}</p>`;
     bindBack(); loadRoomView(byId('rmView'));
     return;
   }
@@ -1845,7 +1847,7 @@ function paintGroups() {
     const al = boss(c.role) && c.alerts.length ? `<div class="gwarn">${c.alerts.map(a => `<div>🚨 ${esc(a.nickname)} · ${a.days}일째 ${c.what}</div>`).join('')}</div>` : '';
     if (c.room) return `<h2>${esc(c.name)} <span class="sub" style="font-weight:400">1단계 운동방 · ${c.n}명</span></h2>${al}
       <div id="rmView" data-room="${esc(c.key.slice(1))}"><div class="loading">운동표 불러오는 중…</div></div>
-      <p class="sub" style="margin:8px 0 0;font-size:12px">☰ 설정에서 「운동방에도 같이 넣기」를 켜 두면, 「운동했어요」를 누를 때 이 방에도 같이 올라가요.</p>`;
+      <p class="sub" style="margin:8px 0 0;font-size:12px">${pushOpen() ? '건강 기록에서 「운동했어요」를 누르면 이 방에도 같이 올라가요.' : '☰ 설정에서 「운동방에도 같이 넣기」를 켜 두면, 「운동했어요」를 누를 때 이 방에도 같이 올라가요.'}</p>`;
     const rows = c.members.map(b => `<div class="row${b.mine ? ' mine' : ''}"><div class="nm">${esc(b.nickname)}<span class="fire">${b.streak >= 2 ? '🔥 ' + b.streak + '일째' : ''}</span></div>${b.roster ? '' : `<div class="dots icons">${boardIcons(b, !!b.camp)}</div>`}</div>`).join('');
     return `<h2>${esc(c.name)} <span class="sub" style="font-weight:400">${c.role === 'owner' ? '명단' : '오늘'}</span></h2>${al}<div class="card" style="padding:4px 16px">${rows || '<p class="sub" style="margin:12px 0">아직 조원이 없어요.</p>'}</div>`;
   };
@@ -1961,9 +1963,9 @@ async function refresh() {
 let invCount = 0, invLastCheck = 0, invSeq = 0;
 const invLater = new Set();
 function invWhat(stage) {
-  return stage === 3 ? '들어가면 이 조 사람들이 내 운동·식단·영양제 기록을 볼 수 있어요. 잠든 시각·일어난 시각과 컨디션은 조장과 나만 볼 수 있어요.'
-       : stage === 2 ? '들어가면 이 조 사람들이 내 운동·식단 기록을 볼 수 있어요. 잠든 시각·일어난 시각과 컨디션은 조장과 나만 볼 수 있어요.'
-       : '들어가면 이 방 사람들이 내 운동 기록을 볼 수 있어요.';
+  return stage === 3 ? '들어가면 이 조 사람들이 내 운동·식단·영양제 기록을 볼 수 있어요. 잠든 시각·일어난 시각과 컨디션은 조장과 나만 볼 수 있어요. 조장은 체크표 사진을 조 카톡방에 올려요. 체크표에는 내 닉네임과 식단을 올렸는지, 운동했는지가 나와요.'
+       : stage === 2 ? '들어가면 이 조 사람들이 내 운동·식단 기록을 볼 수 있어요. 잠든 시각·일어난 시각과 컨디션은 조장과 나만 볼 수 있어요. 조장은 체크표 사진을 조 카톡방에 올려요. 체크표에는 내 닉네임과 식단을 올렸는지, 운동했는지가 나와요.'
+       : '들어가면 이 방 사람들이 내 운동 기록을 볼 수 있어요. 운동방 조장은 실명과 운동했는지가 적힌 운동표 사진을 카톡방에 올려요.';
 }
 function setInvCount(n) { if (n !== invCount) { invCount = n; if ($tabs.innerHTML) renderTabs(); } }
 /* 팝업을 띄워도 되는 때: 아래 버튼이 있는 보통 화면이고, 다른 창·입력 중인 것이 없을 때 */
@@ -1981,6 +1983,21 @@ async function checkInvites(force) {
   const list = v.invites || [];
   setInvCount(list.length);
   showInvite(list);
+  if (byId('invBg').hidden) ctConsent();
+}
+/* 카톡 표 동의(2026-11-25 룡 「무조건」 + 법무사 「이미 가입한 사람은 한 번 다시 동의」): 12-02부터 동의 안 한 사람에게 한 번 묻는다.
+   동의하기 전까지 서버는 그 사람을 체크표 사진과 운동방 넣기에서 뺀다 */
+let ctAsking = false;
+async function ctConsent() {
+  if (!pushOpen() || ctAsking || !invCanShow() || store.get('life_ct_ok') === '1' || store.get('life_ct_later') === state.today) return;
+  let r; try { r = await rpc('life_ct_share', { p_token: token }); } catch (e) { return; }
+  if (r.on) { store.set('life_ct_ok', '1'); return; }
+  if (!invCanShow()) return;
+  ctAsking = true;
+  const ok = await ask('[필수] 조장이 조 카톡방에 올리는 체크표 사진에 내 줄(닉네임, 식단을 올렸는지, 운동했는지)이 들어가요.\n1단계 운동방에도 들어가 있으면, 내 「운동했어요」가 그 운동방에 실명으로 올라가요. 이 기록은 운동표 사진에 담겨 카톡방에도 올라가요.\n카톡에 올라간 사진은 운영자가 지울 수 없어요.\n동의하기 전까지는 사진과 운동방에 들어가지 않아요. 조에서는 언제든 나갈 수 있어요.', '동의', '나중에');
+  ctAsking = false;
+  if (!ok) { store.set('life_ct_later', state.today); return; }
+  try { await rpc('life_ct_share', { p_token: token, p_on: true }); store.set('life_ct_ok', '1'); toast('동의했어요'); } catch (x) { toast(x.message); }
 }
 function showInvite(list) {
   const i = list.find(x => !invLater.has(x.group));
@@ -2246,7 +2263,7 @@ async function loadCt(gid, boss, still) {
       <div class="ct st${d.stage}">${ctHtml(d)}</div>
       <div class="ct-lg">${d.boss ? '<span><i style="background:#8e7cc3"></i>윗줄 수면</span>' : ''}<span><i style="background:#b6d7a8"></i>아·점·저 식단</span><span><i style="background:#e06666"></i>아랫줄 운동</span></div>
       ${boss && pushOpen() ? `<button type="button" class="main" id="ctGo" style="margin-top:12px">📤 체크표 공유하기</button>
-      <p class="sub" style="margin:6px 0 0;font-size:12px">체크표를 사진 한 장으로 만들어 드려요. 「카톡 체크표에 내 줄 넣기」를 켠 조원만 들어가고, 수면 기록은 빠져요.</p>` : ''}`;
+      <p class="sub" style="margin:6px 0 0;font-size:12px">체크표를 사진 한 장으로 만들어 드려요. 이름 대신 닉네임이 들어가고, 잠든 시각·일어난 시각과 컨디션은 들어가지 않아요. 카톡방에 올리는 표에는 동의한 조원만 들어가요.</p>` : ''}`;
     /* 공유는 조장만, 처리방침 시행(12-02)부터. 사진에는 본인이 켠 사람만 · 수면 줄 없음(2026-11-25 룡·법무사) */
     byId('ctLast').onclick = () => { back = back ? 0 : 1; paint(); };
     if (byId('ctGo')) byId('ctGo').onclick = () => ctShare(d, byId('ctGo'));
@@ -2274,7 +2291,7 @@ function ctHtml(d) {
 }
 async function ctShare(d0, btn) {
   const d = Object.assign({}, d0, { members: (d0.members || []).filter(m => m.share).map(m => Object.assign({}, m, { days: Object.fromEntries(Object.entries(m.days || {}).map(([k, v]) => [k, Object.assign({}, v, { s: null })])) })) });
-  if (!d.members.length) { toast('「카톡 체크표에 내 줄 넣기」를 켠 조원이 아직 없어요.'); return; }
+  if (!d.members.length) { toast('카톡방에 올리는 표에 동의한 조원이 아직 없어요.'); return; }
   const old = btn.textContent; btn.textContent = '만드는 중…'; btn.disabled = true;
   let m = null;
   try {
@@ -2523,7 +2540,7 @@ function unforcePw() {
   byId('pwGo').textContent = '바꾸기';
 }
 function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; byId('delForm').hidden = v !== 'del'; byId('amMoView').hidden = v !== 'mo'; if (v === 'set') { paintPushItem(); paintCtItem(); byId('amMo').hidden = !hasMoments(); byId('amCamp').hidden = !(camp && camp.allowed); paintHeroItem(); if (!heroInfo && token) rpc('life_hero_info', { p_token: token }).then(r => { heroInfo = r; paintHeroItem(); }).catch(() => {}); } }
-function paintHeroItem() { const b = byId('amHero'); b.hidden = !(heroInfo && heroInfo.rooms > 0); byId('amHeroTxt').textContent = '🏃 운동방에도 같이 넣기: ' + (heroInfo && heroInfo.link ? '켬' : '끔'); }
+function paintHeroItem() { const b = byId('amHero'); b.hidden = pushOpen() || !(heroInfo && heroInfo.rooms > 0); /* 12-02부터는 늘 넣는다(2026-11-25 룡) */ byId('amHeroTxt').textContent = '🏃 운동방에도 같이 넣기: ' + (heroInfo && heroInfo.link ? '켬' : '끔'); }
 byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amOp').hidden = !state.op; byId('amBg').hidden = false; };
 byId('amOp').onclick = () => { byId('amBg').hidden = true; goTab('op'); };
 byId('amClose').onclick = () => { byId('amBg').hidden = true; };
@@ -2661,8 +2678,7 @@ byId('amPush').onclick = async () => {
 let ctShareOn = null;
 function paintCtItem() {
   const b = byId('amCt'); if (!b) return;
-  b.hidden = !pushOpen();
-  if (b.hidden) return;
+  b.hidden = true; return; /* 없앰: 체크표 사진에는 조원 모두(닉네임)가 들어간다(2026-11-25 룡) */
   byId('amCtTxt').textContent = '📤 카톡 체크표에 내 줄 넣기: ' + (ctShareOn ? '켬' : '끔');
   if (ctShareOn === null && token) rpc('life_ct_share', { p_token: token }).then(r => { ctShareOn = !!r.on; paintCtItem(); }).catch(() => {});
 }
