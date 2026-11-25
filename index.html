@@ -565,7 +565,7 @@ function consentHtml() {
     <button class="main" type="button" id="c3Go" disabled>동의하고 시작</button></div>`;
 }
 function schPmBox() {
-  if (!camp.consent) return consentHtml();
+  if (!camp.consent) return '<div class="schbox"><p class="sub" style="margin:0">맨 위 동의를 먼저 해 주세요.</p></div>';
   const d = state.day || {}, on = camp.supps || [], saved = camp.evening;
   const e = pmDraft || (saved ? { ...saved } : { meal: null, move: null, supp: null, note: '' });
   const mealN = MEAL3.filter(([k]) => (d.meals || []).includes(k)).length;
@@ -605,11 +605,11 @@ async function shareShot(b64, text) {
   } catch (x) { if (x && x.name !== 'AbortError') toast('올리지 못했어요. 다시 눌러 주세요.'); }
 }
 function schAmBox() {
-  if (!camp.consent) return consentHtml();
+  if (!camp.consent) return '<div class="schbox"><p class="sub" style="margin:0">맨 위 동의를 먼저 해 주세요.</p></div>';
   const d = state.day || {}, ch = (name, cur, opts) => `<div class="slots" style="grid-template-columns:repeat(${opts.length},1fr)">${opts.map(([v, l]) => `<button type="button" data-${name}="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   const bad = amOpt.digest === '불편했어요' || amOpt.bowel === '불편했어요';
   return `<div class="schbox">
-    <p style="margin:0" class="sub">코치님이 올린 아침 양식에 짧게 답해요. 수면·컨디션은 「일어났어요」에서 적은 것을 가져와요.</p>
+    <p style="margin:0" class="sub">코치님이 올린 아침 양식에 짧게 답해요. 수면·컨디션은 「일어났어요」에서 적은 것을 가져와요. <a href="#" id="schWakeFix">기상·컨디션 고치기</a></p>
     <label class="f">중간에 잠에서 깬 횟수</label>${ch('wk', amOpt.wakes, [[0, '0번'], [1, '1번'], [2, '2번'], [3, '3번 넘게']])}
     <label class="f">어제 식사 후 소화</label>${ch('dg', amOpt.digest, [['편했어요', '편했어요'], ['더부룩했어요', '더부룩했어요'], ['불편했어요', '불편했어요']])}
     <label class="f">배변·배뇨</label>${ch('bw', amOpt.bowel, [['원활해요', '원활해요'], ['불편했어요', '불편했어요']])}
@@ -619,7 +619,7 @@ function schAmBox() {
     <button class="main" type="button" id="amCopy">카톡방에 공유</button></div>`;
 }
 function schDeclBox() {
-  if (!camp.consent) return consentHtml();
+  if (!camp.consent) return '<div class="schbox"><p class="sub" style="margin:0">맨 위 동의를 먼저 해 주세요.</p></div>';
   return `<div class="schbox"><p style="margin:0" class="sub">거울 속 나에게 선포하고, 오늘 마음에 남은 한 문장을 올려요.</p>
     ${DECL4.map((s, i) => `<button type="button" class="dl${amPick.decl === i ? ' on' : ''}" data-decl="${i}">${s}</button>`).join('')}
     <button class="main" type="button" id="declCopy" style="margin-top:8px">${camp.declared ? '카톡방에 다시 공유' : '선포했어요 · 카톡방에 공유'}</button>${camp.declared ? '<p class="sub" style="margin:6px 0 0;font-size:12px"><a href="#" id="declOff">선포 체크 취소</a></p>' : ''}</div>`;
@@ -640,14 +640,14 @@ function campSchedule() {
   const sup = k => { const s = SUPP5.find(x => x[0] === k), ok = on.includes(k); return `<button type="button" class="srow${ok ? ' on' : ''}" data-supp="${k}">${tick(ok)}<span>${s[1].slice(3)} 영양제 <small>${s[2].replace('#', plan)}</small>${ok ? tm(sa[k]) : ''}</span></button>`; };
   const meal = (k, txt) => {
     const done = (d.meals || []).includes(k), fast = (d.fasts || []).includes(k);
-    return `<button type="button" class="srow${done || fast ? ' on' : ''}" data-meal="${k}">${tick(done || fast)}<span>${txt}${fast ? ' · 금식' : done ? tm(ma[k]) : ''}</span><em>${done && !fast ? (mealShot[k] ? '카톡에 올리기' : '올렸어요') : fast ? '금식' : '📷 사진 찍기'}</em></button>`;
+    return `<button type="button" class="srow${done || fast ? ' on' : ''}" data-meal="${k}">${tick(done || fast)}<span>${txt}${fast ? ' · 금식' : done ? tm(ma[k]) : ''}</span><em>${done && !fast ? (mealShot[k] ? '카톡에 올리기' : '바꾸기') : fast ? '바꾸기' : '📷 사진·글·금식'}</em></button>`;
   };
   const kt = (ok, k, txt, btn) => `<button type="button" class="srow${ok ? ' on' : ''}" data-sch="${k}">${tick(ok)}<span>${txt}</span><em>${btn}</em></button>`;
   const exDone = !!d.exercise;
   return `<div class="card sch" id="schCard" style="margin-bottom:10px">
     <h2 style="margin:0">📋 셀체인지 ${camp.day_no}일째 · 나의 하루</h2>
     <p class="sub" style="margin-top:4px">${camp.dow === 0 ? '일요일엔 셀프 체크만 소그룹방에 올려요. 코치님도 하루 쉬어요.' : '📸·카톡 표시가 있는 것을 소그룹방에 올려요. 올리는 것만으로 충분해요.'}</p>
-    ${weekTask()}
+    ${camp.consent ? weekTask() : consentHtml()}
     <h3>☀️ 아침</h3>
     ${kt(!!d.wake, 'am', `일어나서: 물 한 컵 · 컨디션 체크${d.wake ? tm(hm(d.wake)) + (d.condition ? ' ' + FACES[d.condition - 1] : '') : ''}`, '카톡 글')}
     ${schOpen === 'am' ? schAmBox() : ''}
@@ -669,7 +669,7 @@ function campSchedule() {
     ${kt(!!ev, 'pm', '오늘의 셀프 체크' + (ev ? ` · ${evSum(ev)}점` : ''), '카톡 글')}
     ${schOpen === 'pm' ? schPmBox() : ''}
     <div class="srow info"><span>1시간 전: 휴대폰 끄고 불빛 차단</span></div>
-    <button type="button" class="srow${d.bed ? ' on' : ''}" data-go="bed">${tick(!!d.bed)}<span>11~12시 전: 잠들기${d.bed ? tm(hm(d.bed)) : ''}</span><em>${d.bed ? '잤어요' : '잘게요'}</em></button>
+    <button type="button" class="srow${d.bed ? ' on' : ''}" data-go="bed">${tick(!!d.bed)}<span>11~12시 전: 잠들기${d.bed ? tm(hm(d.bed)) : ''}</span><em>${d.bed ? '고치기' : '잘게요'}</em></button>
     <details style="margin-top:10px"><summary>💡 이럴 땐 이렇게 해요</summary><div style="font-size:14px;line-height:1.6">${HELP_P}</div></details>
     <p class="sub" style="margin-top:8px;font-size:12px">${plan}안 · 이=이뮨 · 제=제놀 · 오=오메가3 · 데=데일리 · 숫자는 알 수 · ${md(camp.end)}까지 · <a href="#" data-campset="1">캠프 설정</a>${camp.consent ? ' · <a href="#" id="c3Off">캠프 기록 동의 거두기</a>' : ''}</p>
   </div>`;
@@ -788,18 +788,18 @@ function bindSchedule(box) {
   });
   box.querySelectorAll('[data-meal]').forEach(b => b.onclick = () => {
     const k = b.dataset.meal, done = (d.meals || []).includes(k);
-    if ((d.fasts || []).includes(k)) return;
-    if (done && mealShot[k]) return shareShot(mealShot[k].split(',')[1], '');
-    if (done) { toast('올린 사진은 카톡에서 바로 올려 주세요.'); return; }
-    pendingKind = 'diet'; pendingSlot = k; pendingDay = null; pendingRedo = false; $file.click();
+    if (done && !(d.fasts || []).includes(k) && mealShot[k]) return shareShot(mealShot[k].split(',')[1], '');
+    const sb = $app.querySelector(`.checks [data-slot="${k}"]`); if (!sb) return;
+    sb.click(); const mb = byId('mealBox'); if (mb && mb.innerHTML) mb.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
-  box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const x = byId('bedBtn'); if (x) { x.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (!d.bed) x.click(); } });
+  box.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const x = byId('bedBtn'); if (x) { x.click(); const bb = byId('bedBox'); if (bb && bb.innerHTML) bb.scrollIntoView({ behavior: 'smooth', block: 'center' }); } });
   box.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => shareKakao(b.dataset.copy));
   const c3 = byId('c3Go');
   if (c3) {
     byId('c3Ok').onchange = () => { c3.disabled = !byId('c3Ok').checked; };
     c3.onclick = async () => { c3.disabled = true; try { camp = await rpc('life_camp3_consent', { p_token: token, p_on: true }); toast('동의했어요'); re(); } catch (x) { toast(x.message); c3.disabled = false; } };
   }
+  const swf = byId('schWakeFix'); if (swf) swf.onclick = e => { e.preventDefault(); const w = byId('wakeFix'); if (w) { w.click(); const bb = byId('bedBox'); if (bb) bb.scrollIntoView({ behavior: 'smooth', block: 'center' }); } };
   box.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => { amOpt.wakes = +b.dataset.wk; re(); });
   box.querySelectorAll('[data-dg]').forEach(b => b.onclick = () => { amOpt.digest = b.dataset.dg; re(); });
   box.querySelectorAll('[data-bw]').forEach(b => b.onclick = () => { amOpt.bowel = b.dataset.bw; re(); });
@@ -905,7 +905,11 @@ function paintCamp(force) {
     const ae = document.activeElement, typing = ae && ae.tagName === 'INPUT' && byId('schCard') && byId('schCard').contains(ae) ? ae : null;
     if (typing && !force) { typing.onblur = () => setTimeout(() => { const a2 = document.activeElement; if (!(a2 && a2.tagName === 'INPUT' && byId('schCard') && byId('schCard').contains(a2))) paintCamp(); }, 200); return; }
     if (schDay !== state.today) { schDay = state.today; schOpen = null; pmDraft = null; amPick = { decl: 0, digest: null, bowel: null }; amOpt = { wakes: null, digest: null, bowel: null }; exPick = { min: null, what: '' }; mealShot = {}; wkDraft = {}; chkDraft = null; }
-    const ch = $app.querySelector('.checks'); if (ch && box.nextElementSibling !== ch) ch.before(box);
+    const ch = $app.querySelector('.checks');
+    if (ch) ch.hidden = true; /* 3단계는 일정표 한 화면(2026-11-25 룡 「잘게요·운동했어요·식단이 다 위로 녹아들어야 해, 남아 있으면 안 돼」) */
+    let pane = byId('schPane'); if (!pane) { pane = document.createElement('div'); pane.id = 'schPane'; }
+    if (ch) { if (pane.nextElementSibling !== ch) ch.before(pane); if (box.nextElementSibling !== pane) pane.before(box); } /* 차례: 일정표 → 입력 상자 → (숨긴) 옛 카드 */
+    ['bedBox', 'mealBox'].forEach(id => { const el = byId(id); if (el && el.parentElement !== pane) pane.appendChild(el); });
     box.innerHTML = campSchedule(); /* 옛 이정표(7·21·50·84일)는 가이드북 4·8·12주 습관 기록으로 바뀜(2026-11-25 룡 「가이드북 지침이 우선」) */
     bindSchedule(box);
   } else {
