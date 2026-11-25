@@ -1698,10 +1698,11 @@ async function renderLeader() {
   if (key[0] !== 'r' && !boss) {
     /* 2·3단계 조원: 오늘 + 체크표(보기만) */
     const rows = (card.members || []).map(b => `<div class="row${b.mine ? ' mine' : ''}"><div class="nm">${esc(b.nickname)}<span class="fire">${b.streak >= 2 ? '🔥 ' + b.streak + '일째' : ''}</span></div>${b.roster ? '' : `<div class="dots icons">${boardIcons(b, !!b.camp)}</div>`}</div>`).join('');
-    $app.innerHTML = `${back}<h1>${esc(card.name)} <span class="sub" style="font-weight:400;font-size:14px">${card.stage}단계 · ${card.n}명</span></h1>
-      <h2>오늘</h2><div class="card" style="padding:4px 16px">${rows || '<p class="sub" style="margin:12px 0">아직 조원이 없어요.</p>'}</div>
-      ${pushOpen() ? '<div id="ctBox"><div class="loading">체크표 불러오는 중…</div></div>' : ''}`;
-    bindBack(); if (pushOpen()) loadCt(+key.slice(1), false, still); /* 조원 체크표는 처리방침 시행(12-02)부터(2026-11-25 법무사) */
+    const own = card.role === 'owner', ctOk = !own && pushOpen();
+    $app.innerHTML = `${back}<h1>${esc(card.name)} <span class="sub" style="font-weight:400;font-size:14px">${card.stage}단계 · ${card.n}명</span></h1>${own ? al : ''}
+      <h2>${own ? '명단' : '오늘'}</h2><div class="card" style="padding:4px 16px">${rows || '<p class="sub" style="margin:12px 0">아직 조원이 없어요.</p>'}</div>
+      ${ctOk ? '<div id="ctBox"><div class="loading">체크표 불러오는 중…</div></div>' : ''}`;
+    bindBack(); if (ctOk) loadCt(+key.slice(1), false, still); /* 조원 체크표는 처리방침 시행(12-02)부터(2026-11-25 법무사) */
     return;
   }
   if (key[0] === 'r') {
@@ -1822,8 +1823,7 @@ function paintGroups() {
   const { cards, boss } = groupCards(v);
   const mine = cards.filter(c => boss(c.role));
   const warn = mine.flatMap(c => c.alerts.map(a => ({ ...a, group: c.name, what: c.what }))).sort((x, y) => y.days - x.days);
-  if (cards.length === 1 && groupOpen == null && cards[0].role !== 'leader') groupOpen = cards[0].key;
-  const open = cards.find(c => c.key === groupOpen && c.role !== 'leader');
+  const open = null; /* 2026-11-25: 조 칸은 모두 새 화면으로 간다(옛 아래 펼침 안 씀) */
   const roleName = c => c.role === 'leader' ? '조장' : c.role === 'owner' ? (c.leader ? '조장 ' + esc(c.leader) : '운영자') : '조원';
   const sect = st => {
     const list = cards.filter(c => c.stage === st);
@@ -2235,12 +2235,12 @@ function xtHtml(w) {
 }
 /* 2·3단계 체크표(2026-11-25 룡): 서버 life_group_table. 지난주 보기 · 공유하기(조장만, 사진 한 장) */
 async function loadCt(gid, boss, still) {
-  let back = 0;
+  let back = 0, n = 0;
   const paint = async () => {
-    let d;
+    const my = ++n; let d;
     try { d = await rpc('life_group_table', { p_token: token, p_group: gid, p_back: back }); }
     catch (x) { if (still() && byId('ctBox')) byId('ctBox').innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
-    if (!still() || !byId('ctBox')) return;
+    if (my !== n || !still() || !byId('ctBox')) return;
     byId('ctBox').innerHTML = `<h2 class="sect-h st${d.stage}"><span>📊 ${back ? '지난주' : '이번 주'} 체크표</span><button type="button" class="backb" id="ctLast">${back ? '이번 주 보기' : '지난주 보기'}</button></h2>
       <div class="ct st${d.stage}">${ctHtml(d)}</div>
       <div class="ct-lg">${d.boss ? '<span><i style="background:#8e7cc3"></i>윗줄 수면</span>' : ''}<span><i style="background:#b6d7a8"></i>아·점·저 식단</span><span><i style="background:#e06666"></i>아랫줄 운동</span></div>
@@ -2256,7 +2256,7 @@ function ctHtml(d) {
   let h = '<table><colgroup><col class="c-name">' + '<col>'.repeat(7) + '</colgroup><thead><tr class="title"><td colspan="8">' + (d.stage === 3 ? '💙 ' : '🌱 ') + esc(d.name) + ' 체크표</td></tr><tr><th>이름</th>';
   days.forEach(x => { h += '<th class="' + (x === d.today ? 'today' : '') + '">' + md(x) + '<br>' + wd(x) + '</th>'; });
   h += '</tr></thead><tbody>';
-  d.members.forEach(m => {
+  (d.members || []).forEach(m => {
     h += '<tr><td class="name">' + esc(m.nickname) + '</td>';
     days.forEach(x => {
       const c = (m.days || {})[x] || {}, ms = c.m || [];
