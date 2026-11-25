@@ -226,6 +226,7 @@ public final class Moments {
             JSONObject d = new JSONObject(res);
             s.edit().putString("m_feed_since", d.optString("now", since)).apply();
             if (since == null) return; // 처음에는 기준 시각만 잡는다(깔자마자 지난 것을 쏟지 않는다)
+            campRemind(c, d.optJSONObject("camp"));
             JSONArray posts = d.optJSONArray("posts"), cheers = d.optJSONArray("cheers");
             java.util.ArrayList<String> lines = new java.util.ArrayList<>();
             for (int i = 0; cheers != null && i < cheers.length(); i++) {
@@ -267,6 +268,39 @@ public final class Moments {
                         .setGroup(G_FEED)
                         .setAutoCancel(true);
                 notify(c, nid, b.build());
+            }
+        } catch (Exception ignored) {}
+    }
+
+    // ---------- 3단계(셀체인지) 일정 알림 (2026-11-25 룡 「먹어야 할 것·해야 할 일은 알림으로」) ----------
+    /** 서버 life_feed의 camp = 지금 알릴 만한 것만 글로 온다(이미 체크한 것은 서버가 뺀다, 제품 이름 대신 줄임말).
+     *  때는 내 끼니 시간(m_times)으로 정한다: 아침 시작 = 기상·식전(+조장) · 아침 끝 = 아침 식후 · 점심 끝 = 점심 식후 ·
+     *  저녁 시작 = 운동·식전 · 저녁 끝 = 저녁 식후 · 22시 = 밤. 알림마다 하루 한 번 */
+    static final int N_CAMP = 7300; // 7300~7306
+    static final String[] CAMP_KEYS = {"coach", "am_start", "am_post", "pm_post", "eve_start", "eve_post", "night"};
+    static void campRemind(Context c, JSONObject camp) {
+        if (camp == null || camp.length() == 0) return;
+        try {
+            String[] ws = times(c).split(",");
+            int[] st = new int[3], en = new int[3];
+            for (int i = 0; i < 3; i++) { String[] ab = ws[i].split("-"); st[i] = Integer.parseInt(ab[0]); en[i] = Integer.parseInt(ab[1]); }
+            int[] at = {st[0], st[0], en[0], en[1], st[2], en[2], 22};
+            int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            SharedPreferences s = p(c);
+            for (int i = 0; i < CAMP_KEYS.length; i++) {
+                String k = CAMP_KEYS[i];
+                JSONObject x = camp.optJSONObject(k);
+                if (x == null || h != at[i]) continue;
+                String key = "m_camp_" + k;
+                if (today().equals(s.getString(key, ""))) continue; // 하루 한 번
+                s.edit().putString(key, today()).apply();
+                Notification.Builder b = new Notification.Builder(c, channel(c, CH_ASK))
+                        .setSmallIcon(icon(c))
+                        .setContentTitle(x.optString("title"))
+                        .setContentText(x.optString("body"))
+                        .setContentIntent(openApp(c, "coach".equals(k) ? 8 : 6))
+                        .setAutoCancel(true);
+                notify(c, N_CAMP + i, b.build());
             }
         } catch (Exception ignored) {}
     }
