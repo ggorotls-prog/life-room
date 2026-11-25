@@ -612,16 +612,16 @@ async function shareShot(b64, text) {
 function schAmBox() {
   if (!camp.consent) return '<div class="schbox"><p class="sub" style="margin:0">맨 위 동의를 먼저 해 주세요.</p></div>';
   const d = state.day || {}, ch = (name, cur, opts) => `<div class="slots" style="grid-template-columns:repeat(${opts.length},1fr)">${opts.map(([v, l]) => `<button type="button" data-${name}="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-  const wk = amOpt.wake || (d.wake ? hm(d.wake) : nowRounded()), cond = amOpt.cond || d.condition || null, why = amOpt.why != null ? amOpt.why : (d.condition_note || '');
+  const wk = amOpt.wake || (d.wake ? hm(d.wake) : ''), cond = amOpt.cond || d.condition || null, why = amOpt.why != null ? amOpt.why : (d.condition_note || '');
   const bad = amOpt.digest === '불편했어요' || amOpt.bowel === '불편했어요';
   return `<div class="schbox">
     <p style="margin:0" class="sub">☀️ 일어나서 따뜻한 물 한 컵 드시고, 코치님 아침 양식에 짧게 답해요.</p>
-    ${state.yesterday_bed ? '' : `<label class="f">어젯밤 몇 시에 잤어요?</label><select id="amBed">${timeOptions(18, amOpt.bed || '23:00')}</select>`}
-    <label class="f">몇 시에 일어났어요?</label><select id="amWake">${timeOptions(0, wk)}</select>
+    ${state.yesterday_bed ? '' : `<label class="f">어젯밤 몇 시에 잤어요?</label><select id="amBed"><option value="">고르기</option>${timeOptions(18, amOpt.bed || '')}</select>`}
+    <label class="f">몇 시에 일어났어요?</label><select id="amWake"><option value="">고르기</option>${timeOptions(4, wk)}</select>
     <label class="f">중간에 잠에서 깬 횟수</label>${ch('wk', amOpt.wakes, [[0, '0번'], [1, '1번'], [2, '2번'], [3, '3번 넘게']])}
     <label class="f">오늘 아침 몸과 마음의 상태</label>
     <div class="faces">${FACES.map((f, i) => `<button type="button" data-cond="${i + 1}" class="${cond === i + 1 ? 'on' : ''}" aria-label="컨디션 ${FACE_NAMES[i]}">${f}<small>${FACE_NAMES[i]}</small></button>`).join('')}</div>
-    ${cond && cond !== 2 ? `<input id="amWhy" maxlength="60" value="${esc(why)}" placeholder="몸과 마음의 상태 이유를 적어 주세요" autocomplete="off" style="margin-top:8px">` : ''}
+    ${cond && cond !== 2 ? `<input id="amWhy" maxlength="60" value="${esc(why)}" placeholder="이유를 적어 주세요" autocomplete="off" style="margin-top:8px">` : ''}
     <label class="f">어제 식사 후 소화</label>${ch('dg', amOpt.digest, [['편했어요', '편했어요'], ['더부룩했어요', '더부룩했어요'], ['불편했어요', '불편했어요']])}
     <label class="f">배변·배뇨</label>${ch('bw', amOpt.bowel, [['원활해요', '원활해요'], ['불편했어요', '불편했어요']])}
     <p class="sub" style="font-size:12px;margin-top:6px">기상 시각·컨디션은 내 기록에 남아요. 깬 횟수·소화·배변은 저장하지 않아요.</p>
@@ -844,13 +844,15 @@ function bindSchedule(box) {
   box.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => { amOpt.wakes = +b.dataset.wk; re(); });
   box.querySelectorAll('[data-dg]').forEach(b => b.onclick = () => { amOpt.digest = b.dataset.dg; re(); });
   box.querySelectorAll('[data-bw]').forEach(b => b.onclick = () => { amOpt.bowel = b.dataset.bw; re(); });
-  const abd = byId('amBed'); if (abd) { if (!amOpt.bed) amOpt.bed = abd.value; abd.onchange = () => { amOpt.bed = abd.value; const pv = byId('amPrev'); if (pv) pv.textContent = amText(); }; }
+  const abd = byId('amBed'); if (abd) { abd.onchange = () => { amOpt.bed = abd.value; const pv = byId('amPrev'); if (pv) pv.textContent = amText(); }; }
   const aw = byId('amWake'); if (aw) aw.onchange = () => { amOpt.wake = aw.value; const pv = byId('amPrev'); if (pv) pv.textContent = amText(); };
   box.querySelectorAll('[data-cond]').forEach(b => b.onclick = () => { amOpt.wake = byId('amWake') ? byId('amWake').value : amOpt.wake; amOpt.cond = +b.dataset.cond; re(); });
   const awy = byId('amWhy'); if (awy) awy.oninput = () => { amOpt.why = awy.value; const pv = byId('amPrev'); if (pv) pv.textContent = amText(); };
   const ac = byId('amCopy');
   if (ac) ac.onclick = async () => {
     const dd = state.day || {}, wk = byId('amWake').value, cond = amOpt.cond || dd.condition, why = (amOpt.why != null ? amOpt.why : (dd.condition_note || '')).trim(), err = byId('amErr');
+    if (byId('amBed') && !byId('amBed').value) { err.textContent = '어젯밤 잔 시각을 골라 주세요.'; return; }
+    if (!wk) { err.textContent = '일어난 시각을 골라 주세요.'; return; }
     if (!cond) { err.textContent = '오늘 컨디션을 골라 주세요.'; return; }
     if (cond !== 2 && !why) { err.textContent = `왜 ${FACE_NAMES[cond - 1]}인지 한 줄 적어 주세요.`; byId('amWhy').focus(); return; }
     amOpt.wake = wk; amOpt.cond = cond; amOpt.why = why;
