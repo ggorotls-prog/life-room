@@ -341,6 +341,7 @@
       <button type="button" class="am-item" id="amHero" hidden><span id="amHeroTxt">🏃 운동방에도 같이 넣기</span><span class="am-go">›</span></button>
       <button type="button" class="am-item" id="amCamp" hidden><span>💊 캠프 설정</span><span class="am-go">›</span></button>
       <button type="button" class="am-item" id="amMo" hidden><span>📲 앱이 먼저 묻기</span><span class="am-go">›</span></button>
+      <button type="button" class="am-item" id="amCt" hidden><span id="amCtTxt">📤 카톡 체크표에 내 줄 넣기</span><span class="am-go">›</span></button>
       <button type="button" class="am-item" id="amPush" hidden><span id="amPushTxt">🔔 알림 받기</span><span class="am-go">›</span></button>
       <button type="button" class="am-item danger" id="amDel"><span>탈퇴하고 내 기록 지우기</span><span class="am-go">›</span></button>
     </div>
@@ -667,7 +668,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { pushLogout(); dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; closeCheer(); byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
+function logout() { pushLogout(); ctShareOn = null; dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; closeCheer(); byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -2244,7 +2245,9 @@ async function loadCt(gid, boss, still) {
     byId('ctBox').innerHTML = `<h2 class="sect-h st${d.stage}"><span>📊 ${back ? '지난주' : '이번 주'} 체크표</span><button type="button" class="backb" id="ctLast">${back ? '이번 주 보기' : '지난주 보기'}</button></h2>
       <div class="ct st${d.stage}">${ctHtml(d)}</div>
       <div class="ct-lg">${d.boss ? '<span><i style="background:#8e7cc3"></i>윗줄 수면</span>' : ''}<span><i style="background:#b6d7a8"></i>아·점·저 식단</span><span><i style="background:#e06666"></i>아랫줄 운동</span></div>
-`; /* 공유(카톡 사진)는 처리방침에 없어 아직 안 연다(2026-11-25 법무사). ctShare는 남겨 둠 */
+      ${boss && pushOpen() ? `<button type="button" class="main" id="ctGo" style="margin-top:12px">📤 체크표 공유하기</button>
+      <p class="sub" style="margin:6px 0 0;font-size:12px">체크표를 사진 한 장으로 만들어 드려요. 「카톡 체크표에 내 줄 넣기」를 켠 조원만 들어가고, 수면 기록은 빠져요.</p>` : ''}`;
+    /* 공유는 조장만, 처리방침 시행(12-02)부터. 사진에는 본인이 켠 사람만 · 수면 줄 없음(2026-11-25 룡·법무사) */
     byId('ctLast').onclick = () => { back = back ? 0 : 1; paint(); };
     if (byId('ctGo')) byId('ctGo').onclick = () => ctShare(d, byId('ctGo'));
   };
@@ -2269,7 +2272,9 @@ function ctHtml(d) {
   });
   return h + '</tbody></table>';
 }
-async function ctShare(d, btn) {
+async function ctShare(d0, btn) {
+  const d = Object.assign({}, d0, { members: (d0.members || []).filter(m => m.share).map(m => Object.assign({}, m, { days: Object.fromEntries(Object.entries(m.days || {}).map(([k, v]) => [k, Object.assign({}, v, { s: null })])) })) });
+  if (!d.members.length) { toast('「카톡 체크표에 내 줄 넣기」를 켠 조원이 아직 없어요.'); return; }
   const old = btn.textContent; btn.textContent = '만드는 중…'; btn.disabled = true;
   let m = null;
   try {
@@ -2517,7 +2522,7 @@ function unforcePw() {
   byId('amClose').hidden = byId('pwBack').hidden = false; byId('pwMust').hidden = byId('pwConsent').hidden = true;
   byId('pwGo').textContent = '바꾸기';
 }
-function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; byId('delForm').hidden = v !== 'del'; byId('amMoView').hidden = v !== 'mo'; if (v === 'set') { paintPushItem(); byId('amMo').hidden = !hasMoments(); byId('amCamp').hidden = !(camp && camp.allowed); paintHeroItem(); if (!heroInfo && token) rpc('life_hero_info', { p_token: token }).then(r => { heroInfo = r; paintHeroItem(); }).catch(() => {}); } }
+function amView(v) { byId('amMain').hidden = v !== 'main'; byId('amSetView').hidden = v !== 'set'; byId('pwForm').hidden = v !== 'pw'; byId('delForm').hidden = v !== 'del'; byId('amMoView').hidden = v !== 'mo'; if (v === 'set') { paintPushItem(); paintCtItem(); byId('amMo').hidden = !hasMoments(); byId('amCamp').hidden = !(camp && camp.allowed); paintHeroItem(); if (!heroInfo && token) rpc('life_hero_info', { p_token: token }).then(r => { heroInfo = r; paintHeroItem(); }).catch(() => {}); } }
 function paintHeroItem() { const b = byId('amHero'); b.hidden = !(heroInfo && heroInfo.rooms > 0); byId('amHeroTxt').textContent = '🏃 운동방에도 같이 넣기: ' + (heroInfo && heroInfo.link ? '켬' : '끔'); }
 byId('menuBtn').onclick = () => { amView('main'); byId('amName').textContent = state.me.nickname + '님'; byId('amOp').hidden = !state.op; byId('amBg').hidden = false; };
 byId('amOp').onclick = () => { byId('amBg').hidden = true; goTab('op'); };
@@ -2559,7 +2564,7 @@ byId('amSet').onclick = () => amView('set');
 byId('amMo').onclick = openMoments;
 byId('amHero').onclick = async () => {
   const on = !(heroInfo && heroInfo.link);
-  if (on && !await ask('내가 누른 「운동했어요」를 내가 속한 1단계 운동방(실명 명단)에도 같이 넣을까요?', '같이 넣기')) return;
+  if (on && !await ask('내가 누른 「운동했어요」를 내가 속한 1단계 운동방(실명 명단)에도 같이 넣을까요?\n\n켜면 운동방 조장이 이번 주 운동표를 사진으로 만들어 운동방 카톡방에 올릴 때 내 실명과 운동 여부가 들어가요. 카톡에 올라간 사진은 카카오에 남고 운영자가 지울 수 없어요.\n켜지 않아도 앱은 그대로 쓸 수 있어요.', '같이 넣기')) return;
   try { heroInfo = await rpc('life_set_hero_link', { p_token: token, p_on: on }); paintHeroItem(); toast(on ? '앞으로 운동방에도 같이 넣어요' : '이제 건강 기록에만 남겨요'); } catch (x) { toast(x.message); }
 };
 byId('amCamp').onclick = () => {
@@ -2651,6 +2656,21 @@ byId('amPush').onclick = async () => {
     if (pushSub) { try { await pushSub.unsubscribe(); } catch (e) {} pushSub = null; paintPushItem(); }
     toast(/브라우저/.test(x.message) ? x.message : '알림을 켜지 못했어요. 잠시 뒤 다시 눌러 주세요.');
   }
+};
+/* 카톡 체크표에 내 줄 넣기(2026-11-25 법무사): 처음은 꺼짐. 켠 사람만 조장이 올리는 사진에 들어간다 */
+let ctShareOn = null;
+function paintCtItem() {
+  const b = byId('amCt'); if (!b) return;
+  b.hidden = !pushOpen();
+  if (b.hidden) return;
+  byId('amCtTxt').textContent = '📤 카톡 체크표에 내 줄 넣기: ' + (ctShareOn ? '켬' : '끔');
+  if (ctShareOn === null && token) rpc('life_ct_share', { p_token: token }).then(r => { ctShareOn = !!r.on; paintCtItem(); }).catch(() => {});
+}
+byId('amCt').onclick = async () => {
+  const on = !ctShareOn;
+  if (on && !await ask('조원끼리 서로 확인하고 응원하려고, 조장이 조 카톡방에 올리는 체크표 사진에 내 줄을 넣어요.\n들어가는 것: 아이디, 날마다 아침·점심·저녁 식단을 올렸는지, 운동했는지.\n수면·올린 시각·글·사진은 들어가지 않아요.\n카톡에 올라간 사진은 카카오에 남고 운영자가 지울 수 없어요. 끄면 그다음에 만드는 사진부터 빠져요.\n켜지 않아도 앱은 그대로 쓸 수 있어요.', '넣기')) return;
+  try { const r = await rpc('life_ct_share', { p_token: token, p_on: on }); ctShareOn = !!r.on; paintCtItem(); toast(on ? '이제 카톡 체크표에 내 줄이 들어가요' : '카톡 체크표에서 내 줄을 뺐어요'); }
+  catch (x) { toast(x.message); }
 };
 /* 로그아웃하면 이 기기 알림을 끈다(다른 사람이 이 기기를 써도 조원 소식이 안 뜨게) */
 function pushLogout() {
