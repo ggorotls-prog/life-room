@@ -7,12 +7,13 @@ def ks = System.getenv('KEYSTORE_FILE')
 
 android {
     namespace 'app.liferoom'
-    compileSdk 35
+    // 36 = Android 16. 구글 플레이 새 앱은 36 이상이어야 받는다(2026-11-25). 폰 기능 모듈(healthkit)은 라이프 RPG와 같이 쓰므로 35 그대로
+    compileSdk 36
 
     defaultConfig {
         applicationId 'app.liferoom'
         minSdk 29
-        targetSdk 35
+        targetSdk 36
         versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int)
         versionName "1.${System.getenv('GITHUB_RUN_NUMBER') ?: '0'}"
     }
@@ -28,7 +29,8 @@ android {
         play {
             dimension 'dist'
             applicationId 'app.liferoom.store'
-            manifestPlaceholders = [appLabel: '건강 기록(스토어)']
+            // 폰 아이콘 아래 이름. 스토어로 받는 사람에게 「(스토어)」가 보이지 않게 「건강 기록」(2026-11-25 룡 「시작해」, 이전: 건강 기록(스토어))
+            manifestPlaceholders = [appLabel: '건강 기록']
         }
     }
 

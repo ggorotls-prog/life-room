@@ -12,7 +12,8 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
-        android:supportsRtl="false">
+        android:supportsRtl="false"
+        android:enableOnBackInvokedCallback="false">
 
         <activity
             android:name=".MainActivity"
