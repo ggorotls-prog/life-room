@@ -651,7 +651,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; closeCheer(); byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
+function logout() { pushLogout(); dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; closeCheer(); byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -2531,18 +2531,19 @@ byId('delForm').onsubmit = async e => {
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const pushOk = () => !phone && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+/* 처리방침의 알림 줄이 시행되는 날부터 연다(2026-11-25 법무사: 방침 공개가 먼저, 시행 7일 전 알림) */
+const PUSH_FROM = '2026-12-02', pushOpen = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) >= PUSH_FROM;
 let pushSub = null, pendingCheer = null;
 function paintPushItem() {
   const b = byId('amPush'); if (!b) return;
-  b.hidden = !(!phone && (pushOk() || isIOS));
+  b.hidden = !(pushOpen() && !phone && (pushOk() || isIOS));
   byId('amPushTxt').textContent = '🔔 알림 받기: ' + (pushSub && window.Notification && Notification.permission === 'granted' ? '켬' : '끔');
 }
 async function savePush(sub) { const j = sub.toJSON(); await rpc('life_push_save', { p_token: token, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth }); }
 const b64u = x => { const r = atob((x + '='.repeat((4 - x.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
 if (!phone && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').then(async r => {
-    pushSub = pushOk() ? await r.pushManager.getSubscription() : null;
-    if (pushSub && token) savePush(pushSub).catch(() => {}); /* 다른 계정으로 들어와도 이 폰 알림은 지금 계정으로 */
+    pushSub = pushOk() ? await r.pushManager.getSubscription() : null; /* 다른 계정으로 저절로 옮기지 않는다. 로그아웃하면 끈다 */
     paintPushItem();
   }).catch(() => {});
   navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.open) openFromPush(e.data.open); });
@@ -2557,13 +2558,24 @@ byId('amPush').onclick = async () => {
     try { await rpc('life_push_off', { p_token: token, p_endpoint: pushSub.endpoint }); await pushSub.unsubscribe(); } catch (e) {}
     pushSub = null; paintPushItem(); toast('알림을 껐어요'); return;
   }
+  if (!await ask('[선택] 조원 기록·받은 응원·아침 8시·밤 10시 안내를 알림으로 받아요.\n알림은 Apple·Google 알림 서버(미국 등)를 거쳐 가고, 내용은 암호화돼요.\n켜지 않아도 앱은 그대로 쓸 수 있어요.', '알림 켜기')) return;
   if (await Notification.requestPermission() !== 'granted') { alert('알림이 꺼져 있어요.\n아이폰 설정 → 알림 → 건강 기록에서 「알림 허용」을 켜 주세요.'); return; }
   try {
     const reg = await navigator.serviceWorker.ready, key = await rpc('life_push_key', {});
     pushSub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(key) });
     await savePush(pushSub); paintPushItem(); toast('알림을 켰어요 🔔');
-  } catch (x) { toast('알림을 켜지 못했어요. 잠시 뒤 다시 눌러 주세요.'); }
+  } catch (x) {
+    if (pushSub) { try { await pushSub.unsubscribe(); } catch (e) {} pushSub = null; paintPushItem(); }
+    toast(/브라우저/.test(x.message) ? x.message : '알림을 켜지 못했어요. 잠시 뒤 다시 눌러 주세요.');
+  }
 };
+/* 로그아웃하면 이 기기 알림을 끈다(다른 사람이 이 기기를 써도 조원 소식이 안 뜨게) */
+function pushLogout() {
+  if (!pushSub) return;
+  const sub = pushSub, t = token; pushSub = null;
+  if (t) rpc('life_push_off', { p_token: t, p_endpoint: sub.endpoint }).catch(() => {});
+  sub.unsubscribe().catch(() => {});
+}
 /* 알림을 누르면: 조원 글 → 히스토리에서 그 글의 응원 한마디 창 · 받은 응원 → 히스토리 */
 function openFromPush(u) {
   try {
