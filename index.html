@@ -132,6 +132,7 @@
   .ct .cs, .ct .ce { height: 9px; } .ct .cs.on { background: #8e7cc3; } .ct .ce.on { background: #e06666; }
   .ct .cm { display: flex; } .ct .cm span { flex: 1; font-size: 12px; line-height: 22px; color: #bbb; } .ct .cm span.on { background: #b6d7a8; color: #173404; font-weight: 800; }
   .ct-lg { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 0; font-size: 12px; color: var(--sub); } .ct-lg i { display: inline-block; width: 14px; height: 8px; margin-right: 4px; vertical-align: middle; }
+  .mc span.fast, .ct .cm span.fast { background: #3d6fb5; color: #fff; font-weight: 800; } /* 금식(2026-11-25 룡) */
   .mc { display: inline-flex; gap: 2px; margin-left: 2px; } .mc span { font-size: 12px; min-width: 20px; height: 22px; line-height: 22px; border-radius: 6px; background: var(--line); color: var(--sub); text-align: center; } .mc span.on { background: var(--main-soft); color: var(--main); font-weight: 700; }
   /* 1단계 운동표(관리자 사이트와 같은 모양) */
   #shotArea .xt { overflow: visible; border-radius: 0; }
@@ -583,7 +584,7 @@ function boardIcons(b, isCamp) {
   /* 순서 = 수면 · 운동 · 식단(아·점·저 글자), 2026-11-25 룡 */
   return `<span class="pi">${pieIcon([b.wake, b.bed], ['var(--sun)', '#2b3a67'], '기상 ' + yn(b.wake) + ', 취침 ' + yn(b.bed))}<i>${b.wake && !b.bed ? '☀️' : b.bed ? '🌙' : '💤'}</i></span>`
     + `<span class="pi">${pieIcon([b.ex], 'var(--main)', '운동 ' + yn(b.ex))}<i>🏃</i></span>`
-    + `<span class="mc" role="img" aria-label="식단 ${MEAL3.map(([k, n]) => n + ' ' + yn(has(meals, k))).join(', ')}">${MEAL3.map(([k, n]) => `<span class="${has(meals, k) ? 'on' : ''}">${n[0]}</span>`).join('')}</span>`
+    + `<span class="mc" role="img" aria-label="식단 ${MEAL3.map(([k, n]) => n + ' ' + yn(has(meals, k))).join(', ')}">${MEAL3.map(([k, n]) => `<span class="${has(b.fasts || [], k) ? 'fast' : has(meals, k) ? 'on' : ''}">${n[0]}</span>`).join('')}</span>`
     + (isCamp ? `<span class="pi">${pieIcon(SUPP5.map(([k]) => has(supps, k)), '#c9822b', '영양제 ' + supps.length + '/' + SUPP5.length)}<i>💊</i></span>` : '');
 }
 /* 관리자 화면(2026-11-20 룡 「관리자는 앱에서 사이트 페이지를 다 볼 수 있게」): 관리하는 방이 있는 사람에게만 버튼이 보인다.
@@ -873,7 +874,7 @@ function renderAuth(mode) {
         <details><summary>자세히 보기</summary><ul>
           <li><b>받는 것</b>: 아이디·비밀번호, ${apply ? '「누구와 함께하나요?」에 적은 닉네임(가입 승인에만 쓰고 승인되면 지웁니다), ' : ''}건강에 관한 기록(기상·취침 시각, 컨디션, 운동, 식단 사진·글(금식 포함), 영양제 체크, 「잘게요」를 푼 사유)</li>
           <li><b>쓰는 곳</b>: 내 기록 보관, 우리 조와 함께 보고 응원, 조장·관리자의 돌봄, 운영자의 조 운영 살피기. 광고·판매에는 쓰지 않습니다. 다른 목적에 쓰려면 그때 다시 동의를 받습니다.</li>
-          <li><b>보는 사람</b>: 운동·식단·영양제와 「했는지」 표시는 내가 속한 모든 조의 사람이 봅니다. 금식은 처음에는 나만 봅니다. 글·사진마다 「나만 보기」로 숨길 수 있습니다. 기상·취침 시각과 컨디션은 조장·관리자만 봅니다. 운영자는 조 이름·조장·조원 아이디와 기록 없는 날수를 보고, 글·사진·시각은 앱을 고칠 때만 필요한 만큼 봅니다.</li>
+          <li><b>보는 사람</b>: 운동·식단·영양제와 「했는지」 표시는 내가 속한 모든 조의 사람이 봅니다. 금식은 2026-12-01까지는 처음에 나만 보고, 2026-12-02부터는 처음부터 조에 보입니다. 글·사진마다 「나만 보기」로 숨길 수 있습니다. 기상·취침 시각과 컨디션은 조장·관리자만 봅니다. 운영자는 조 이름·조장·조원 아이디와 기록 없는 날수를 보고, 글·사진·시각은 앱을 고칠 때만 필요한 만큼 봅니다.</li>
           <li><b>카톡방에 올리는 표</b>: 조장은 체크표 사진을 조 카톡방에 올려요. 체크표에는 내 닉네임과 식단을 올렸는지, 운동했는지가 나와요. 1단계 운동방에도 들어가 있으면 내 「운동했어요」가 그 운동방에도 실명으로 올라가요. 그 운동방 조장은 운동표 사진을 카톡방에 올려요. 카톡에 올라간 사진은 카카오에 남고 운영자가 지울 수 없어요.</li>
           <li><b>보관</b>: 탈퇴할 때까지 보관하고, 탈퇴하면 바로 지웁니다. 1년 동안 쓰지 않으면 지웁니다. 저장은 Supabase에 합니다(서버는 서울, 관리 중 싱가포르·미국에서 처리될 수 있음).</li>
           <li><b>동의하지 않을 수 있습니다.</b> 다만 이 앱은 기록이 전부라 동의하지 않으면 가입할 수 없습니다.</li>
@@ -1809,7 +1810,7 @@ async function renderLeader() {
 
 /* 「조」 탭(2026-11-24 룡): 첫 화면은 기록만. 조는 여기에 모은다.
    - 단계별 조 칸(1단계 운동방 · 2단계 · 3단계). 칸을 누르면 그 조의 오늘 모습이 아래에 열린다
-   - 조장·운영자에게는 맨 위에 「관심이 필요한 사람」(생활개선 조 3일, 운동방 5일 넘게 기록 없음)과 칸 오른쪽 위 빨간 숫자 */
+   - 조장·운영자에게는 맨 위에 「관심이 필요한 사람」(생활개선 조 3일, 운동방 3일 넘게 기록 없음, 2026-11-25 룡)과 칸 오른쪽 위 빨간 숫자 */
 let groupsView = null, groupOpen = null;
 function groupCards(v) {
   const boss = r => r === 'leader' || r === 'owner';
@@ -2261,7 +2262,7 @@ async function loadCt(gid, boss, still) {
     if (my !== n || !still() || !byId('ctBox')) return;
     byId('ctBox').innerHTML = `<h2 class="sect-h st${d.stage}"><span>📊 ${back ? '지난주' : '이번 주'} 체크표</span><button type="button" class="backb" id="ctLast">${back ? '이번 주 보기' : '지난주 보기'}</button></h2>
       <div class="ct st${d.stage}">${ctHtml(d)}</div>
-      <div class="ct-lg">${d.boss ? '<span><i style="background:#8e7cc3"></i>윗줄 수면</span>' : ''}<span><i style="background:#b6d7a8"></i>아·점·저 식단</span><span><i style="background:#e06666"></i>아랫줄 운동</span></div>
+      <div class="ct-lg">${d.boss ? '<span><i style="background:#8e7cc3"></i>윗줄 수면</span>' : ''}<span><i style="background:#b6d7a8"></i>아·점·저 식단</span><span><i style="background:#3d6fb5"></i>금식</span><span><i style="background:#e06666"></i>아랫줄 운동</span></div>
       ${boss && pushOpen() ? `<button type="button" class="main" id="ctGo" style="margin-top:12px">📤 체크표 공유하기</button>
       <p class="sub" style="margin:6px 0 0;font-size:12px">체크표를 사진 한 장으로 만들어 드려요. 이름 대신 닉네임이 들어가고, 잠든 시각·일어난 시각과 컨디션은 들어가지 않아요. 카톡방에 올리는 표에는 동의한 조원만 들어가요.</p>` : ''}`;
     /* 공유는 조장만, 처리방침 시행(12-02)부터. 사진에는 본인이 켠 사람만 · 수면 줄 없음(2026-11-25 룡·법무사) */
@@ -2282,7 +2283,7 @@ function ctHtml(d) {
       const c = (m.days || {})[x] || {}, ms = c.m || [];
       if (x > d.today) { h += '<td></td>'; return; }
       h += '<td>' + (c.s === null || c.s === undefined ? '' : '<div class="cs' + (c.s ? ' on' : '') + '"></div>')
-        + '<div class="cm">' + MEAL3.map(([k, n]) => '<span class="' + (ms.includes(k) ? 'on' : '') + '">' + n[0] + '</span>').join('') + '</div>'
+        + '<div class="cm">' + MEAL3.map(([k, n]) => '<span class="' + ((c.f || []).includes(k) ? 'fast' : ms.includes(k) ? 'on' : '') + '">' + n[0] + '</span>').join('') + '</div>'
         + '<div class="ce' + (c.e ? ' on' : '') + '"></div></td>';
     });
     h += '</tr>';
