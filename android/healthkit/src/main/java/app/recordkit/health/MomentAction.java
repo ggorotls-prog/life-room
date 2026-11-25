@@ -21,6 +21,7 @@ public class MomentAction extends BroadcastReceiver {
         int nid = intent.getIntExtra("nid", 0);
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (a.endsWith(".alarm_off")) { WakeAlarm.stop(c); return; }
+        if (a.endsWith(".cheer")) { cheer(c, intent, nm, nid); return; } // 한마디가 비면 알림을 남겨 다시 적게 한다
         if (nid != 0) nm.cancel(nid);
         if (a.endsWith(".meal_no") || a.endsWith(".ex_no")) return;
         String data = intent.getStringExtra("data"), slot = intent.getStringExtra("slot");
@@ -58,6 +59,30 @@ public class MomentAction extends BroadcastReceiver {
                     String err = Moments.post(c, "exercise", null, null, data);
                     Moments.info(c, err == null ? "「" + data + "」 적었어요 💪" : err, err == null);
                 }
+            } finally { pr.finish(); }
+        }).start();
+    }
+
+    /** 조원 글 알림의 「👏 응원 한마디」(2026-11-25 룡). 서버 life_cheer는 빈 한마디를 받지 않는다 */
+    private void cheer(Context c, Intent intent, NotificationManager nm, int nid) {
+        android.os.Bundle r = android.app.RemoteInput.getResultsFromIntent(intent);
+        CharSequence t = r == null ? null : r.getCharSequence("text");
+        String msg = t == null ? "" : t.toString().trim();
+        String who = intent.getStringExtra("who");
+        long post = intent.getLongExtra("post", 0);
+        if (msg.isEmpty() || post == 0) { Moments.info(c, "응원 한마디를 적어 주세요", false); return; }
+        if (nid != 0) nm.cancel(nid);
+        if (msg.codePointCount(0, msg.length()) > 100) msg = msg.substring(0, msg.offsetByCodePoints(0, 100));
+        String token = Moments.p(c).getString("m_token", null);
+        if (token == null) { Moments.info(c, "응원을 보내려면 앱에서 다시 로그인해 주세요", false); return; }
+        final String m = msg;
+        PendingResult pr = goAsync();
+        new Thread(() -> {
+            try {
+                String res = Moments.call("life_cheer", new org.json.JSONObject().put("p_token", token).put("p_post", post).put("p_msg", m));
+                Moments.info(c, res != null ? (who == null ? "" : who + "님께 ") + "응원을 보냈어요 👏" : "응원을 못 보냈어요. 앱을 열고 다시 보내 주세요", res != null);
+            } catch (Exception e) {
+                Moments.info(c, "응원을 못 보냈어요. 앱을 열고 다시 보내 주세요", false);
             } finally { pr.finish(); }
         }).start();
     }

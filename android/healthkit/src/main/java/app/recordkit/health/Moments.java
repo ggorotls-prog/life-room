@@ -48,7 +48,8 @@ public final class Moments {
     static final String KEY = "sb_publishable_BqE1VCDg50oi9zCflCjMuw_wYF55CTj"; // 사이트에 공개된 키와 같음
     static final String CH_MEAL = "moment_meal", CH_EX = "moment_ex", CH_INFO = "moment_info", CH_FEED = "moment_feed", CH_ASK = "moment_mealask";
     static final int JOB_PHOTO = 7101, JOB_EX = 7102, JOB_FEED = 7103;
-    static final int N_MEAL = 7201, N_EX = 7202, N_INFO = 7204, N_FEED = 7205, N_ASK = 7206;
+    static final int N_MEAL = 7201, N_EX = 7202, N_INFO = 7204, N_FEED = 7205, N_ASK = 7206, N_POST = 20000; // N_POST ~ 20000+499: 조원 글마다(운동 묻기 7202~17192와 안 겹치게)
+    static final String G_FEED = "app.recordkit.health.feed";
     static final String[] SLOTS = {"breakfast", "lunch", "dinner"};
     static final String[] SLOT_NAMES = {"아침", "점심", "저녁"};
     static final String DEFAULT_TIMES = "6-10,11-14,17-21"; // 룡 OK 2026-11-16, 화면에서 바꿀 수 있다
@@ -229,26 +230,44 @@ public final class Moments {
             java.util.ArrayList<String> lines = new java.util.ArrayList<>();
             for (int i = 0; cheers != null && i < cheers.length(); i++) {
                 JSONObject x = cheers.getJSONObject(i);
-                lines.add("👏 " + x.optString("nickname") + "님이 " + what(x) + " 기록을 응원했어요");
+                lines.add("👏 " + x.optString("nickname") + "님이 내 " + what(x) + " 기록을 응원했어요");
             }
-            for (int i = 0; posts != null && i < posts.length(); i++) {
+            // 받은 응원은 알림 하나로 모은다
+            if (!lines.isEmpty()) {
+                Notification.Builder b = new Notification.Builder(c, channel(c, CH_FEED))
+                        .setSmallIcon(icon(c))
+                        .setContentTitle(lines.size() == 1 ? lines.get(0) : "응원이 " + lines.size() + "개 왔어요")
+                        .setContentIntent(openApp(c, 5))
+                        .setGroup(G_FEED)
+                        .setAutoCancel(true);
+                if (lines.size() > 1) {
+                    Notification.InboxStyle st = new Notification.InboxStyle();
+                    for (int i = 0; i < Math.min(lines.size(), 6); i++) st.addLine(lines.get(i));
+                    b.setContentText(lines.get(lines.size() - 1)).setStyle(st);
+                }
+                notify(c, N_FEED, b.build());
+            }
+            // 조원이 올린 글은 글마다 알림 하나 + 「👏 응원 한마디」(2026-11-25 룡). 알림 안에서 한마디를 적어 보낸다(한마디는 꼭 적는다, 추천 문구 없음)
+            for (int i = 0; posts != null && i < posts.length() && i < 6; i++) {
                 JSONObject x = posts.getJSONObject(i);
+                long id = x.optLong("id");
                 String note = x.isNull("note") ? "" : x.optString("note");
-                lines.add(x.optString("nickname") + "님이 " + what(x) + (note.isEmpty() ? "" : "(" + note + ")") + "을 올렸어요");
+                String who = x.optString("nickname");
+                int nid = N_POST + (int) (id % 500);
+                Intent ri = new Intent(c, MomentAction.class).setAction("app.recordkit.health.cheer")
+                        .putExtra("post", id).putExtra("who", who).putExtra("nid", nid);
+                PendingIntent rp = PendingIntent.getBroadcast(c, 7600 + (int) (id % 500), ri, PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                android.app.RemoteInput in = new android.app.RemoteInput.Builder("text").setLabel(who + "님께 응원 한마디").build();
+                Notification.Builder b = new Notification.Builder(c, channel(c, CH_FEED))
+                        .setSmallIcon(icon(c))
+                        .setContentTitle(who + "님이 " + what(x) + "을 올렸어요")
+                        .setContentText(note.isEmpty() ? "응원 한마디를 남겨 주세요" : note)
+                        .setContentIntent(openApp(c, 5))
+                        .addAction(new Notification.Action.Builder(null, "👏 응원 한마디", rp).addRemoteInput(in).build())
+                        .setGroup(G_FEED)
+                        .setAutoCancel(true);
+                notify(c, nid, b.build());
             }
-            if (lines.isEmpty()) return;
-            String title = lines.size() == 1 ? lines.get(0) : "우리 조 소식 " + lines.size() + "개";
-            Notification.Builder b = new Notification.Builder(c, channel(c, CH_FEED))
-                    .setSmallIcon(icon(c))
-                    .setContentTitle(title)
-                    .setContentIntent(openApp(c, 5))
-                    .setAutoCancel(true);
-            if (lines.size() > 1) {
-                Notification.InboxStyle st = new Notification.InboxStyle();
-                for (int i = 0; i < Math.min(lines.size(), 6); i++) st.addLine(lines.get(i));
-                b.setContentText(lines.get(lines.size() - 1)).setStyle(st);
-            } else b.setContentText("눌러서 응원해 주세요");
-            notify(c, N_FEED, b.build());
         } catch (Exception ignored) {}
     }
 

@@ -46,6 +46,8 @@ public abstract class DayReminder extends BroadcastReceiver {
         if (Intent.ACTION_BOOT_COMPLETED.equals(a) || Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)) { schedule(c, getClass()); return; }
         if (skip(c)) return;
         boolean morning = intent.getIntExtra("hour", MORNING) == MORNING;
+        // 이미 취침을 눌렀으면 밤 알림은 울리지 않는다(2026-11-25 룡)
+        if (!morning && (SleepLock.isLocked(c) || Moments.today().equals(Moments.p(c).getString("m_bed_day", "")))) return;
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel(channel(), "아침·밤 기록 알림", NotificationManager.IMPORTANCE_DEFAULT));
         PendingIntent open = PendingIntent.getActivity(c, 0, new Intent(c, screen()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE);
@@ -53,7 +55,7 @@ public abstract class DayReminder extends BroadcastReceiver {
             nm.notify(morning ? 1 : 2, new Notification.Builder(c, channel())
                     .setSmallIcon(smallIcon())
                     .setContentTitle(morning ? "좋은 아침이에요 ☀️" : "오늘 하루 수고하셨어요 🌙")
-                    .setContentText(morning ? "일어난 시간을 적어 주세요" : "주무시기 전에 오늘을 마감해 주세요")
+                    .setContentText(morning ? "일어난 시간을 적어 주세요" : "주무시기 전에 하루를 마감해 주세요")
                     .setContentIntent(open)
                     .setAutoCancel(true)
                     .build());

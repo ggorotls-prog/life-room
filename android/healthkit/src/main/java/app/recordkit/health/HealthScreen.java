@@ -219,6 +219,8 @@ public abstract class HealthScreen extends Activity {
     private class Bridge {
         @JavascriptInterface
         public void lock() {
+            // 취침을 누른 날은 밤 10시 「오늘 하루 수고하셨어요」를 울리지 않는다(2026-11-25 룡 「취침수면은 알람 안 남도록」)
+            Moments.p(HealthScreen.this).edit().putString("m_bed_day", Moments.today()).apply();
             runOnUiThread(() -> {
                 if (!lockReady()) {
                     js("window.lifeLockFailed && lifeLockFailed()");
