@@ -471,6 +471,8 @@ async function rpc(fn, args, keepLogin) {
     throw new Error('저장이 안 됐어요. 다시 눌러 주세요. 계속 안 되면 운영자에게 말해 주세요.');
   }
   if (CAMP_SITE && d && d.me && d.today) d.only3 = true; /* 셀체인지 주소: 다른 조에 있어도 히스토리·조 탭을 보이지 않는다 */
+  /* 건강 기록 주소: 3단계(셀체인지)는 숨긴다(2026-11-26 룡 「앱은 1·2단계만, 3단계는 없애지 말고 숨겨만」). 코드는 남겨 셀체인지 주소에서 쓴다 */
+  if (!CAMP_SITE && d && d.me && d.today) { d.camp3 = false; d.only3 = false; d.lead3 = null; }
   return d;
 }
 
@@ -972,6 +974,7 @@ function bindSchedule(box) {
   };
 }
 function paintCamp(force) {
+  if (!CAMP_SITE) { const b0 = byId('campBox'); if (b0) b0.innerHTML = ''; return; } /* 건강 기록 주소: 3단계 숨김(2026-11-26) */
   const box = byId('campBox'); if (!box) return;
   if (camp && !camp.allowed) { campEdit = false; campDraft = null; box.innerHTML = ''; paintCampJoin(); return; } /* 열어 준 사람(캠프 조)에게만 보인다 */
   if (campEdit) { if (camp) campForm(box); return; }
@@ -1036,6 +1039,7 @@ function paintCampJoin() {
   };
 }
 async function loadCamp() {
+  if (!CAMP_SITE) return; /* 건강 기록 주소: 3단계 숨김(2026-11-26) */
   paintCamp();
   try { camp = await rpc('life_camp', { p_token: token }); paintCamp(); }
   catch (e) { if (campEdit) { campEdit = false; toast('캠프 설정을 불러오지 못했어요. 다시 눌러 주세요.'); } }
@@ -2546,7 +2550,7 @@ function groupCards(v) {
   const cards = [];
   /* 운영자라서만 보이는 운동방은 뺀다(2026-11-24 룡: 조 탭은 내가 조장·조원인 조만. 운영자 화면은 따로) */
   (v.rooms || []).filter(r => r.role !== 'owner').forEach(r => cards.push({ key: 'r' + r.id, stage: 1, name: r.name, role: r.role, leader: r.leader, alerts: r.alerts || [], n: r.n, what: '운동 없음', room: true }));
-  (v.groups || []).forEach(g => cards.push({ key: 'g' + g.id, stage: g.stage || 2, name: g.name, role: g.role, leader: g.leader, alerts: g.alerts || [], members: g.members || [], n: (g.members || []).length, what: '기록 없음' }));
+  (v.groups || []).filter(g => CAMP_SITE || (g.stage || 2) !== 3).forEach(g => cards.push({ key: 'g' + g.id, stage: g.stage || 2, name: g.name, role: g.role, leader: g.leader, alerts: g.alerts || [], members: g.members || [], n: (g.members || []).length, what: '기록 없음' }));
   return { cards, boss };
 }
 function paintGroups() {
@@ -2583,8 +2587,8 @@ function paintGroups() {
     const rows = c.members.map(b => `<div class="row${b.mine ? ' mine' : ''}"><div class="nm">${esc(b.nickname)}<span class="fire">${b.streak >= 2 ? '🔥 ' + b.streak + '일째' : ''}</span></div>${b.roster ? '' : `<div class="dots icons">${boardIcons(b, !!b.camp)}</div>`}</div>`).join('');
     return `<h2>${esc(c.name)} <span class="sub" style="font-weight:400">${c.role === 'owner' ? '명단' : '오늘'}</span></h2>${al}<div class="card" style="padding:4px 16px">${rows || '<p class="sub" style="margin:12px 0">아직 조원이 없어요.</p>'}</div>`;
   };
-  setInvCount((v.invites || []).length);
-  const inv = (v.invites || []).map(i => `<div class="card" style="margin:0 0 12px"><b>📩 ${esc(i.name)}</b> <span class="sub">${i.stage}단계${i.by ? ' · ' + esc(i.by) + '님이 초대했어요' : ''}</span>
+  setInvCount((v.invites || []).filter(i => CAMP_SITE ? i.stage === 3 : i.stage !== 3).length);
+  const inv = (v.invites || []).filter(i => CAMP_SITE ? i.stage === 3 : i.stage !== 3).map(i => `<div class="card" style="margin:0 0 12px"><b>📩 ${esc(i.name)}</b> <span class="sub">${i.stage}단계${i.by ? ' · ' + esc(i.by) + '님이 초대했어요' : ''}</span>
       <p class="sub" style="margin:4px 0 0">${invWhat(i.stage)}</p>
       <div class="exbox"><button type="button" data-inv="${i.group}" data-yes="1" style="flex:1">들어갈게요</button><button type="button" data-inv="${i.group}" style="flex:1;background:var(--card);border:1.5px solid var(--line);color:var(--ink)">안 들어갈게요</button></div></div>`).join('');
   /* 「조 코드 넣기」는 위쪽 작은 버튼(2026-11-24 룡 「아래에 너무 크게 있어서 불편」). 누르면 칸이 펴진다. 조가 하나도 없으면 처음부터 펴 둔다 */
@@ -2595,7 +2599,7 @@ function paintGroups() {
     ${inv}
     ${v.through > 0 ? `<div class="thru">나를 통해 지금<span><b>${v.through}명</b>의</span>삶이 변하는 중</div>` : ''}
     ${warn.length ? `<div class="gwarn"><b>관심이 필요한 사람 ${warn.length}명</b>${warn.slice(0, 8).map(a => `<div>${esc(a.nickname)} · ${esc(a.group)} · ${a.days}일째 ${a.what}</div>`).join('')}${warn.length > 8 ? `<div>…그 밖에 ${warn.length - 8}명</div>` : ''}</div>` : ''}
-    ${cards.length || v.maker ? sect(1) + sect(2) + sect(3) : ''}
+    ${cards.length || v.maker ? sect(1) + sect(2) + (CAMP_SITE ? sect(3) : '') : ''}
     <div id="gDetail">${detail(open)}</div>
 `;
   /* 내가 조장인 조 칸 = 그 조 화면으로 넘어간다. 조원인 조 칸 = 아래에 오늘 모습을 편다(2026-11-24 룡) */
@@ -2760,7 +2764,7 @@ async function checkInvites(force) {
   const tk = token, seq = ++invSeq;
   let v; try { v = await rpc('life_groups_view', { p_token: token }); } catch (e) { return; }
   if (tk !== token || seq !== invSeq) return; /* 그 사이 초대에 답했으면 옛 응답은 버린다 */
-  const list = (v.invites || []).filter(i => !CAMP_SITE || i.stage === 3); /* 셀체인지 주소: 캠프 조 초대만 */
+  const list = (v.invites || []).filter(i => CAMP_SITE ? i.stage === 3 : i.stage !== 3); /* 셀체인지 주소: 캠프 조 초대만 */
   setInvCount(list.length);
   showInvite(list);
   if (byId('invBg').hidden && !CAMP_SITE) ctConsent();
