@@ -26,6 +26,8 @@ android {
 dependencies {
     // 카메라로 찍은 사진 파일 넘겨받기(FileProvider)
     api 'androidx.core:core:1.13.1'
+    // 구글 로그인을 크롬 창(Custom Tab)으로 열기(2026-11-26). 앱 안 화면에서는 구글이 로그인을 막는다
+    implementation 'androidx.browser:browser:1.8.0'
     // 삼성 헬스 → Health Connect 운동 읽기. 1.1.0 정식판은 compileSdk 36·AGP 8.9가 필요해서 지금 빌드(35·8.7.3)에 맞는 판
     implementation 'androidx.health.connect:connect-client:1.1.0-beta01'
 }

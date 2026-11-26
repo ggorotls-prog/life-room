@@ -83,7 +83,7 @@ public abstract class HealthScreen extends Activity {
             }
 
             @Override
-            public void onPageFinished(WebView view, String url) { onPageReady(); }
+            public void onPageFinished(WebView view, String url) { pageLoaded = true; sendAuth(); onPageReady(); }
 
             // 폰이 메모리가 모자라 화면을 끊어도 앱이 같이 꺼지지 않게 다시 연다
             @Override
@@ -121,11 +121,13 @@ public abstract class HealthScreen extends Activity {
 
         web.addJavascriptInterface(new Bridge(), "LifeRoom");
         web.loadUrl(BASE);
-        askAccessibility(false);
+        // 취침 잠금(접근성)은 쓰지 않는다(2026-11-26 룡 「모든 판에서 빼」). 처음 열 때 접근성을 켜 달라고 묻지 않는다
+        // askAccessibility(false);
         // 「그 순간에 먼저 묻기」(Moments)·기상 알람이 알림을 누르면 이 화면을 연다(건강 기록 앱 / 라이프 RPG 🏠 집)
         getSharedPreferences(SleepLock.PREFS, MODE_PRIVATE).edit().putString("m_screen", getClass().getName()).apply();
         Moments.schedule(this);
         alarmWindow(getIntent());
+        authIntent(getIntent());
     }
 
     @Override
@@ -133,6 +135,33 @@ public abstract class HealthScreen extends Activity {
         super.onNewIntent(i);
         setIntent(i);
         alarmWindow(i);
+        authIntent(i);
+    }
+
+    // ---- 구글 로그인(2026-11-26 룡 「둘 다 구글 로그인」) ----
+    // 구글은 앱 안에 띄운 사이트 화면에서의 로그인을 막는다. 그래서 크롬 창을 열어 로그인하고,
+    // 끝나면 앱 전용 주소(<앱 이름표>://auth?code=…)로 돌아온다. 받은 code는 사이트(window.lifeAuthCode)에 넘기기만 한다.
+    // 그 code는 사이트가 처음에 만든 짝(PKCE)이 없으면 못 쓰므로, 다른 앱이 가로채도 로그인되지 않는다.
+    static final String AUTH_BASE = "https://trlnatdkebjvgiqneulv.supabase.co/auth/v1/authorize?";
+    private String pendingAuth;
+    private boolean pageLoaded;
+
+    private void authIntent(Intent i) {
+        Uri d = i == null ? null : i.getData();
+        if (d == null || !getPackageName().equals(d.getScheme()) || !"auth".equals(d.getHost())) return;
+        String c = null;
+        try { c = d.getQueryParameter("code"); } catch (Exception ignored) {}
+        pendingAuth = c != null && c.matches("[A-Za-z0-9._~-]{1,200}") ? c : "";
+        i.setData(null);
+        sendAuth();
+    }
+
+    /** 사이트가 열려 있을 때만 넘긴다(앱이 꺼졌다 켜진 경우는 다 열린 뒤에) */
+    private void sendAuth() {
+        if (pendingAuth == null || !pageLoaded) return;
+        String c = pendingAuth;
+        pendingAuth = null;
+        js("window.lifeAuthCode && lifeAuthCode('" + c + "')");
     }
 
     private boolean installed(String pkg) {
@@ -411,6 +440,22 @@ public abstract class HealthScreen extends Activity {
                 try { startActivity(new Intent(act, Uri.parse("package:" + getPackageName()))); }
                 catch (Exception e) {
                     try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) {}
+                }
+            });
+        }
+
+        // ---- 구글 로그인: 돌아올 주소를 알려 주고, 크롬 창을 연다(구글 로그인 주소만) ----
+        @JavascriptInterface
+        public String authRedirect() { return getPackageName() + "://auth"; }
+
+        @JavascriptInterface
+        public void openAuth(String url) {
+            if (url == null || !url.startsWith(AUTH_BASE)) return;
+            runOnUiThread(() -> {
+                Uri u = Uri.parse(url);
+                try { new androidx.browser.customtabs.CustomTabsIntent.Builder().build().launchUrl(HealthScreen.this, u); }
+                catch (Exception e) {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception ignored) {}
                 }
             });
         }
