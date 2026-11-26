@@ -2523,7 +2523,7 @@ async function renderLeader() {
     if (/[\\/:*?"<>|]/.test(v)) { byId('mgGnErr').textContent = '이름에 / \ : * ? " < > | 는 못 써요.'; return; }
     if (v === g.name) return;
     go.disabled = true;
-    try { await lcCall('lc_rename_room', { p_kind: 'group', p_id: String(gid), p_name: v }); toast('조 이름을 바꿨어요'); groupsView = null; manageKey = null; goTab('group'); }
+    try { await rpc('life_group_rename', { p_token: token, p_group: +gid, p_name: v }); toast('조 이름을 바꿨어요'); /* 2026-11-26: 업무 계정 없는 조장도 되게 건강 기록 열쇠로 */ groupsView = null; manageKey = null; goTab('group'); }
     catch (x) { byId('mgGnErr').textContent = x.message; go.disabled = false; }
   };
   const ig = byId('mgInvGo');
@@ -2564,14 +2564,16 @@ function paintGroups() {
   const roleName = c => c.role === 'leader' ? '조장' : c.role === 'owner' ? (c.leader ? '조장 ' + esc(c.leader) : '운영자') : '조원';
   const sect = st => {
     const list = cards.filter(c => c.stage === st);
-    if (!list.length && !v.maker) return '';
+    if (!list.length && !(st === 1 ? v.maker && v.maker1 !== false : v.maker)) return '';
     const cn = st < 3 && list.some(c => c.role === 'leader');
     const NAME = { 1: '1단계 · 운동방', 2: '2단계 · 생활개선', 3: '3단계 · 셀체인지 캠프' };
     /* 「➕ 새 방」: 방을 만들 수 있는 계정에게만. 누르면 그 단계 줄 아래에 이름 칸이 펴진다 */
     /* 낱말 통일(2026-11-26 룡, 할 일 526fb02a): 버튼은 모두 「새 조 만들기」, 아래 작은 글씨로 단계 이름. 셀체인지 주소는 「n단계」 없이 */
     const STEP_NAME = CAMP_SITE ? { 1: '운동방', 2: '생활개선', 3: '셀체인지 캠프' } : { 1: '1단계 운동방', 2: '2단계 생활개선', 3: '3단계 셀체인지 캠프' };
-    const add = v.maker ? `<button type="button" class="gcard gnew" data-new="${st}">➕<small>새 조 만들기<br>${STEP_NAME[st]}</small></button>` : '';
-    const box = v.maker ? `<div class="card newbox" data-newbox="${st}" hidden><b>새 조 만들기 · ${STEP_NAME[st]}</b>
+    /* 2·3단계 조는 승인된 누구나, 1단계 운동방은 업무 계정만(maker1, 2026-11-26) */
+    const mk = st === 1 ? v.maker && v.maker1 !== false : v.maker;
+    const add = mk ? `<button type="button" class="gcard gnew" data-new="${st}">➕<small>새 조 만들기<br>${STEP_NAME[st]}</small></button>` : '';
+    const box = mk ? `<div class="card newbox" data-newbox="${st}" hidden><b>새 조 만들기 · ${STEP_NAME[st]}</b>
         <div class="exbox"><input maxlength="20" placeholder="조 이름" autocomplete="off"><button class="pick" type="button">만들기</button></div>
         ${st === 1 ? `<select>${[3, 4, 5, 6, 7].map(n => `<option value="${n}">내 결단 주 ${n}회</option>`).join('')}</select><p class="sub" style="margin:6px 0 0;font-size:12px">만든 사람도 참가자예요. 실명으로 첫 참가자가 돼요.</p>` : '<p class="sub" style="margin:6px 0 0;font-size:12px">만들면 조 코드가 생겨요. 조 화면에서 복사해 전해 주세요.</p>'}
         <div class="err"></div></div>` : '';
@@ -3280,18 +3282,28 @@ async function renderOp() {
   try { v = await rpc('life_op_view', { p_token: token }); }
   catch (x) { if (still() && token) { $app.innerHTML = `${back}<p class="err">${esc(x.message)}</p>`; bindBack(); } return; }
   if (!still()) return;
-  const app = a => `<div class="mem" data-app="${esc(a.id)}"><div class="mem-h"><b>${esc(a.nick)}${a.bad ? ' <small style="color:var(--warn-ink, #b3261e)">4자 아님</small>' : ''}</b><small class="sub">${esc(a.at || '')}</small></div>
-      <p class="sub" style="margin:2px 0 8px">${esc(a.with || '-')}님과 함께</p>
+  const app = a => `<div class="mem" data-app="${esc(a.id)}"><div class="mem-h"><b>${esc(a.nick)}${a.bad ? ' <small style="color:var(--warn-ink, #b3261e)">4자 아님</small>' : ''}</b>${a.google ? ' <small class="sub">구글</small>' : ''}<small class="sub">${esc(a.at || '')}</small></div>
+      <p class="sub" style="margin:2px 0 8px">${a.google ? '소개: ' + esc(a.with || '없음') : esc(a.with || '-') + '님과 함께'}</p>
       <div class="exbox" style="margin-top:0"><button type="button" data-ok style="flex:1">승인</button><button type="button" data-no style="flex:1;background:var(--card);border:1.5px solid var(--line);color:var(--ink)">반려</button></div>
-      <div data-nobox hidden><label class="f" style="margin-top:8px">반려 이유 (비우면 「닉네임을 형식에 맞게」)<input maxlength="60" placeholder="예: 앞 두 자를 꾸미는 말로 바꿔 주세요"></label>
+      <div data-nobox hidden><label class="f" style="margin-top:8px">반려 이유 (비우면 ${a.google ? '「이름을 실명으로 다시 적어 주세요」' : '「닉네임을 형식에 맞게」'})<input maxlength="60" placeholder="${a.google ? '예: 실명(성과 이름)으로 적어 주세요' : '예: 앞 두 자를 꾸미는 말로 바꿔 주세요'}"></label>
       <button type="button" data-no2 style="width:100%">반려 보내기</button></div></div>`;
   const rej = a => `<div class="mem" data-app="${esc(a.id)}"><div class="mem-h"><b>${esc(a.nick || '')}</b><button type="button" class="switch" data-del>지우기</button></div>
-      <p class="sub" style="margin:2px 0 0">${esc(a.with || '-')}님과 함께 · ${esc(a.note || '')}</p></div>`;
+      <p class="sub" style="margin:2px 0 0">${esc(a.note || '')}</p></div>`;
+  /* 조장별 조(2026-11-26 룡 「어느 조장이 어떤 조를 운영하는지」). 처리방침 범위: 조 이름·조장·조원 이름·기록 없는 날수만 */
+  const SN = { 1: '1단계 운동방', 2: '2단계', 3: '3단계 셀체인지' };
+  const byLeader = {};
+  (v.groups || []).forEach(g => { (byLeader[g.leader] = byLeader[g.leader] || []).push(g); });
+  const leadersHtml = Object.keys(byLeader).sort().map(name => `<div class="mem"><div class="mem-h"><b>${esc(name)}</b><small class="sub">조 ${byLeader[name].length}개</small></div>
+      ${byLeader[name].map(g => `<p class="sub" style="margin:4px 0 0"><b style="color:var(--ink)">${esc(g.name)}</b> · ${SN[g.stage] || g.stage + '단계'} · ${g.members.length}명${g.members.filter(x => x.days >= 3).length ? ` · <span style="color:var(--warn-ink, #b3261e)">${g.members.filter(x => x.days >= 3).map(x => esc(x.nickname) + ' ' + x.days + '일째').join(', ')}</span>` : ''}</p>`).join('')}</div>`).join('');
+  const roomsHtml = (v.rooms || []).map(r => `<p class="sub" style="margin:4px 0"><b style="color:var(--ink)">${esc(r.name)}</b> · 조장 ${esc(r.leader || '-')} · ${r.n}명</p>`).join('');
   $app.innerHTML = `${back}<h1>운영자 화면</h1>
     <h2>가입 신청 ${v.apps.length}</h2>
     <div class="card" style="padding:4px 16px">${v.apps.map(app).join('') || '<p class="sub" style="margin:12px 0">기다리는 신청이 없어요.</p>'}</div>
-    ${v.rejected.length ? `<h2>반려한 신청 ${v.rejected.length}</h2><p class="sub" style="margin:-4px 0 8px">본인이 닉네임을 고쳐 다시 신청하면 위로 올라와요.</p>
-    <div class="card" style="padding:4px 16px">${v.rejected.map(rej).join('')}</div>` : ''}`;
+    ${v.rejected.length ? `<h2>반려한 신청 ${v.rejected.length}</h2><p class="sub" style="margin:-4px 0 8px">본인이 고쳐 다시 신청하면 위로 올라와요.</p>
+    <div class="card" style="padding:4px 16px">${v.rejected.map(rej).join('')}</div>` : ''}
+    <h2>조장별 조 ${(v.groups || []).length}</h2><p class="sub" style="margin:-4px 0 8px">빨간 글씨 = 3일 넘게 기록이 없는 사람</p>
+    <div class="card" style="padding:4px 16px">${leadersHtml || '<p class="sub" style="margin:12px 0">아직 조가 없어요.</p>'}</div>
+    ${roomsHtml ? `<h2>1단계 운동방 ${(v.rooms || []).length}</h2><div class="card" style="padding:8px 16px">${roomsHtml}</div>` : ''}`;
   bindBack();
   const decide = async (btn, id, what, note) => {
     btn.disabled = true;
