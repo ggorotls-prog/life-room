@@ -625,15 +625,18 @@ function schPmBox() {
 let mealOpen = null, bedOpen = false;
 let amOpt = { wakes: null, digest: null, bowel: null, wake: null, cond: null, why: null, bed: null }, exPick = { min: null, what: '' }, mealShot = {}, wkDraft = {}, chkDraft = null;
 const hmBan = t => { if (!t) return ''; const h = +t.slice(0, 2), m = +t.slice(3, 5); return h + '시' + (m === 30 ? ' 반' : m ? ' ' + m + '분' : ''); }; /* 24시 표기(2026-11-25 룡) */
+/* 아침 컨디션 체크 카톡 글 = 조장이 올리는 짧은 양식(COACH_FORM_SHORT)과 같은 꼴(2026-11-28 룡 「아내 기록도 이 폼에 맞춰줘야지」). 이유 글은 조장·나만 보는 것이라 넣지 않는다 */
 function amText() {
   const d0 = state.day || {}, w = amOpt.wakes;
-  const d = { ...d0, wake: amOpt.wake ? amOpt.wake + ':00' : d0.wake, condition: amOpt.cond || d0.condition, condition_note: amOpt.why != null ? amOpt.why : d0.condition_note };
-  if (d.condition === 2) d.condition_note = '';
+  const d = { ...d0, wake: amOpt.wake ? amOpt.wake + ':00' : d0.wake, condition: amOpt.cond || d0.condition };
   const yb = state.yesterday_bed || (amOpt.bed ? amOpt.bed + ':00' : null);
-  const sleep = (yb ? hmBan(yb) + '에 자서 ' : '') + (d.wake ? hmBan(d.wake) + ' 기상' : '') + (w == null ? '' : (d.wake || state.yesterday_bed ? ', ' : '') + (w === 0 ? '한 번도 안 깼어요.' : `${w === 3 ? '3번 넘게' : w + '번'} 깼어요.`));
-  const cond = d.condition ? ['컨디션 나빠요.', '컨디션 보통이에요.', '컨디션 좋아요.'][d.condition - 1] : ''; /* 이유는 조장·나만 보는 것이라 카톡 글에는 안 넣는다(2026-11-25 룡) */
-  const dg = amOpt.digest ? ` 소화 ${amOpt.digest}.` : '', bw = amOpt.bowel ? ` 배변 ${amOpt.bowel}!` : '';
-  return (sleep.endsWith('.') ? sleep : sleep + (sleep ? '.' : '')) + '\n' + (cond + dg + bw).trim();
+  const t = x => x ? hmKo(x) : '( )시';
+  const cond = d.condition ? ['나쁨', '보통', '좋음'][d.condition - 1] : '';
+  return '🔆 오늘 아침 컨디션 체크\n'
+    + '✔ 수면: ' + t(yb) + ' 취침 → ' + t(d.wake) + ' 기상 · 중간에 깸 ' + (w == null ? '( )번' : w === 3 ? '3번 넘게' : w + '번') + '\n'
+    + '✔ 컨디션(나쁨/보통/좋음): ' + cond + '\n'
+    + '✔ 어제 소화: ' + (amOpt.digest || '') + '\n'
+    + '✔ 어제 배변·배뇨: ' + (amOpt.bowel || '');
 }
 async function shareShot(b64, text) {
   try {
@@ -2447,7 +2450,7 @@ const COACH_AM = '좋은 아침이에요 ☀️\n따뜻한 물 한 컵 드시고
 /* 짧은 컨디션 체크 양식(2026-11-28 룡 「양식은 간결하게 복붙해서 쓸 수 있게」 「시안대로」, 편집자 고침). 가이드북 원문(COACH_FORM)은 아침 인사와 함께 나간다 */
 /* 에이스 마인드 선포: 참가자 가이드북 문장 그대로(2026-11-28 룡 「모두 공식 가이드북 멘트 그대로」 「길어서 카톡에서 잘리면 나눠야 해」 → 컨디션 안내와 따로 보낸다) */
 const COACH_DECL = '에이스 마인드 선포\n진짜 건강은 나를 존중하는 마음에서 시작돼요. 매일 아침 거울 속 나에게 직접 말해 주세요.\n\n나는 존귀한 사람입니다.\n나는 존재만으로도 충분히 가치 있는 사람입니다.\n나는 좋은 것을 이어받고, 좋은 것을 남기는 사람입니다.\n나는 복덩이입니다.';
-const COACH_FORM_SHORT = '🔆 오늘 아침 컨디션 체크\n✔ 수면: ( )시 잠듦 → ( )시 일어남 · 중간에 깸 ( )번\n✔ 컨디션:\n✔ 어제 소화:\n✔ 배변·배뇨:';
+const COACH_FORM_SHORT = '🔆 오늘 아침 컨디션 체크\n✔ 수면: ( )시 취침 → ( )시 기상 · 중간에 깸 ( )번\n✔ 컨디션(나쁨/보통/좋음):\n✔ 어제 소화:\n✔ 어제 배변·배뇨:';
 const COACH_FORM = '🔆 오늘 아침, 몸과 마음의 안부를 나눠주세요\n\n✔ 수면\n어젯밤 몇 시에 잠들고, 오늘 몇 시에 일어나셨나요?\n중간에 잠에서 깨셨다면 횟수도 함께 알려주세요\n\n✔ 아침 컨디션\n오늘 아침 몸과 마음의 상태는 어떠신가요?\n개운함이나 피로감 등 느껴지는 상태를 편하게 적어주세요\n\n✔ 소화\n어제 식사 후 소화는 편안하셨나요?\n더부룩함이나 불편함이 있었다면 함께 알려주세요\n\n✔ 배변·배뇨\n어제 배변은 원활하셨나요?\n오늘 아침 첫 소변 후 불편하셨다면 알려주세요\n\n작은 변화를 살피는 아침 습관,\n오늘도 나를 돌보는 하루를 시작해요 🌿';
 const COACH_PM = '오늘도 수고 많으셨어요 🌙\nOO님, 오늘 OO 정말 잘하셨어요!\n\n자기 전 셀프 체크 올려 주시고\n11~12시 전에 편안히 주무세요.';
 const COACH_DAY = [
