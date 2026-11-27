@@ -74,6 +74,7 @@
   /* 칸 사이 여백을 한 가지로(2026-11-28 룡 「여백 다 일정하게만 싹 바꿔줘」): 상자 안에서 앞 칸 다음에 오는 버튼·글 상자·입력 칸은 10px 띄운다 */
   .schbox > * + button, .schbox > * + pre, .schbox > * + input, .schbox > * + textarea, .schbox > * + .exbox, .card > * + button.main, .card > * + pre.kt { margin-top: 10px; }
   .err:empty { display: none; }
+  button.main:not(:first-child), .kt + button { margin-top: 10px; } .exbox > button.main, .tabs button.main { margin-top: 0; }
   .dl { display: block; width: 100%; text-align: left; margin-top: 4px; background: var(--card); border: 1px solid var(--line); font-size: 14px; min-height: 40px; padding: 6px 10px; }
   .dl.on { outline: 2px solid var(--main); }
   .kt { white-space: pre-wrap; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; font-size: 14px; margin: 10px 0 0; }
@@ -275,7 +276,7 @@
   .post .head .nm { flex: 1; font-weight: 900; overflow-wrap: anywhere; }
   .post img { display: block; width: 100%; }
   .post img.ex { max-height: 240px; object-fit: cover; } /* 운동 사진은 낮게 잘라서(2026-11-24 룡) */
-  .ctodo-g { margin: 8px 0 4px; } .ctodo-g b { display: block; margin-bottom: 2px; } .ctodo { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 15px; } .ctodo input { margin-top: 3px; width: 18px; height: 18px; flex: none; } .ctodo.on span { color: var(--sub); text-decoration: line-through; } .ctodo-g.once { border-top: 1px dashed var(--line); padding-top: 8px; } .ctodo-g.warn { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 12px; }
+  .ctodo-g { margin: 8px 0 4px; } .ctodo-g b { display: block; margin-bottom: 2px; } .ctodo { display: flex; gap: 8px; align-items: center; padding: 6px 0; font-size: 15px; } .ctodo label { flex: 1; display: flex; gap: 10px; align-items: center; margin: 0; } .ctodo input { margin: 0; width: 20px; height: 20px; flex: none; } .ctodo .ctodo-sh { flex: none; padding: 6px 12px; font-size: 14px; min-height: 0; } .ctodo.on span { color: var(--sub); text-decoration: line-through; } .ctodo-g.once { border-top: 1px dashed var(--line); padding-top: 8px; } .ctodo-g.warn { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 12px; }
   .lkc { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.5); display: flex; align-items: center; padding: 16px; overflow-y: auto; }
   .post.flash { box-shadow: 0 0 0 3px #f5b400; transition: box-shadow .3s; }
   .post .phrow { display: flex; gap: 4px; padding: 0 14px; } .post .phrow img { width: calc((100% - 8px) / 3); aspect-ratio: 1; object-fit: cover; cursor: pointer; border-radius: 6px; background: #eee; }
@@ -2473,36 +2474,42 @@ const dayAdd = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.
 const dowOf = s => new Date(s + 'T00:00:00Z').getUTCDay();
 /* 조장 오늘 숙제(2026-11-27 룡 「조장이 해야 할 일들 아내에게 넣어줘. 그 사이트만 하나 열면 다 할 수 있도록」).
    출처: ★맥락오레진자료 코치 한눈에 보기·코치 가이드북 요일표. 체크는 이 폰에만 남고 날마다 새로 비운다 */
+/* 항목 = [할 일, 카톡에 올릴 글을 고르는 함수(없으면 공유 버튼 없음)]. 글은 아래 COACH_ 글을 그대로 쓴다(2026-11-28 룡 「카톡방에 양식 공유해야 하는 건 다 공유 버튼」) */
 const COACH_TODO = [
-  ['☀️ 아침', ['컨디션 체크 양식 올리고 아침 인사', '아침 식사 사진에 한마디']],
-  ['🍚 점심', ['점심 식사 사진에 한마디']],
-  ['🌆 저녁', ['운동 인증에 칭찬', '저녁 식사 사진에 한마디']],
-  ['🌙 밤', ['조원 셀프 체크 합계 확인(아래 표)', '수면 안내 인사로 마무리']],
+  ['☀️ 아침', [['아침 인사 + 컨디션 체크 양식 올리기', () => COACH_AM + '\n\n' + COACH_FORM], ['아침 식사 사진에 한마디', null]]],
+  ['🍚 점심', [['점심 식사 사진에 한마디', null]]],
+  ['🌆 저녁', [['운동 인증에 칭찬', null], ['저녁 식사 사진에 한마디', null]]],
+  ['🌙 밤', [['조원 셀프 체크 올렸는지 확인', null], ['수면 안내 인사로 마무리', () => COACH_PM]]],
 ];
-const COACH_DOW = ['', '이번 주 건강 영상 안내 · 실천 한 가지', '영상 소감 나누기', '주중 응원 · 적게 올린 분 개인톡', '거꾸로 식판 소개', '주간 돌아보기 · 다음 주 한 단계', '신호 색 보고 한마디(초록은 방에서 칭찬 · 노랑은 한 가지만 제안 · 빨강은 개인톡) · 일요일 안내'];
+const coachMoreText = name => (COACH_MORE.find(x => x[0] === name) || [])[1] || '';
+/* 캠프 날짜에 맞춰 한 번 하는 일(시작일 = 1일차). [할 일, [공유할 글 이름…]] */
 function coachOnce(t) {
   const st = (camp && camp.start) || '2026-11-30', d = Math.round((Date.parse(t) - Date.parse(st)) / 864e5);
-  return { '-1': '소그룹방 만들기 · 초대 · 공지 고정(방 약속) · 세포 돌봄 점검 안내', '0': '반갑게 맞이하기 · 「캠프 전 습관 기록」 받기',
-    '26': '4주차: 「지금 내 습관 기록」 양식 올리고 첫날과 비교해 하나 칭찬', '54': '8주차: 「지금 내 습관 기록」 양식 올리고 첫날과 비교해 하나 칭찬',
-    '82': '12주차: 「지금 내 습관 기록」 양식 올리고 첫날과 비교해 하나 칭찬 · 세포 돌봄 점검 다시 · ✔ 개수 비교' }[d] || null;
+  const L = [];
+  if (d === -1) L.push(['소그룹방 만들기 · 초대 · 방 약속 공지 고정 · 하루 일정표 공지', ['방 약속 공지', '하루 일정표 공지']]);
+  if (d === 0) L.push(['반갑게 맞이하기 · 자기소개', ['1일차 · 환영과 자기소개']], ['「캠프 전 습관 기록」 양식 올리고 받기', ['캠프 전 습관 기록 양식']]);
+  if (d === 3 || d === 4) L.push(['4~5일차 · 내 운동 하나 정하고 인증 시작', ['4~5일차 · 내 운동 정하고 인증 시작']]);
+  if (d === 5 || d === 6) L.push(['6~7일차 · 첫 주 돌아보기', ['6~7일차 · 첫 주 돌아보기']]);
+  if (d === 26 || d === 54 || d === 82) L.push([Math.round((d + 2) / 7) + '주차 · 「지금 내 습관 기록」 올리고 첫날과 비교해 하나 칭찬' + (d === 82 ? ' · 세포 돌봄 점검 다시' : ''), ['4·8·12주차 토요일 · 지금 내 습관 기록']]);
+  return L;
 }
-/* 셀체인지 주소의 조원 체크: 조원 정보는 아내 노트북에만 둔다(2026-11-27 룡 「아내 기기 안에만」). 사이트에는 안내만 */
-const COACH_PC = `<h2>💻 조원 체크</h2><div class="card"><p style="margin:0">켜 둔 노트북이 카톡방을 읽고 알려 줘요.</p><p class="sub" style="margin:6px 0 0">12:30 · 오전 미션을 안 한 사람<br>18:00 · 오후 미션을 안 한 사람<br>조원 기록은 노트북에만 있고 이 사이트에는 없어요.</p></div>`;
 function coachTodo() {
   const t = state.today || seoulToday(), dw = dowOf(t), key = 'life_ctodo_' + t;
   let done = {}; try { done = JSON.parse(store.get(key) || '{}'); } catch (e) {}
   const items = [];
-  const box = (id, txt) => { items.push(id); return `<label class="ctodo${done[id] ? ' on' : ''}"><input type="checkbox" data-ctodo="${id}"${done[id] ? ' checked' : ''}><span>${esc(txt)}</span></label>`; };
-  const once = coachOnce(t);
+  const sh = txt => txt ? `<button type="button" class="ctodo-sh" data-share="${esc(txt)}">공유</button>` : '';
+  const box = (id, txt, shares) => { items.push(id); return `<div class="ctodo${done[id] ? ' on' : ''}"><label><input type="checkbox" data-ctodo="${id}"${done[id] ? ' checked' : ''}><span>${esc(txt)}</span></label>${(shares || []).map(sh).join('')}</div>`; };
   let h = '';
-  if (dw) h += COACH_TODO.map(([n, L], i) => `<div class="ctodo-g"><b>${n}</b>${L.map((x, j) => box('d' + i + j, x)).join('')}</div>`).join('')
+  if (dw) h += COACH_TODO.map(([n, L], i) => `<div class="ctodo-g"><b>${n}</b>${L.map(([x, fn], j) => box('d' + i + j, x, fn ? [fn()] : [])).join('')}</div>`).join('')
     + '<p class="sub" style="margin:6px 0 0;font-size:12px">한마디 공식: 칭찬 → 공감 → 작은 제안 하나</p>'
-    + `<div class="ctodo-g"><b>📅 오늘(${'일월화수목금토'[dw]})</b>${box('w', COACH_DOW[dw])}</div>`;
+    + `<div class="ctodo-g"><b>📅 오늘(${'일월화수목금토'[dw]})</b>${box('w', COACH_DAY[dw][0], [COACH_DAY[dw][1]])}</div>`;
   else h += '<p class="sub" style="margin:4px 0">일요일은 코치가 쉬는 날이에요.</p>';
-  if (once) h += `<div class="ctodo-g once"><b>⭐ 오늘 한 번</b>${box('o', once)}</div>`;
+  const once = coachOnce(t);
+  if (once.length) h += `<div class="ctodo-g once"><b>⭐ 오늘 한 번</b>${once.map(([x, names], k) => box('o' + k, x, names.map(coachMoreText))).join('')}</div>`;
   const n = items.filter(id => done[id]).length;
   return `<h2>✅ 오늘 숙제 <span class="sub" style="font-weight:400;font-size:13px">${items.length ? n + '/' + items.length : ''}</span></h2><div class="card" id="ctodoBox">${h}
-    <div class="ctodo-g warn"><b>🚨 바로 연락</b><span class="sub">하루 무소식 → 개인톡 안부<br>3일 무응답 · x 3일 연속 → 운영진<br>통증·어지럼·불편 사흘 → 운동 쉬기·전문가 권유·운영진<br>질환·약·검사 질문 → 답하지 말고 연결</span></div></div>`;
+    <div class="ctodo-g warn"><b>🚨 바로 연락</b><span class="sub">하루 무소식 → 개인톡 안부<br>3일 무응답 · x 3일 연속 → 운영진<br>통증·어지럼·불편 사흘 → 운동 쉬기·전문가 권유·운영진<br>질환·약·검사 질문 → 답하지 말고 연결</span></div>
+    <details style="margin-top:10px"><summary>그 밖의 메시지·양식</summary>${COACH_MORE.map(([nm, tx]) => `<div class="codeRow"><span>${esc(nm)}</span><span>${sh(tx)}</span></div>`).join('')}</details></div>`;
 }
 function bindCoachTodo() {
   const t = state.today || seoulToday(), key = 'life_ctodo_' + t;
