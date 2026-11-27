@@ -898,7 +898,7 @@ function bindSchedule(box) {
     if (cond !== 2 && !why) { err.textContent = `왜 ${FACE_NAMES[cond - 1]}인지 한 줄 적어 주세요.`; byId('amWhy').focus(); return; }
     amOpt.wake = wk; amOpt.cond = cond; amOpt.why = why;
     ac.disabled = true;
-    const shared = await shareKakao(amText());
+    const shared = await shareNow(amText()); /* 미리보기가 위에 보이니 팝업 없이 바로(2026-11-28 룡) */
     if (!state.yesterday_bed && byId('amBed')) { try { state = await rpc('life_bed', { p_token: token, p_which: 'yesterday', p_time: byId('amBed').value }); } catch (x) { toast(x.message); ac.disabled = false; return; } }
     if (hm(dd.wake) !== wk || dd.condition !== cond || (dd.condition_note || '') !== (cond === 2 ? '' : why)) {
       try { state = await rpc('life_wake', { p_token: token, p_time: wk, p_condition: cond, p_note: cond === 2 ? '' : why }); } catch (x) { toast(x.message); ac.disabled = false; return; }
@@ -993,7 +993,7 @@ function bindSchedule(box) {
     try { camp = await rpc('life_evening_save', { p_token: token, p_meal: e.meal, p_move: e.move, p_supp: e.supp, p_note: (e.note || '').trim() }); pmDraft = null; re(); }
     catch (x) { err.textContent = x.message; ps.disabled = false; }
   };
-  const pc = byId('pmCopy'); if (pc) pc.onclick = () => shareKakao(pmText(camp.evening));
+  const pc = byId('pmCopy'); if (pc) pc.onclick = () => shareNow(pmText(camp.evening)); /* 위에 글이 보이니 바로 */
   const off = byId('c3Off');
   if (off) off.onclick = async e => {
     e.preventDefault();
