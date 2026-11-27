@@ -1944,7 +1944,7 @@ function renderToday() {
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
     <p class="sub" style="margin:-4px 0 12px">${s.camp3 || CAMP_SITE ? '' : '<a href="#" id="weekGo">📊 내 한 주 보기 ›</a>'}${s.in_group === false && !CAMP_SITE ? ' · <a href="#" id="noGroupGo">조가 없어요. 조 탭에서 들어가기 ›</a>' : ''}</p>
     ${CAMP_SITE ? '' : feedbackPin(s.feedback, '이번 주 적용점 (내가 정함)')}
-    ${!CAMP_SITE && state.today < '2026-12-10' && store.get('life_pv1204') !== '1' ? '<div class="got" id="pvNote">📄 개인정보처리방침이 바뀌어요.<br>12월 1일부터 <a href="privacy-2026-11-25.html#바뀐것">바뀐 곳</a><br>12월 3일부터 구글 로그인·실명 <a href="privacy-2026-12-03.html#바뀐것">바뀐 곳</a><br>12월 4일부터 사진 원본은 올린 날부터 30일, 작은 사진은 90일이 지나면 지워요. 남길 사진은 12월 3일까지 폰에 저장해 주세요.<br>12월 4일부터 안드로이드 앱에 취침 잠금(원하는 사람만)이 다시 생겨요. <a href="privacy-2026-12-03.html#바뀐것">바뀐 곳</a><br><a href="#" id="pvOk">닫기</a></div>' : ''}
+    ${!CAMP_SITE && state.today < '2026-12-10' && store.get('life_pv1204') !== '1' ? '<div class="got" id="pvNote">📄 개인정보처리방침이 바뀌어요.<br>12월 1일부터 <a href="privacy-2026-11-25.html#바뀐것">바뀐 곳</a><br>12월 3일부터 구글 로그인·실명 <a href="privacy-2026-12-03.html#바뀐것">바뀐 곳</a><br>12월 4일부터 사진 원본은 올린 날부터 30일, 작은 사진은 90일이 지나면 지워요. 남길 사진은 12월 3일까지 폰에 저장해 주세요.<br>12월 4일부터 안드로이드 앱에 취침 잠금(원하는 사람만)이 다시 생겨요. 방침은 이용자에게 불리하게 바뀔 때만 7일 전에 알려요. <a href="privacy-2026-12-03.html#바뀐것">바뀐 곳</a><br><a href="#" id="pvOk">닫기</a></div>' : ''}
     <div id="gotBox"></div>
     ${CAMP_SITE && !s.camp3 ? '' : fixCard()}
 
