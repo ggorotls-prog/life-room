@@ -2514,7 +2514,7 @@ function coachTodo() {
   const n = items.filter(id => done[id]).length;
   return `<h2>✅ 오늘 숙제 <span class="sub" style="font-weight:400;font-size:13px">${items.length ? n + '/' + items.length : ''}</span></h2><div class="card sch" id="ctodoBox">${h}
     <h3>🚨 이럴 땐 바로 운영진에게</h3><div class="srow info" style="display:block;font-size:13px;line-height:1.6">1일 아무것도 안 올림 → 개인톡으로 가볍게 안부 (우리 조 기준. 가이드북은 2일)<br>3일 이상 답이 없음 · 셀프 체크 x가 3일 연속 → 운영진에게 공유<br>통증·어지럼증, 불편이 사흘 이상 → 운동 쉬기 권유, 전문가 상담 권유, 운영진 공유<br>질환·약·검사 결과 질문 → 코치가 답하지 말고 운영진·전문가에게 연결</div><p class="sub" style="margin:8px 0 0;font-size:12px">코치님이 하지 않아도 되는 것: 매번 완벽한 피드백, 밤늦은 응답, 일요일 응대</p>
-    <details style="margin-top:10px"><summary>그 밖의 메시지·양식</summary>${COACH_MORE.map(([nm, tx]) => `<div class="codeRow"><span>${esc(nm)}</span><span>${sh(tx)}</span></div>`).join('')}</details></div>`;
+</div>`;
 }
 /* 조원 명단(2026-11-28 룡 「조원 추가 · 카톡방 이름 = 실명 매칭」): 서버에는 실명과 카톡방 이름만. 조장만 본다 */
 async function loadRoster(gid, still) {
@@ -2554,6 +2554,21 @@ function bindCoachTodo() {
   });
 }
 /* 셀체인지 주소의 조원 체크 안내: 조원 기록은 아내 노트북에만 둔다(2026-11-27 룡 「아내 기기 안에만」). 사이트에는 안내만. 오늘 숙제 코드와 떨어뜨려 둔다(고치다 지워지지 않게) */
+/* 코치 PDF 「5 양식 모음」(2026-11-28 룡 「마지막에 준 PDF 기준으로 틀 짜자」): 공유 글은 PDF 원문 그대로 */
+const COACH_CHK15 = '나의 세포 돌봄 점검 (해당하는 문항에 ✔ · 15문항)\n\n식사\n□ 아침을 거르거나 빵·떡·면으로 때울 때가 많다\n□ 밥이나 면부터 먹고, 채소는 조금만 먹는다\n□ 단 음료·과자·디저트를 하루 한 번 이상 먹는다\n\n운동\n□ 30분 이상 걷는 날이 일주일에 3일이 안 된다\n□ 하루 대부분을 앉아서 보낸다\n□ 몸이 자주 굳고 뻐근하다\n\n수면\n□ 밤 12시가 넘어서 잠드는 날이 많다\n□ 잠들기 직전까지 휴대폰을 본다\n□ 아침에 일어나도 개운하지 않다\n\n영양\n□ 끼니 시간이 들쭉날쭉하다\n□ 물을 하루 5컵도 마시지 않는다\n□ 오후만 되면 쉽게 지친다\n\n마음\n□ 나에게 칭찬보다 꾸중을 더 많이 한다\n□ 스트레스를 먹는 것으로 풀 때가 많다\n□ 요즘 즐거운 일이 별로 없다\n\n✔가 가장 많은 습관 = 내가 먼저 돌볼 습관';
+function coachForms() {
+  const L = [['1 · 매일', '아침 컨디션 체크 양식', '매일 아침 · 코치가 올려요', COACH_FORM], ['1 · 매일', '오늘의 셀프 체크 양식', '매일 자기 전 · 참가자가 올려요', coachMoreText('셀프 체크 양식')],
+    ['2 · 시작 전 · 12주차', '나의 세포 돌봄 점검', '해당하는 문항에 ✔ · 15문항', COACH_CHK15],
+    ['3 · 1일차', '캠프 전 습관 기록', '1일차 · 소그룹방', coachMoreText('캠프 전 습관 기록 양식')], ['3 · 4·8·12주차', '지금 내 습관 기록', '4·8·12주차 토요일 · 소그룹방', coachMoreText('4·8·12주차 토요일 · 지금 내 습관 기록')]];
+  return `<h2>📋 양식 모음</h2><div class="card sch">${L.map(([k, n, w, t]) => `<div class="srow" style="cursor:default"><span><b>${esc(n)}</b><br><small>${esc(k)} · ${esc(w)}</small></span>${t ? `<em role="button" data-share="${esc(t)}">공유</em>` : ''}</div>`).join('')}
+    <details style="margin-top:10px"><summary>그 밖의 메시지 (가이드북 「복사해서 바로 쓰는 메시지」)</summary>${COACH_MORE.map(([nm, tx]) => `<div class="codeRow"><span>${esc(nm)}</span><span><em role="button" data-share="${esc(tx)}" style="font-style:normal;font-size:12px;border:1px solid var(--main);border-radius:6px;padding:1px 6px">공유</em></span></div>`).join('')}</details></div>`;
+}
+/* 코치 PDF 「1 코치의 세 가지 역할」 */
+const COACH_ROLE = `<details class="card" style="margin-top:14px"><summary><b>🧭 코치의 세 가지 역할</b></summary><div style="font-size:14px;line-height:1.6;margin-top:8px">
+  <p><b>피드백해요 · 식사</b><br>세 끼 사진에 한마디. 채소 → 단백질 → 탄수화물 순서, 밀가루·단 음식 확인</p>
+  <p><b>응원해요 · 운동 · 마음</b><br>운동 인증, 마인드 선포에 칭찬. 잘했는지보다 올린 것 자체를 칭찬</p>
+  <p><b>점수로 살펴요 · 수면 · 영양</b><br>참가자가 올린 컨디션 체크·셀프 체크로 확인. 따로 피드백하지 않아요</p>
+  <p class="sub">셀프 체크: 식단·운동·영양제 각 0~5점, 하루 최고 15점 · 5 잘함 · 3~4 보통 · 1~2 부족 · 0 못함</p></div></details>`;
 const COACH_PC = `<h2>💻 조원 체크</h2><div class="card"><p style="margin:0">노트북을 켜 두면 카톡방을 읽고 미션을 안 한 조원을 알려 줘요.</p><p class="sub" style="margin:6px 0 0">12:30 · 오전 미션을 안 한 사람<br>18:00 · 오후 미션을 안 한 사람<br>조원 기록은 노트북에만 있고 이 사이트에는 없어요.</p></div>`;
 function coachSend(gname) {
   const dw = dowOf(state.today || seoulToday()), day = COACH_DAY[dw], cp = (t, label) => `<button type="button" data-share="${esc(t)}">${label || '공유'}</button>`;
@@ -2766,7 +2781,7 @@ async function renderLeader() {
   const c3 = g.stage === 3 && !!(camp && camp.open);
   const rows = (card.members || []).map(b => `<div class="row${b.mine ? ' mine' : ''}"><div class="nm">${esc(b.nickname)}<span class="fire">${b.streak >= 2 ? '🔥 ' + b.streak + '일째' : ''}</span></div><div class="dots icons">${boardIcons(b, !!b.camp)}</div></div>`).join('');
   $app.innerHTML = `${back}<h1>${esc(g.name)} <span class="sub" style="font-weight:400;font-size:14px">${CAMP_SITE ? '' : g.stage + '단계 · '}${g.members.length}명</span></h1>${al}
-    ${c3 && CAMP_SITE ? coachTodo() + '<div id="rosterBox"></div>' + COACH_PC + '<span id="ctBox"></span>' : c3 ? coachTodo() + coachSend(g.name) + scoreTable(g.members, g.name) + '<div id="ctBox"><div class="loading">체크표 불러오는 중…</div></div>' : `
+    ${c3 && CAMP_SITE ? coachTodo() + coachForms() + COACH_ROLE + '<div id="rosterBox"></div>' + COACH_PC + '<span id="ctBox"></span>' : c3 ? coachTodo() + coachSend(g.name) + scoreTable(g.members, g.name) + '<div id="ctBox"><div class="loading">체크표 불러오는 중…</div></div>' : `
     ${rows ? `<h2>오늘</h2><div class="card" style="padding:4px 16px">${rows}</div>` : ''}
     <div id="ctBox"><div class="loading">체크표 불러오는 중…</div></div>
     <h2>조원</h2><p class="sub" style="margin:-4px 0 8px">심방 때 참고해 주세요. 여기 내용은 다른 곳에 옮기지 않아요.</p>
