@@ -398,7 +398,7 @@
   </div>
 </div>
 <div id="toast"></div>
-<input type="file" id="file" accept="image/*" multiple hidden>
+<input type="file" id="file" accept="image/*" hidden>
 
 <script>
 const SB_URL = 'https://trlnatdkebjvgiqneulv.supabase.co';
@@ -1760,7 +1760,7 @@ async function phCall(body) {
   if (r.status === 401) throw new Error('로그인이 필요해요.');
   return j;
 }
-/* 끼니 사진 최대 3장. 저장 공간이 90% 차면 서버가 2·3번째를 받지 않는다(cut) */
+/* 사진 올리기(끼니·운동 모두 1장). 서버는 저장 공간 90%가 차면 2번째부터 받지 않는다(cut) */
 async function upPhotos(datas) {
   const paths = [], thumbs = []; let cut = false;
   for (let i = 0; i < datas.length && i < 3; i++) {
@@ -1978,7 +1978,7 @@ function renderToday() {
     box.dataset.k = slot;
     const redo = b.dataset.done === '1'; /* 이미 올린 끼니 = 바꾸기 */
     box.innerHTML = `${redo ? `<p class="sub" style="margin:10px 0 0">${name}은 올렸어요. 새로 올리면 먼저 올린 것을 대신해요.</p>` : ''}
-      <div class="exbox" style="margin-top:10px"><button type="button" class="pick" id="mPhoto" style="flex:1">📷 ${name} 사진${redo ? ' 바꾸기' : ''} <small>(3장까지)</small></button>${slot === 'snack' ? '' : `<button type="button" id="mFast" style="flex:1;background:#3d6fb5;color:#fff">금식</button>`}</div>
+      <div class="exbox" style="margin-top:10px"><button type="button" class="pick" id="mPhoto" style="flex:1">📷 ${name} 사진${redo ? ' 바꾸기' : ''}</button>${slot === 'snack' ? '' : `<button type="button" id="mFast" style="flex:1;background:#3d6fb5;color:#fff">금식</button>`}</div>
       <div class="exbox" style="margin-top:8px"><input id="mNote" maxlength="60" placeholder="${redo ? '글로 바꾸기' : '사진이 없으면 글로'}: 예) 김치찌개, 밥 반 공기" autocomplete="off">
       <button type="button" id="mGo">${redo ? '바꾸기' : '저장'}</button></div><div class="err" id="err"></div>`;
     byId('mPhoto').onclick = () => { pendingKind = 'diet'; pendingSlot = slot; pendingDay = null; pendingRedo = redo; $file.click(); };
@@ -2102,8 +2102,8 @@ function shrink(file) {
   });
 }
 $file.onchange = async () => {
-  /* 끼니 사진은 한 번에 3장까지 고른다(2026-11-27 룡). 넘으면 앞의 3장만 */
-  const fs = Array.from($file.files || []).slice(0, 3), many = ($file.files || []).length > 3, kind = pendingKind, slot = pendingSlot, day = pendingDay, redo = pendingRedo;
+  /* 끼니 사진은 1장(2026-11-27 룡 「끼니 한 장만 하자」) */
+  const fs = Array.from($file.files || []).slice(0, 1), many = false, kind = pendingKind, slot = pendingSlot, day = pendingDay, redo = pendingRedo;
   $file.value = ''; pendingSlot = null; pendingDay = null; pendingRedo = false;
   if (!fs.length || !kind) return;
   toast('사진 올리는 중…');
@@ -2112,7 +2112,7 @@ $file.onchange = async () => {
     for (const f of fs) datas.push(await shrink(f));
     const up = await upPhotos(datas);
     const args = { p_token: token, p_photo: null, p_slot: slot, p_note: null, p_paths: up.paths, p_thumbs: up.thumbs };
-    const tail = up.cut ? ' (사진 저장 공간이 거의 차서 1장만 올렸어요)' : many ? ' (3장까지만 올릴 수 있어서 3장만 올렸어요)' : '';
+    const tail = '';
     if (day) { /* 지난 날 채우기(내 기록) */
       await rpc('life_post_day', { ...args, p_day: day, p_kind: kind });
       historyItems = []; historyDone = false;
@@ -2403,7 +2403,7 @@ async function dayEditor(day) {
     slotSel = b.dataset.dslot;
     byId('dayBox').querySelectorAll('[data-dslot]').forEach(x => x.classList.toggle('on', x === b));
     byId('dSlotBox').innerHTML = `<div style="display:flex;gap:6px;margin-top:8px">
-      <button type="button" class="pick" id="dPhoto" style="flex:1">📷 사진 올리기 <small>(3장까지)</small></button>
+      <button type="button" class="pick" id="dPhoto" style="flex:1">📷 사진 올리기</button>
       <button type="button" id="dNoPhoto" style="flex:1">사진 없이 적기</button></div>`;
     byId('dPhoto').onclick = () => { pendingKind = 'diet'; pendingSlot = slotSel; pendingDay = day; pendingRedo = false; $file.click(); };
     byId('dNoPhoto').onclick = () => run('life_post_day', { p_token: token, p_day: day, p_kind: 'diet', p_photo: null, p_slot: slotSel, p_note: null }, pick(CHEERS.diet));
