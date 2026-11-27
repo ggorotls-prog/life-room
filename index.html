@@ -567,12 +567,12 @@ function pmText(e) {
   return `[오늘의 셀프 체크] 🌙\n✔ 식단 ${e.meal}점\n✔ 운동 ${e.move}점\n✔ 영양제 ${e.supp}점\n✔ 합계 ${evSum(e)}점\n✔ 잘한 한 가지: ${e.note || ''}`;
 }
 function consentHtml() {
-  return `<div class="schbox" id="c3Box"><b>[필수] 캠프(3단계) 건강 정보 처리 동의</b>
+  return `<div class="schbox" id="c3Box"><b>[필수] 셀체인지 캠프 건강 정보 처리 동의</b>
     <p><b>받는 것:</b> 선포를 했는지, 밤 셀프 체크(식단·운동·영양제 점수 0~5점, 「잘한 한 가지」), 습관 기록(수면 시간, 세 끼 시각, 운동 일수·시간, 내가 쓴 글), 세포 돌봄 점검의 습관별 ✔ 개수, 내가 고른 영양제 일정</p>
     <p><b>쓰는 곳:</b> 내 기록 보여 주기, 주간 합계 만들기, 조장이 보고 돌보기</p>
     <p><b>보는 사람:</b> 그 조의 조장(캠프 코치)과 관리자는 점수·글·습관 기록·✔ 개수를 봅니다. 숨길 수 없습니다. 같은 조 사람은 했는지만 봅니다. 조장은 이 기록을 물건을 권하는 데 쓰지 않습니다.</p>
-    <p><b>보관:</b> 탈퇴하면 바로 지웁니다. 마지막으로 쓴 날부터 1년이 지나면 지웁니다.</p>
-    <p>동의하지 않아도 됩니다. 동의하지 않으면 3단계의 이 기능만 쓸 수 없고, 앱의 나머지 기능은 그대로 쓸 수 있습니다. <a href="privacy.html#바뀐것">방침 보기</a></p>
+    <p><b>보관:</b> 동의를 거두면 선포·셀프 체크·습관 기록·세포 돌봄 점검을 바로 지웁니다. 탈퇴하면 모두 바로 지웁니다. 마지막으로 쓴 날부터 1년이 지나면 지웁니다.</p>
+    <p>동의하지 않을 수 있습니다. 동의하지 않으면 셀체인지 캠프 일정표를 쓸 수 없습니다. <a href="privacy.html">개인정보처리방침 보기</a></p>
     <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-weight:700"><input type="checkbox" id="c3Ok" style="width:22px;height:22px">위 내용에 동의합니다</label>
     <button class="main" type="button" id="c3Go" disabled>동의하고 시작</button></div>`;
 }
@@ -2311,7 +2311,8 @@ function coachScore(m) {
   const rec = Object.fromEntries((m.records || []).map(r => [r.day, r])), t = state.today || seoulToday(), dw = dowOf(t);
   const sc = k => { const e = rec[k] && rec[k].evening; return e ? (+e.meal || 0) + (+e.move || 0) + (+e.supp || 0) : null; };
   const evDays = (m.records || []).filter(r => r.evening).map(r => r.day).sort();
-  const floor = evDays.length ? (evDays[0] < '2026-12-02' ? '2026-12-02' : evDays[0]) : null;
+  const F0 = CAMP_SITE ? '2026-11-29' : '2026-12-02'; /* 셀체인지 사이트는 11-29에 연다(2026-11-26 룡) */
+  const floor = evDays.length ? (evDays[0] < F0 ? F0 : evDays[0]) : null;
   const mon = dayAdd(t, dw ? -(dw - 1) : -6), week = st => [0, 1, 2, 3, 4, 5].map(i => dayAdd(st, i));
   const cur = week(mon).filter(k => k <= t), lastMon = dayAdd(mon, -7), last = week(lastMon);
   const sum = ks => ks.reduce((a, k) => a + (sc(k) || 0), 0);
@@ -2872,13 +2873,16 @@ function loadScript(src, sri) {
     document.head.appendChild(s);
   });
 }
-let cnLibs = null, cnLib2 = null;
+let cnLibs = null, cnLib2 = null, cnDay = null;
 function cnLoad(st) {
+  /* 화면을 켜 둔 채 날이 바뀌면 문구를 새로 받는다(어제 받은 옛 문구가 남지 않게, 2026-11-27) */
+  const day = cnToday();
+  if (cnDay !== day) { cnDay = day; cnLibs = null; cnLib2 = null; window.CARDS1 = undefined; window.CARDS2_SLEEP = undefined; window.CARDS2_DIET = undefined; }
   if (st === 2 && !window.CARDS2_SLEEP) {
-    if (!cnLib2) cnLib2 = loadScript('cards2.js').catch(e => { cnLib2 = null; throw e; });
+    if (!cnLib2) cnLib2 = loadScript('cards2.js?d=' + day).catch(e => { cnLib2 = null; throw e; });
     return Promise.all([cnLoad(1), cnLib2]);
   }
-  if (!cnLibs) cnLibs = Promise.all([shotLib(), window.CARDS1 ? null : loadScript('../life-changer/cards.js')]).catch(e => { cnLibs = null; throw e; });
+  if (!cnLibs) cnLibs = Promise.all([shotLib(), window.CARDS1 ? null : loadScript('../life-changer/cards.js?d=' + day)]).catch(e => { cnLibs = null; throw e; });
   return cnLibs;
 }
 /* 사진 뽑는 도구만(운동표는 카드 문구 파일이 없어도 되게) */
@@ -3451,7 +3455,7 @@ const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platfor
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const pushOk = () => !phone && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 /* 처리방침의 알림 줄이 시행되는 날부터 연다(2026-11-25 법무사: 방침 공개가 먼저, 시행 7일 전 알림) */
-const PUSH_FROM = '2026-12-02', pushOpen = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) >= PUSH_FROM;
+const PUSH_FROM = CAMP_SITE ? '2026-11-29' : '2026-12-02', /* 셀체인지 사이트는 11-29부터 알림(2026-11-26 룡) */ pushOpen = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) >= PUSH_FROM;
 let pushSub = null, pendingCheer = null;
 function paintPushItem() {
   const b = byId('amPush'); if (!b) return;
