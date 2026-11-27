@@ -271,6 +271,7 @@
   .post .head .nm { flex: 1; font-weight: 900; overflow-wrap: anywhere; }
   .post img { display: block; width: 100%; }
   .post img.ex { max-height: 240px; object-fit: cover; } /* 운동 사진은 낮게 잘라서(2026-11-24 룡) */
+  .post.flash { box-shadow: 0 0 0 3px #f5b400; transition: box-shadow .3s; }
   .post .phrow { display: flex; gap: 4px; padding: 0 14px; } .post .phrow img { width: calc((100% - 8px) / 3); aspect-ratio: 1; object-fit: cover; cursor: pointer; border-radius: 6px; background: #eee; }
   .phview { position: fixed; inset: 0; z-index: 99; background: rgba(0,0,0,.9); display: flex; flex-direction: column; align-items: center; justify-content: center; } .phview img { max-width: 100%; max-height: 85vh; } .phview p { color: #fff; margin-top: 10px; }
   .exthumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex: none; }
@@ -1103,8 +1104,26 @@ function bindCheers() {
     if (b.disabled || b.classList.contains('on')) return;
     openCheer(b);
   });
-  /* 알림에서 왔으면 그 글의 응원 한마디 창을 바로 연다 */
-  if (pendingCheer) { const b = document.querySelector('[data-cheer="' + pendingCheer + '"]'); pendingCheer = null; if (b && !b.disabled && !b.classList.contains('on')) { b.scrollIntoView({ block: 'center' }); openCheer(b); } }
+  /* 알림에서 왔으면 그 글로 간다 */
+  if (pendingCheer && tab === 'history') cheerFocus();
+}
+/* 알림으로 들어오면 히스토리에서 그 글을 찾아 옮기고 잠깐 밝게 표시한다. 첫 10개에 없으면 「더 보기」를 5번까지 불러 찾는다.
+   아직 응원 안 한 글이면 응원 한마디 창을 연다(2026-11-27 룡 「그 게시글로 맞춰지도록」) */
+let cheerTries = 0;
+async function cheerFocus() {
+  const id = pendingCheer, b = document.querySelector('[data-cheer="' + id + '"]');
+  if (!b && !historyDone && cheerTries < 5) {
+    cheerTries++;
+    try { await loadHistory(); } catch (x) { pendingCheer = null; cheerTries = 0; toast(x.message); return; }
+    if (tab === 'history' && pendingCheer === id) renderHistory();
+    return;
+  }
+  pendingCheer = null; cheerTries = 0;
+  if (!b) { toast('그 글을 찾지 못했어요. 히스토리에서 찾아 주세요.'); return; }
+  const card = b.closest('.post') || b;
+  card.scrollIntoView({ block: 'center' });
+  card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 2000);
+  if (!b.disabled && !b.classList.contains('on')) openCheer(b);
 }
 /* 응원 한마디 창: 한마디를 적어야 「보내기」가 눌린다(서버도 빈 한마디는 받지 않는다) */
 let cheerBtn = null;
@@ -2085,7 +2104,9 @@ $file.onchange = async () => {
 
 /* 히스토리 */
 async function loadHistory() {
-  const d = await rpc('life_history', { p_token: token, p_offset: historyItems.length });
+  const off = historyItems.length;
+  const d = await rpc('life_history', { p_token: token, p_offset: off });
+  if (historyItems.length !== off) return; /* 그 사이 목록을 새로 받았으면 버린다(알림을 연달아 누를 때 섞이지 않게) */
   historyItems = historyItems.concat(d);
   if (d.length < 10) historyDone = true;
 }
@@ -3630,7 +3651,7 @@ function pushLogout() {
 function openFromPush(u) {
   try {
     const q = new URL(u, location.href).searchParams;
-    if (q.get('cheer')) pendingCheer = q.get('cheer');
+    if (q.get('cheer')) { pendingCheer = q.get('cheer'); cheerTries = 0; }
     if (!q.get('cheer') && q.get('tab') !== 'history') return;
     historyItems = []; historyDone = false;
     if (token && state) goTab('history'); else tab = 'history';

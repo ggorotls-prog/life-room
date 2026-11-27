@@ -120,7 +120,10 @@ public abstract class HealthScreen extends Activity {
         });
 
         web.addJavascriptInterface(new Bridge(), "LifeRoom");
-        web.loadUrl(BASE);
+        String op = openOf(getIntent());
+        // 최근 앱 목록에서 다시 열거나 화면을 다시 만들 때는 옛 알림의 글로 또 가지 않는다(프로그래머 11-27)
+        if (saved != null || (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) op = null;
+        web.loadUrl(op != null ? BASE + op : BASE);
         // 취침 잠금(접근성)은 쓰지 않는다(2026-11-26 룡 「모든 판에서 빼」). 처음 열 때 접근성을 켜 달라고 묻지 않는다
         // askAccessibility(false);
         // 「그 순간에 먼저 묻기」(Moments)·기상 알람이 알림을 누르면 이 화면을 연다(건강 기록 앱 / 라이프 RPG 🏠 집)
@@ -136,6 +139,20 @@ public abstract class HealthScreen extends Activity {
         setIntent(i);
         alarmWindow(i);
         authIntent(i);
+        String op = openOf(i);
+        if (op != null) {
+            if (pageLoaded) js("openFromPush(" + org.json.JSONObject.quote(op) + ")");
+            else web.loadUrl(BASE + op);
+        }
+    }
+
+    /** 알림이 실어 보낸 열 곳(?cheer=글번호 · ?tab=history). 그 밖의 값은 받지 않는다. 한 번 쓰면 지운다 */
+    private static String openOf(Intent i) {
+        if (i == null) return null;
+        String o = i.getStringExtra("open");
+        i.removeExtra("open");
+        if (o == null) return null;
+        return o.matches("[?]cheer=[0-9]{1,12}") || o.equals("?tab=history") ? o : null;
     }
 
     // ---- 구글 로그인(2026-11-26 룡 「둘 다 구글 로그인」) ----

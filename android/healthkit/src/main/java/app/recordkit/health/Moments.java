@@ -238,7 +238,7 @@ public final class Moments {
                 Notification.Builder b = new Notification.Builder(c, channel(c, CH_FEED))
                         .setSmallIcon(icon(c))
                         .setContentTitle(lines.size() == 1 ? lines.get(0) : "응원이 " + lines.size() + "개 왔어요")
-                        .setContentIntent(openApp(c, 5))
+                        .setContentIntent(openAt(c, 5, "?tab=history"))
                         .setGroup(G_FEED)
                         .setAutoCancel(true);
                 if (lines.size() > 1) {
@@ -263,7 +263,7 @@ public final class Moments {
                         .setSmallIcon(icon(c))
                         .setContentTitle(who + "님이 " + what(x) + "을 올렸어요")
                         .setContentText(note.isEmpty() ? "응원 한마디를 남겨 주세요" : note)
-                        .setContentIntent(openApp(c, 5))
+                        .setContentIntent(openAt(c, 1000 + (int) (id % 500), "?cheer=" + id))
                         .addAction(new Notification.Action.Builder(null, "👏 응원 한마디", rp).addRemoteInput(in).build())
                         .setGroup(G_FEED)
                         .setAutoCancel(true);
@@ -540,6 +540,12 @@ public final class Moments {
     /** 알림을 누르면 이 앱의 건강 기록 화면(HealthScreen이 열릴 때 자기 이름을 적어 둔다) */
     static PendingIntent openApp(Context c, int req) {
         Intent i = screenIntent(c);
+        return PendingIntent.getActivity(c, 7300 + req, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    /** 알림을 누르면 그 글(조원 글 → 히스토리의 그 글, 받은 응원 → 히스토리)로 연다(2026-11-27 룡 「그 게시글로 맞춰지도록」) */
+    static PendingIntent openAt(Context c, int req, String open) {
+        Intent i = screenIntent(c).putExtra("open", open);
         return PendingIntent.getActivity(c, 7300 + req, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
