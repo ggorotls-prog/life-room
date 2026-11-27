@@ -1196,9 +1196,11 @@ const phone = window.LifeRoom || null;
 /* 취침 잠금: 설정에서 켠 사람만 쓴다(2026-11-27 룡 「선택적으로 놓고 뺄 수 있도록」 「플레이판도」). 안드로이드 앱에서만 된다.
    켤 때 안내·동의 화면을 먼저 보인다(구글 플레이 접근성 정책: 앱 안 안내 + 직접 누르는 동의) */
 const LOCK_FROM = '2026-12-04'; /* 방침 「시행 7일 전 알림」 약속 → 12-04부터 켤 수 있다(법무사 11-27) */
-const lockAvail = () => !!phone && typeof phone.lock === 'function' && new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) >= LOCK_FROM;
+/* 운영자(룡)는 지금부터 켤 수 있다: 플레이 접근성 신고 동영상을 찍으려고(2026-11-27 룡 「지금 바로 만들어서 앱 올릴 거야」) */
+const lockAvail = () => !!phone && typeof phone.lock === 'function' && (new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) >= LOCK_FROM || !!(state && state.op));
 const lockOn = () => lockAvail() && store.get('life_lock_on') === '1';
-if (!lockOn() && store.get('life_lock') === '1') { store.del('life_lock'); store.del('life_unlocked'); if (phone) try { phone.unlock(); } catch (e) {} }
+/* 켜 두지 않은 폰에 남은 잠금은 푼다. 화면을 열 때(로그인 정보 전) 돌므로 날짜·운영자가 아니라 켜기 표시만 본다 */
+if (store.get('life_lock_on') !== '1' && store.get('life_lock') === '1') { store.del('life_lock'); store.del('life_unlocked'); if (phone) try { phone.unlock(); } catch (e) {} }
 function lockPhone() { if (!lockOn()) { store.del('life_unlocked'); return; } store.set('life_lock', '1'); store.del('life_lock_fail'); store.del('life_unlocked'); if (phone) try { phone.lock(); } catch (e) {} }
 function unlockPhone() { clearInterval(lockTimer); store.del('life_lock'); store.del('life_unlocked'); if (phone) try { phone.unlock(); } catch (e) {} }
 let unlockAsked = false;
