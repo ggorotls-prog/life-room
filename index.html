@@ -1188,7 +1188,7 @@ function dropKeys() {
   social = null; camp = null;
   try { if (phone && phone.setToken) phone.setToken(''); } catch (e) {}
 }
-function logout() { pushLogout(); ctShareOn = null; store.del('life_ct_ok'); store.del('life_ct_later'); dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; nameKind = null; loginKind = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; closeCheer(); byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
+function logout() { pushLogout(); store.del('life_token_op'); ctShareOn = null; store.del('life_ct_ok'); store.del('life_ct_later'); dropKeys(); lcTok = null; token = null; store.del('life_token'); store.del('life_unlocked'); exDraft = { photo: null, thumb: null, note: '' }; exShareData = null; exPrepping = null; state = null; tab = 'today'; camp = null; campEdit = false; campDraft = null; groupsView = null; groupOpen = null; manageKey = null; social = null; historyItems = []; historyDone = false; heroInfo = null; nameKind = null; loginKind = null; screenSeq++; byId('menuBtn').hidden = true; byId('amBg').hidden = true; closeCheer(); byId('invBg').hidden = true; invCount = 0; invLastCheck = 0; invLater.clear(); unforcePw(); renderAuth('login'); }
 
 /* 시간 고르기: 30분 단위, 00:00부터 위에서 아래로(2026-11-24 룡) */
 function timeOptions(startHour, selected) {
@@ -2917,8 +2917,16 @@ function renderTabs() {
   $tabs.querySelectorAll('button').forEach(b => b.onclick = () => goTab(b.dataset.tab));
 }
 let screenSeq = 0;
+/* 테스트 계정으로 들어와 있으면 맨 위에 띠 하나: 누르면 운영자 계정으로 돌아간다 */
+function testerBar() {
+  const op = store.get('life_token_op'); let bar = byId('testerBar');
+  if (!op) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'testerBar'; bar.style.cssText = 'position:sticky;top:0;z-index:50;background:#fff3c4;color:#5a4500;padding:8px 12px;font-size:14px;text-align:center'; document.body.prepend(bar); }
+  bar.innerHTML = '🧪 테스트 계정으로 쓰는 중 · <a href="#" id="testerBack">운영자로 돌아가기</a>';
+  byId('testerBack').onclick = e => { e.preventDefault(); const t = store.get('life_token_op'); store.del('life_token_op'); if (t) store.set('life_token', t); location.reload(); };
+}
 function render() {
-  screenSeq++;
+  screenSeq++; testerBar();
   if (state.wait) return renderWait();
   byId('myName').textContent = state.me.nickname; byId('menuBtn').hidden = false;
   tellPhone();
@@ -3542,7 +3550,7 @@ async function renderOp() {
   const leadersHtml = Object.keys(byLeader).sort().map(name => `<div class="mem"><div class="mem-h"><b>${esc(name)}</b><small class="sub">조 ${byLeader[name].length}개</small></div>
       ${byLeader[name].map(g => `<p class="sub" style="margin:4px 0 0"><b style="color:var(--ink)">${esc(g.name)}</b> · ${SN[g.stage] || g.stage + '단계'} · ${g.members.length}명${g.members.filter(x => x.days >= 3).length ? ` · <span style="color:var(--warn-ink, #b3261e)">${g.members.filter(x => x.days >= 3).map(x => esc(x.nickname) + ' ' + x.days + '일째').join(', ')}</span>` : ''}</p>`).join('')}</div>`).join('');
   const roomsHtml = (v.rooms || []).map(r => `<p class="sub" style="margin:4px 0"><b style="color:var(--ink)">${esc(r.name)}</b> · 조장 ${esc(r.leader || '-')} · ${r.n}명</p>`).join('');
-  $app.innerHTML = `${back}<h1>운영자 화면</h1><p class="sub" id="opSpace"></p>
+  $app.innerHTML = `${back}<h1>운영자 화면</h1><p class="sub" id="opSpace"></p><button type="button" class="switch" id="opTester">🧪 테스트 계정으로 들어가기</button>
     <h2>가입 신청 ${v.apps.length}</h2>
     <div class="card" style="padding:4px 16px">${v.apps.map(app).join('') || '<p class="sub" style="margin:12px 0">기다리는 신청이 없어요.</p>'}</div>
     ${v.rejected.length ? `<h2>반려한 신청 ${v.rejected.length}</h2><p class="sub" style="margin:-4px 0 8px">본인이 고쳐 다시 신청하면 위로 올라와요.</p>
@@ -3551,6 +3559,8 @@ async function renderOp() {
     <div class="card" style="padding:4px 16px">${leadersHtml || '<p class="sub" style="margin:12px 0">아직 조가 없어요.</p>'}</div>
     ${roomsHtml ? `<h2>1단계 운동방 ${(v.rooms || []).length}</h2><div class="card" style="padding:8px 16px">${roomsHtml}</div>` : ''}`;
   bindBack();
+  /* 테스트 계정(2026-11-28 룡 「룡 계정 말고 테스터 계정. 로그인 빼고」): 운영자 열쇠는 따로 두고 시험 계정 열쇠로 바꾼다 */
+  byId('opTester').onclick = async () => { try { const d = await rpc('life_op_tester', { p_token: token }); store.set('life_token_op', token); store.set('life_token', d.token); location.reload(); } catch (x) { toast(x.message); } };
   /* 저장 공간(무료 요금제 한도): 80%가 넘으면 빨갛게(2026-11-27 룡) */
   rpc('life_space', { p_token: token }).then(sp => { const el = byId('opSpace'); if (!el || !sp) return; const a = Math.round(sp.store / sp.store_max * 100), b = Math.round(sp.db / sp.db_max * 100), hot = a >= 80 || b >= 80; el.innerHTML = `${hot ? '<b style="color:#b3261e">⚠ 사진 저장 공간이나 데이터베이스가 80%를 넘었어요. Claude에게 알려 주세요.</b><br>' : ''}사진 저장 공간 ${a}% · 데이터베이스 ${b}% (무료 한도 기준)`; }).catch(() => {});
   const decide = async (btn, id, what, note) => {
