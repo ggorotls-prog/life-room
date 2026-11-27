@@ -2553,6 +2553,8 @@ function bindCoachTodo() {
     if (sp) sp.textContent = n + '/' + all;
   });
 }
+/* 셀체인지 주소의 조원 체크 안내: 조원 기록은 아내 노트북에만 둔다(2026-11-27 룡 「아내 기기 안에만」). 사이트에는 안내만. 오늘 숙제 코드와 떨어뜨려 둔다(고치다 지워지지 않게) */
+const COACH_PC = `<h2>💻 조원 체크</h2><div class="card"><p style="margin:0">노트북을 켜 두면 카톡방을 읽고 미션을 안 한 조원을 알려 줘요.</p><p class="sub" style="margin:6px 0 0">12:30 · 오전 미션을 안 한 사람<br>18:00 · 오후 미션을 안 한 사람<br>조원 기록은 노트북에만 있고 이 사이트에는 없어요.</p></div>`;
 function coachSend(gname) {
   const dw = dowOf(state.today || seoulToday()), day = COACH_DAY[dw], cp = (t, label) => `<button type="button" data-share="${esc(t)}">${label || '공유'}</button>`;
   const line = (name, t) => `<div class="codeRow" style="align-items:flex-start"><span style="flex:1;min-width:0"><b>${name}</b><br><span class="sub" style="white-space:pre-line;font-size:13px">${esc(t)}</span></span><span>${cp(t)}</span></div>`;
