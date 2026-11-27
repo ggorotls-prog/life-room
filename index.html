@@ -74,6 +74,10 @@
   /* 칸 사이 여백을 한 가지로(2026-11-28 룡 「여백 다 일정하게만 싹 바꿔줘」): 상자 안에서 앞 칸 다음에 오는 버튼·글 상자·입력 칸은 10px 띄운다 */
   .schbox > * + button, .schbox > * + pre, .schbox > * + input, .schbox > * + textarea, .schbox > * + .exbox, .card > * + button.main, .card > * + pre.kt { margin-top: 10px; }
   .err:empty { display: none; }
+  /* 묶음 여백 한 규칙(2026-11-28 룡 「제목 아래 칸은 가까이, 다음 묶음과는 조금 띄우고」): 제목→첫 칸 6px · 칸↔칸 6px · 묶음↔묶음 18px · 이름표→입력 칸 6px */
+  .qhead { display: block; font-size: 13px; margin-top: 18px; } .schbox > .qhead:first-of-type { margin-top: 10px; }
+  .schbox > .dl, .dl + .dl, .qhead + .dl { margin-top: 6px; }
+  label.f { margin-top: 18px; } .schbox > label.f + input, .schbox > label.f + select, .schbox > label.f + textarea, label.f + input, label.f + select { margin-top: 6px; }
   button.main:not(:first-child), .kt + button { margin-top: 10px; } .exbox > button.main, .tabs button.main { margin-top: 0; }
   .dl { display: block; width: 100%; text-align: left; margin-top: 4px; background: var(--card); border: 1px solid var(--line); font-size: 14px; min-height: 40px; padding: 6px 10px; }
   .dl.on { outline: 2px solid var(--main); }
@@ -790,7 +794,7 @@ function chkHtml(kind, inner) {
   const on = chkDraft || (chkDraft = []);
   const per = CHECK15.map((g, gi) => on.filter(i => Math.floor(i / 3) === gi).length), mx = Math.max(...per), tops = mx ? CHECK15.filter((g, gi) => per[gi] === mx).map(g => g[0]) : [];
   return `<p class="sub" style="margin:4px 0 6px">지금 나에게 해당하는 문항을 눌러 ✔ 해 주세요. 건강 상태를 진단하는 것이 아니라 생활습관을 돌아보기 위한 것이에요. 문항마다 고른 답은 저장하지 않고 습관별 개수만 남겨요.</p>
-    ${CHECK15.map(([g, qs], gi) => `<b style="font-size:13px">${g}</b>${qs.map((q, qi) => { const id = gi * 3 + qi; return `<button type="button" class="dl${on.includes(id) ? ' on' : ''}" data-chk="${id}">${on.includes(id) ? '✔ ' : ''}${q}</button>`; }).join('')}`).join('')}
+    ${CHECK15.map(([g, qs], gi) => `<b class="qhead">${g}</b>${qs.map((q, qi) => { const id = gi * 3 + qi; return `<button type="button" class="dl${on.includes(id) ? ' on' : ''}" data-chk="${id}">${on.includes(id) ? '✔ ' : ''}${q}</button>`; }).join('')}`).join('')}
     <p style="margin:8px 0 0"><b>✔ ${on.length}개 / 15</b> · ${chkMsg(on.length)}${tops.length ? `<br>${kind === 'check0' ? '내가 먼저 돌볼 습관' : '계속 돌볼 습관'}: ${tops.join(' · ')}` : ''}</p>
     ${inner ? '' : `<button class="main" type="button" id="chkSave" data-kind="${kind}">저장하고 카톡방에 공유</button>`}<p class="sub" style="font-size:12px;margin-top:4px">결과는 내가 간직하고 12주 뒤와 비교해요. 카톡방에는 ${kind === 'check0' ? '「먼저 돌볼 습관」 한 줄만' : '「시작 전 ○개 → 12주 뒤 ○개」 한 줄만'} 나가요.</p>`;
 }
