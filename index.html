@@ -2672,7 +2672,9 @@ function memberCard(m, admin, c3, gname) {
     <details><summary>날짜별 표 보기 (2주)</summary><div class="scroll">${recordTable(all, null, c3)}</div></details></div>`;
 }
 /* 공유가 필요한 글은 늘 공유 창을 바로 띄운다(2026-11-25 룡 「저장하면 카톡방에 공유해 주세요 하고 공유하기가 바로 떠야지」). 공유 창이 없으면 복사 */
-async function shareKakao(t) {
+/* 공유는 모두 「이 글이 나가요」를 한 번 보여 준 뒤(2026-11-28 룡 「기록도 조 탭처럼 한 번 보고 공유」). 공유하면 true, 닫으면 false */
+function shareKakao(t) { return new Promise(res => sharePreview(t, res)); }
+async function shareNow(t) {
   try {
     if (phone && phone.shareText) { toast('카톡방에 공유해 주세요'); phone.shareText(t); return true; }
     if (navigator.share) { await navigator.share({ text: t }); return true; }
@@ -2680,14 +2682,15 @@ async function shareKakao(t) {
   return copyText(t);
 }
 /* 공유 전에 나갈 글을 한 번 보여 준다(2026-11-28 룡 「어떤 내용이 나가는지 한 번 팝업으로 보여 주고 공유」). 공유를 누를 때만 카톡 공유 창이 뜬다 */
-function sharePreview(t) {
+function sharePreview(t, done) {
+  const fin = v => { if (done) { done(v); done = null; } };
   const bg = document.createElement('div');
   bg.className = 'lkc';
   bg.innerHTML = '<div class="card" style="max-width:420px;width:100%;margin:auto;padding:18px"><h2 style="margin:0">이 글이 나가요</h2><pre class="kt" style="max-height:55vh;overflow:auto"></pre><button class="main" type="button" data-pv="go">카톡방에 공유</button><button class="switch" type="button" data-pv="no" style="width:100%">닫기</button></div>';
   bg.querySelector('pre').textContent = t;
-  bg.querySelector('[data-pv="go"]').onclick = async () => { bg.remove(); await shareKakao(t); };
-  bg.querySelector('[data-pv="no"]').onclick = () => bg.remove();
-  bg.onclick = e => { if (e.target === bg) bg.remove(); };
+  bg.querySelector('[data-pv="go"]').onclick = async () => { bg.remove(); fin(await shareNow(t)); };
+  bg.querySelector('[data-pv="no"]').onclick = () => { bg.remove(); fin(false); };
+  bg.onclick = e => { if (e.target === bg) { bg.remove(); fin(false); } };
   document.body.appendChild(bg);
 }
 async function copyText(t) {
