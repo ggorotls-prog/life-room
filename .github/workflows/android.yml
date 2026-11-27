@@ -80,8 +80,8 @@ jobs:
             adb shell pidof app.liferoom || { echo "앱이 꺼져 있어요"; exit 1; }
             echo "앱이 켜져 있어요"
             adb shell dumpsys alarm | grep -c "app.liferoom" || { echo "알림이 안 걸렸어요"; exit 1; }
-            # 취침 잠금(접근성 서비스)은 2026-11-26 뺐다(룡 「모든 판에서 빼」). 접근성 서비스가 앱에 없는지만 본다
-            adb shell dumpsys package app.liferoom | grep -q "BIND_ACCESSIBILITY_SERVICE" && { echo "접근성 서비스가 아직 있어요"; exit 1; } || echo "접근성 서비스 없음"
+            # 취침 잠금(접근성 서비스)은 2026-11-27 설정에서 켜는 것으로 되살렸다. 앱에 접근성 서비스가 있는지 본다
+            adb shell dumpsys package app.liferoom | grep -q "BIND_ACCESSIBILITY_SERVICE" && echo "접근성 서비스 있음" || { echo "접근성 서비스가 없어요"; exit 1; }
             # 앱을 다시 열면 배터리 「제한 없음」 안내가 뜨는지 본다(2026-11-09). 화면 읽기(uiautomator)에는 창이 안 잡혀 앱 기록으로 본다
             adb logcat -c
             adb shell am force-stop app.liferoom

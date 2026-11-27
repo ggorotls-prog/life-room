@@ -124,7 +124,7 @@ public abstract class HealthScreen extends Activity {
         // 최근 앱 목록에서 다시 열거나 화면을 다시 만들 때는 옛 알림의 글로 또 가지 않는다(프로그래머 11-27)
         if (saved != null || (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) op = null;
         web.loadUrl(op != null ? BASE + op : BASE);
-        // 취침 잠금(접근성)은 쓰지 않는다(2026-11-26 룡 「모든 판에서 빼」). 처음 열 때 접근성을 켜 달라고 묻지 않는다
+        // 취침 잠금(접근성)은 설정에서 켠 사람만(2026-11-27 룡). 처음 열 때 접근성을 켜 달라고 묻지 않는다(동의 화면 뒤에만 묻는다)
         // askAccessibility(false);
         // 「그 순간에 먼저 묻기」(Moments)·기상 알람이 알림을 누르면 이 화면을 연다(건강 기록 앱 / 라이프 RPG 🏠 집)
         getSharedPreferences(SleepLock.PREFS, MODE_PRIVATE).edit().putString("m_screen", getClass().getName()).apply();

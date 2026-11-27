@@ -45,6 +45,11 @@ public abstract class SleepLock extends AccessibilityService {
             "com.android.deskclock",
             "com.google.android.permissioncontroller",
             "com.android.permissioncontroller",
+            // 설정 앱은 막지 않는다: 잠긴 중에도 접근성에서 이 기능을 끌 수 있어야 한다(구글 플레이 정책, 2026-11-27)
+            "com.android.settings",
+            "com.samsung.accessibility",          // 삼성 접근성 화면(추정)
+            "com.android.packageinstaller",
+            "com.google.android.packageinstaller",
             "android",
     };
 

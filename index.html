@@ -271,6 +271,7 @@
   .post .head .nm { flex: 1; font-weight: 900; overflow-wrap: anywhere; }
   .post img { display: block; width: 100%; }
   .post img.ex { max-height: 240px; object-fit: cover; } /* 운동 사진은 낮게 잘라서(2026-11-24 룡) */
+  .lkc { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.5); display: flex; align-items: center; padding: 16px; overflow-y: auto; }
   .post.flash { box-shadow: 0 0 0 3px #f5b400; transition: box-shadow .3s; }
   .post .phrow { display: flex; gap: 4px; padding: 0 14px; } .post .phrow img { width: calc((100% - 8px) / 3); aspect-ratio: 1; object-fit: cover; cursor: pointer; border-radius: 6px; background: #eee; }
   .phview { position: fixed; inset: 0; z-index: 99; background: rgba(0,0,0,.9); display: flex; flex-direction: column; align-items: center; justify-content: center; } .phview img { max-width: 100%; max-height: 85vh; } .phview p { color: #fff; margin-top: 10px; }
@@ -1192,23 +1193,26 @@ function nowHM() { const d = new Date(); return String(d.getHours()).padStart(2,
 /* 취침 잠금(2026-11-06 룡 결정: 안드로이드 앱의 접근성 서비스). 「잘게요」 → 다른 앱을 열면 이 앱으로 돌아옴, 「일어났어요」 → 풀림.
    「해제하기」를 누르면 사유 한 번 고르고 풀린다(기록에 남음). 브라우저(아이폰 사이트)는 폰 잠금은 없고, 긴급 해제 버튼·사유 기록은 같다(2026-11-24 룡). */
 const phone = window.LifeRoom || null;
-/* 폰 잠금 끔(2026-11-26 룡 「굳이 폰 못 쓰게 하는 게 필요한가 싶어. 모든 판에서 빼」): 「잘게요」를 누르면 앱 안 취침 화면만 뜨고
-   「일어났어요」 전에는 앱의 다른 기능을 못 쓴다(그대로). 다른 앱을 막는 잠금·긴급 해제(사유 기록)는 쓰지 않는다. 되살릴 때 true */
-const SLEEP_LOCK = false;
-if (!SLEEP_LOCK && store.get('life_lock') === '1') { store.del('life_lock'); store.del('life_unlocked'); if (phone) try { phone.unlock(); } catch (e) {} }
-function lockPhone() { if (!SLEEP_LOCK) { store.del('life_unlocked'); return; } store.set('life_lock', '1'); store.del('life_lock_fail'); store.del('life_unlocked'); if (phone) try { phone.lock(); } catch (e) {} }
+/* 취침 잠금: 설정에서 켠 사람만 쓴다(2026-11-27 룡 「선택적으로 놓고 뺄 수 있도록」 「플레이판도」). 안드로이드 앱에서만 된다.
+   켤 때 안내·동의 화면을 먼저 보인다(구글 플레이 접근성 정책: 앱 안 안내 + 직접 누르는 동의) */
+const LOCK_FROM = '2026-12-04'; /* 방침 「시행 7일 전 알림」 약속 → 12-04부터 켤 수 있다(법무사 11-27) */
+const lockAvail = () => !!phone && typeof phone.lock === 'function' && new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) >= LOCK_FROM;
+const lockOn = () => lockAvail() && store.get('life_lock_on') === '1';
+if (!lockOn() && store.get('life_lock') === '1') { store.del('life_lock'); store.del('life_unlocked'); if (phone) try { phone.unlock(); } catch (e) {} }
+function lockPhone() { if (!lockOn()) { store.del('life_unlocked'); return; } store.set('life_lock', '1'); store.del('life_lock_fail'); store.del('life_unlocked'); if (phone) try { phone.lock(); } catch (e) {} }
 function unlockPhone() { clearInterval(lockTimer); store.del('life_lock'); store.del('life_unlocked'); if (phone) try { phone.unlock(); } catch (e) {} }
 let unlockAsked = false;
 window.lifeUnpinned = () => { if (store.get('life_lock') === '1' && !unlockAsked) { unlockAsked = true; if (state) render(); } };
 window.lifeLockFailed = () => {
   if (store.get('life_lock') !== '1' || store.get('life_lock_fail') === '1') return;
-  store.set('life_lock_fail', '1'); if (state) render();
+  /* 접근성이 꺼져 실제로 안 잠겼으면 잠금 표시도 지운다(안 잠겼는데 긴급 해제를 거치지 않게, 프로그래머 11-27). 켜 달라는 안내 카드만 남긴다 */
+  store.set('life_lock_fail', '1'); store.del('life_lock'); if (state) render();
 };
 /* 긴급 해제(2026-11-07 룡): 「일어났어요」는 일어날 때 내가 누르는 것, 그 전에 유혹을 못 참거나 사유가 있으면 긴급 해제.
-   사유를 직접 적어야 풀리고, 사유는 내 기록·리더 화면 「해제」 칸에 남는다 */
+   사유를 직접 적어야 풀린다. 사유는 이 폰 안에만 남기고 서버로 보내지 않는다(2026-11-27 룡 「폰에만」) */
 function unlockCard() {
   return `<div class="card" style="margin-top:16px;text-align:left"><strong>🚨 긴급 해제</strong>
-    <p class="sub" style="margin:4px 0 8px">왜 지금 풀어야 하나요? 적은 사유는 기록에 남아요.</p>
+    <p class="sub" style="margin:4px 0 8px">왜 지금 풀어야 하나요? 적은 이유는 이 폰에만 남고 다른 사람은 못 봐요.</p>
     <input id="whyNote" maxlength="40" placeholder="예: 내일 일정 연락할 게 있어서" autocomplete="off">
     <div class="err" id="err"></div>
     <button class="main" id="whyGo" type="button">사유 적고 해제</button>
@@ -1221,9 +1225,8 @@ function bindUnlock(onDone) {
     const note = inp.value.trim();
     if (note.length < 2) { byId('err').textContent = '사유를 적어 주세요.'; inp.focus(); return; }
     go.disabled = true;
-    /* 기록 먼저, 그다음 풀기. 인터넷이 끊겨 기록을 못 해도 긴급이니 풀어 준다 */
-    try { state = await rpc('life_unlock', { p_token: token, p_note: note }); }
-    catch (x) { toast('기록은 못 했어요. 잠금은 풀었어요.'); }
+    /* 사유는 이 폰 안에만(최근 30개). 서버로 보내지 않는다 */
+    try { const L = JSON.parse(store.get('life_unlock_notes') || '[]'); L.unshift({ at: new Date().toISOString(), note }); store.set('life_unlock_notes', JSON.stringify(L.slice(0, 30))); } catch (e) {}
     unlockPhone(); store.set('life_unlocked', '1'); unlockAsked = false; onDone();
   };
 }
@@ -1281,7 +1284,7 @@ function fixItems() {
     if (m.photo !== 'on' && m.photo !== 'none') L.push(['📷 끼니 사진 묻기', m.photo === 'need' ? '사진 허락에서 「모두 허용」을 눌러 주세요' : '끼니 시간에 찍으면 「점심 사진인가요?」', '켜기', () => phone.setPhoto(true)]);
     /* 삼성 헬스 운동 묻기는 뺐다(2026-11-25 룡 「삼성헬스 연동은 없애줘 일단은」). 폰 쪽 코드는 남겨 둔다 */
   }
-  if (SLEEP_LOCK && !m.acc && phone.openPinSettings) L.push(['🌙 취침 잠금', '「잘게요」 뒤 다른 앱을 막아요', '켜기', () => phone.openPinSettings()]);
+  if (lockOn() && !m.acc && phone.openPinSettings) L.push(['🌙 취침 잠금', '폰 설정에서 접근성을 켜야 「잘게요」를 누른 뒤에 잠겨요', '켜기', () => phone.openPinSettings()]);
   if (!m.battery && phone.openBattery) L.push(['🔋 배터리 「제한 없음」', '제한이 걸리면 폰이 알림·잠금을 재워요', '켜기', () => phone.openBattery()]);
   return L;
 }
@@ -1318,6 +1321,7 @@ function momentsLine() {
   // 'none' = 이 판(구글 플레이용)에는 그 기능이 없다 → 그 말은 빼고, 둘 다 없으면 버튼도 없다
   const parts = [];
   if (moState.photo !== 'none') parts.push('📷 끼니 사진 ' + on(moState.photo));
+  if (lockAvail()) parts.push('🌙 취침 잠금 ' + (lockOn() ? '켜짐' : '꺼짐'));
   if (!parts.length) parts.push('🍚 끼니 시간'); /* 플레이 판도 끼니 시간은 고친다(「드셨나요?」가 이 시간을 쓴다, 2026-11-25) */
   return `<button type="button" class="switch" id="moLine" style="margin-top:12px">📲 앱이 먼저 묻기 · ${parts.join(' · ')} ›</button>`;
 }
@@ -1341,6 +1345,7 @@ function paintMoments() {
     <p class="sub" style="margin:10px 0 0"><b>🍚 끼니 시간</b> · 끼니 시간이 끝나기 1시간 전까지 식단을 안 올렸으면 「점심 드셨나요?」 하고 물어요</p>
     <div class="mo-times">${['아침', '점심', '저녁'].map((n, i) => `<span>${n}</span>${hourSel('mt' + i + 'a', T[i][0])}<span>~</span>${hourSel('mt' + i + 'b', T[i][1])}`).join('')}</div>
     <button type="button" id="moTimes" style="width:100%;margin-top:8px">끼니 시간 저장</button>
+    ${lockAvail() ? `<div class="mo-row"><div class="txt"><b>🌙 취침 잠금(「잘게요」 누르면 폰 잠그기)</b><small>「잘게요」를 누른 뒤 다른 앱을 열면 잠자기 화면으로 돌아와요. 아침에 「일어났어요」를 누르면 잠금이 풀려요. 전화와 알람은 그대로 받아요.</small><small>지금: ${lockOn() ? (m.acc ? '켜짐' : '켜짐 · 폰 설정에서 접근성을 켜야 잠겨요') : '꺼짐'}</small></div><button type="button" id="lkBtn">${lockOn() ? '끄기' : '켜기'}</button></div>` : ''}
     <p class="sub" style="margin-top:10px">건강 기록 앱과 라이프 RPG를 둘 다 쓰면 한 곳에서만 켜 주세요(두 번 물어요).</p>`;
   // 'none' = 이 판(구글 플레이용)에는 그 기능이 없다 → 줄을 숨긴다
   if (m.photo === 'none') byId('moPhoto').closest('.mo-row').style.display = 'none'; /* 끼니 시간은 어느 판이든 보인다 */
@@ -1351,6 +1356,26 @@ function paintMoments() {
     try { phone.setTimes(v.map(x => x.join('-')).join(',')); toast('끼니 시간을 저장했어요'); } catch (e) {}
   };
   const f = byId('moFsi'); if (f) f.onclick = () => { try { phone.openAlarmSettings(); } catch (e) {} };
+  const lk = byId('lkBtn');
+  if (lk) lk.onclick = () => {
+    if (lockOn()) { store.del('life_lock_on'); unlockPhone(); toast('취침 잠금을 껐어요. 접근성 허용도 끄려면 폰 설정 → 접근성에서 꺼 주세요'); paintMoments(); return; }
+    lockConsent(() => { store.set('life_lock_on', '1'); toast('취침 잠금을 켰어요'); paintMoments(); if (!m.acc) try { phone.openPinSettings(); } catch (e) {} });
+  };
+}
+/* 취침 잠금 안내·동의(구글 플레이 정책: 무엇을·왜 쓰는지 앱 안에서 따로 보이고, 직접 「동의」를 눌러야 켠다. 바깥을 누르거나 뒤로 가면 동의가 아니다) */
+function lockConsent(ok) {
+  const bg = document.createElement('div');
+  bg.className = 'lkc';
+  bg.innerHTML = `<div class="card" style="max-width:420px;margin:auto;padding:20px"><h2 style="margin-top:0">🌙 취침 잠금을 켤까요?</h2>
+    <p>취침 잠금은 안드로이드 <b>접근성</b> 기능을 써요.</p>
+    <p><b>무엇을 보나요?</b> 「잘게요」를 누른 뒤부터 「일어났어요」나 「긴급 해제」를 누를 때까지 봐요. 길어도 12시간이에요. 이때 화면에 열린 <b>앱의 이름</b>만 폰 안에서 봐요. 다른 앱의 글이나 화면 내용은 읽지 않아요. 본 앱 이름은 저장하지 않고 서버로 보내지 않아요.</p>
+    <p><b>왜 쓰나요?</b> 잠자는 시간에 다른 앱이 열리면 건강 기록의 잠자기 화면을 다시 앞에 띄우려고 써요. 전화·알람·폰 설정은 막지 않아요.</p>
+    <p>켜지 않아도 건강 기록의 다른 기능은 그대로 쓸 수 있어요.</p>
+    <p><b>언제든 끌 수 있어요.</b> 이 설정에서 「끄기」를 누르거나, 폰 설정 → 접근성에서 끄면 돼요. 잠겨 있을 때는 「🚨 긴급 해제」로 풀 수 있어요.</p>
+    <div class="exbox" style="margin-top:14px"><button type="button" id="lkNo" style="flex:1;background:var(--card);border:1.5px solid var(--line);color:var(--ink)">안 켤래요</button><button type="button" id="lkYes" style="flex:1">동의하고 켜기</button></div></div>`;
+  document.body.appendChild(bg);
+  bg.querySelector('#lkNo').onclick = () => bg.remove();
+  bg.querySelector('#lkYes').onclick = () => { store.set('life_lock_ok', new Date().toISOString()); bg.remove(); ok(); };
 }
 function bindPinGuide() { const b = document.getElementById('pinSet'); if (b) b.onclick = () => { store.del('life_lock_fail'); try { phone.openPinSettings(); } catch (e) {} }; }
 function nowRounded() {
@@ -1917,7 +1942,7 @@ function renderToday() {
     <h1>${esc(s.me.nickname)}님의 오늘</h1>
     <p class="sub" style="margin:-4px 0 12px">${s.camp3 || CAMP_SITE ? '' : '<a href="#" id="weekGo">📊 내 한 주 보기 ›</a>'}${s.in_group === false && !CAMP_SITE ? ' · <a href="#" id="noGroupGo">조가 없어요. 조 탭에서 들어가기 ›</a>' : ''}</p>
     ${CAMP_SITE ? '' : feedbackPin(s.feedback, '이번 주 적용점 (내가 정함)')}
-    ${!CAMP_SITE && state.today < '2026-12-10' && store.get('life_pv1204') !== '1' ? '<div class="got" id="pvNote">📄 개인정보처리방침이 바뀌어요.<br>12월 1일부터 <a href="privacy-2026-11-25.html#바뀐것">바뀐 곳</a><br>12월 3일부터 구글 로그인·실명 <a href="privacy-2026-12-03.html#바뀐것">바뀐 곳</a><br>12월 4일부터 사진 원본은 올린 날부터 30일, 작은 사진은 90일이 지나면 지워요. 남길 사진은 12월 3일까지 폰에 저장해 주세요.<br><a href="#" id="pvOk">닫기</a></div>' : ''}
+    ${!CAMP_SITE && state.today < '2026-12-10' && store.get('life_pv1204') !== '1' ? '<div class="got" id="pvNote">📄 개인정보처리방침이 바뀌어요.<br>12월 1일부터 <a href="privacy-2026-11-25.html#바뀐것">바뀐 곳</a><br>12월 3일부터 구글 로그인·실명 <a href="privacy-2026-12-03.html#바뀐것">바뀐 곳</a><br>12월 4일부터 사진 원본은 올린 날부터 30일, 작은 사진은 90일이 지나면 지워요. 남길 사진은 12월 3일까지 폰에 저장해 주세요.<br>12월 4일부터 안드로이드 앱에 취침 잠금(원하는 사람만)이 다시 생겨요. <a href="privacy-2026-12-03.html#바뀐것">바뀐 곳</a><br><a href="#" id="pvOk">닫기</a></div>' : ''}
     <div id="gotBox"></div>
     ${CAMP_SITE && !s.camp3 ? '' : fixCard()}
 

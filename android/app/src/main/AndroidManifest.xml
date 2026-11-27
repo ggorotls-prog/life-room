@@ -41,9 +41,18 @@
             </intent-filter>
         </receiver>
 
-        <!-- 취침 잠금(접근성 서비스 LockService)은 뺐다(2026-11-26 룡 「굳이 폰 못 쓰게 하는 게 필요한가 싶어. 모든 판에서 빼」).
-             되살릴 때는 이 자리에 service(.LockService, BIND_ACCESSIBILITY_SERVICE, @xml/health_lock_service)를 다시 넣는다.
-             구글 플레이 접근성 신고도 필요 없어진다 -->
+        <!-- 취침 잠금(접근성 서비스). 설정에서 켠 사람만 쓴다(2026-11-27 룡 「선택적으로」 「플레이판도」).
+             구글 플레이: 접근성 사용 신고 + 앱 안 안내·동의 화면(사이트 lockConsent) 필요 -->
+        <service
+            android:name=".LockService"
+            android:exported="true"
+            android:label="건강 기록 취침 잠금"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/health_lock_service" />
+        </service>
 
 
         <!-- 스스로 업데이트(UpdateJob·UpdateReceiver)는 직접 설치용 판에만: src/direct/AndroidManifest.xml -->
