@@ -2679,6 +2679,17 @@ async function shareKakao(t) {
   } catch (x) { if (x && x.name === 'AbortError') return false; }
   return copyText(t);
 }
+/* 공유 전에 나갈 글을 한 번 보여 준다(2026-11-28 룡 「어떤 내용이 나가는지 한 번 팝업으로 보여 주고 공유」). 공유를 누를 때만 카톡 공유 창이 뜬다 */
+function sharePreview(t) {
+  const bg = document.createElement('div');
+  bg.className = 'lkc';
+  bg.innerHTML = '<div class="card" style="max-width:420px;width:100%;margin:auto;padding:18px"><h2 style="margin:0">이 글이 나가요</h2><pre class="kt" style="max-height:55vh;overflow:auto"></pre><button class="main" type="button" data-pv="go">카톡방에 공유</button><button class="switch" type="button" data-pv="no" style="width:100%">닫기</button></div>';
+  bg.querySelector('pre').textContent = t;
+  bg.querySelector('[data-pv="go"]').onclick = async () => { bg.remove(); await shareKakao(t); };
+  bg.querySelector('[data-pv="no"]').onclick = () => bg.remove();
+  bg.onclick = e => { if (e.target === bg) bg.remove(); };
+  document.body.appendChild(bg);
+}
 async function copyText(t) {
   try { await navigator.clipboard.writeText(t); toast('복사했어요'); return true; }
   catch (e) { toast('복사가 안 돼요. 길게 눌러 복사해 주세요.'); return false; }
@@ -2773,7 +2784,7 @@ async function renderLeader() {
   bindBack(); if (!(c3 && CAMP_SITE)) loadCt(gid, !c3, still); if (c3) { bindCoachTodo(); if (CAMP_SITE) loadRoster(gid, still); const hx = byId('hqXls'); if (hx) hx.onclick = hqExport; } /* 캠프 조 체크표는 조장만 보고 공유하지 않는다(2026-11-27 룡 「안전하게 빼자」) */ /* 캠프 조도 2단계와 같은 체크표를 아래에 둔다(2026-11-27 룡) */
   $app.querySelectorAll('.cbtn').forEach(b => b.onclick = () => condWhy(b));
   $app.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(b.dataset.copy));
-  $app.querySelectorAll('[data-share]').forEach(b => b.onclick = () => shareKakao(b.dataset.share));
+  $app.querySelectorAll('[data-share]').forEach(b => b.onclick = () => sharePreview(b.dataset.share));
   /* 잘못 들어온 사람 내보내기(2026-11-20 룡): 그 조에서만 빠지고 기록·계정은 본인에게 남는다 */
   $app.querySelectorAll('[data-kick]').forEach(b => b.onclick = async () => {
     const nick = b.dataset.kick;
