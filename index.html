@@ -2501,18 +2501,18 @@ function coachTodo() {
   const t = state.today || seoulToday(), dw = dowOf(t), key = 'life_ctodo_' + t;
   let done = {}; try { done = JSON.parse(store.get(key) || '{}'); } catch (e) {}
   const items = [];
-  const sh = txt => txt ? `<button type="button" class="ctodo-sh" data-share="${esc(txt)}">공유</button>` : '';
-  const box = (id, txt, shares) => { items.push(id); return `<div class="ctodo${done[id] ? ' on' : ''}"><label><input type="checkbox" data-ctodo="${id}"${done[id] ? ' checked' : ''}><span>${esc(txt)}</span></label>${(shares || []).map(sh).join('')}</div>`; };
+  const sh = txt => txt ? `<em role="button" data-share="${esc(txt)}">공유</em>` : '';
+  const box = (id, txt, shares) => { items.push(id); return `<div class="srow${done[id] ? ' on' : ''}" role="button" tabindex="0" data-ctodo="${id}"><i>${done[id] ? '✓' : ''}</i><span>${esc(txt)}</span>${(shares || []).map(sh).join('')}</div>`; };
   let h = '';
-  if (dw) h += COACH_TODO.map(([n, L], i) => `<div class="ctodo-g"><b>${n}</b>${L.map(([x, fn], j) => box('d' + i + j, x, fn ? [fn()] : [])).join('')}</div>`).join('')
+  if (dw) h += COACH_TODO.map(([n, L], i) => `<h3>${n}</h3>${L.map(([x, fn], j) => box('d' + i + j, x, fn ? [fn()] : [])).join('')}`).join('')
     + '<p class="sub" style="margin:6px 0 0;font-size:12px">한마디는 이렇게: 칭찬하고, 공감하고, 작은 제안 하나</p>'
-    + `<div class="ctodo-g"><b>📅 오늘(${'일월화수목금토'[dw]})</b>${box('w', COACH_DAY[dw][0], [COACH_DAY[dw][1]])}</div>`;
+    + `<h3>📅 오늘(${'일월화수목금토'[dw]})</h3>${box('w', COACH_DAY[dw][0], [COACH_DAY[dw][1]])}`;
   else h += '<p class="sub" style="margin:4px 0">일요일은 코치가 쉬는 날이에요.</p>';
   const once = coachOnce(t);
-  if (once.length) h += `<div class="ctodo-g once"><b>⭐ 오늘 한 번</b>${once.map(([x, names], k) => box('o' + k, x, names.map(coachMoreText))).join('')}</div>`;
+  if (once.length) h += `<h3>⭐ 오늘 한 번</h3>${once.map(([x, names], k) => box('o' + k, x, names.map(coachMoreText))).join('')}`;
   const n = items.filter(id => done[id]).length;
-  return `<h2>✅ 오늘 숙제 <span class="sub" style="font-weight:400;font-size:13px">${items.length ? n + '/' + items.length : ''}</span></h2><div class="card" id="ctodoBox">${h}
-    <div class="ctodo-g warn"><b>🚨 바로 연락</b><span class="sub">하루 무소식 → 개인톡 안부<br>3일 무응답 · x 3일 연속 → 운영진<br>통증·어지럼·불편 사흘 → 운동 쉬기·전문가 권유·운영진<br>질환·약·검사 질문 → 답하지 말고 연결</span></div>
+  return `<h2>✅ 오늘 숙제 <span class="sub" style="font-weight:400;font-size:13px">${items.length ? n + '/' + items.length : ''}</span></h2><div class="card sch" id="ctodoBox">${h}
+    <h3>🚨 바로 연락</h3><div class="srow info" style="display:block;font-size:13px;line-height:1.6">하루 무소식 → 개인톡 안부<br>3일 무응답 · x 3일 연속 → 운영진<br>통증·어지럼·불편 사흘 → 운동 쉬기·전문가 권유·운영진<br>질환·약·검사 질문 → 답하지 말고 연결</div>
     <details style="margin-top:10px"><summary>그 밖의 메시지·양식</summary>${COACH_MORE.map(([nm, tx]) => `<div class="codeRow"><span>${esc(nm)}</span><span>${sh(tx)}</span></div>`).join('')}</details></div>`;
 }
 /* 조원 명단(2026-11-28 룡 「조원 추가 · 카톡방 이름 = 실명 매칭」): 서버에는 실명과 카톡방 이름만. 조장만 본다 */
@@ -2541,12 +2541,14 @@ async function loadRoster(gid, still) {
 }
 function bindCoachTodo() {
   const t = state.today || seoulToday(), key = 'life_ctodo_' + t;
-  $app.querySelectorAll('[data-ctodo]').forEach(c => c.onchange = () => {
-    let done = {}; try { done = JSON.parse(store.get(key) || '{}'); } catch (e) {}
-    if (c.checked) done[c.dataset.ctodo] = 1; else delete done[c.dataset.ctodo];
-    store.set(key, JSON.stringify(done)); c.closest('.ctodo').classList.toggle('on', c.checked);
-    try { Object.keys(localStorage).forEach(k => { if (k.startsWith('life_ctodo_') && k !== key) localStorage.removeItem(k); }); } catch (e) {} /* 지난날 체크는 지운다 */
-    const all = $app.querySelectorAll('[data-ctodo]').length, n = $app.querySelectorAll('[data-ctodo]:checked').length, sp = byId('ctodoBox') && byId('ctodoBox').previousElementSibling.querySelector('.sub');
+  $app.querySelectorAll('.srow[data-ctodo]').forEach(r => r.onclick = e => {
+    if (e.target.closest('[data-share]')) return; /* 공유 버튼은 체크하지 않는다 */
+    let done = {}; try { done = JSON.parse(store.get(key) || '{}'); } catch (x) {}
+    const on = !done[r.dataset.ctodo];
+    if (on) done[r.dataset.ctodo] = 1; else delete done[r.dataset.ctodo];
+    store.set(key, JSON.stringify(done)); r.classList.toggle('on', on); r.querySelector('i').textContent = on ? '✓' : '';
+    try { Object.keys(localStorage).forEach(k => { if (k.startsWith('life_ctodo_') && k !== key) localStorage.removeItem(k); }); } catch (x) {} /* 지난날 체크는 지운다 */
+    const all = $app.querySelectorAll('.srow[data-ctodo]').length, n = $app.querySelectorAll('.srow[data-ctodo].on').length, sp = byId('ctodoBox') && byId('ctodoBox').previousElementSibling.querySelector('.sub');
     if (sp) sp.textContent = n + '/' + all;
   });
 }
