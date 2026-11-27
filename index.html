@@ -782,7 +782,9 @@ function weekTask() {
   if ((!startOpen && (!n.check0 || savedToday('check0'))) || (wk >= 12 && dw === 6 && (!n.check12 || savedToday('check12')))) out.push(box(n.check0 && !savedToday('check0') ? '12주 뒤 · 나의 세포 돌봄 점검' : '시작 전 · 나의 세포 돌봄 점검', chkHtml(n.check0 && !savedToday('check0') ? 'check12' : 'check0')));
   if (!startOpen && (!n.before || savedToday('before'))) out.push(box('1일차 · 캠프 전 습관 기록 (최근 3개월)', beforeHtml()));
   if (day >= 4 && day <= 5) out.push(box('4~5일차 · 내 운동 하나 정하기', `<p class="sub" style="margin:4px 0 0">본인 컨디션에 맞는 운동이면 돼요. 예) 30분 걷기 / 10분 관절 운동 / 스트레칭 5분. 정한 운동을 댓글로 남기고, 한 날에는 인증해요.</p>`));
-  if ((day >= 6 && day <= 7) || dw === 5) out.push(box(day <= 7 ? '6~7일차 · 첫 주 돌아보기' : '금요일 · 주간 돌아보기', lookHtml(day <= 7)));
+  /* 첫 주 돌아보기는 6~7일차에만, 금요일 주간 돌아보기는 8일차부터(2026-11-28 룡: 1일차 금요일에 첫 주 돌아보기가 떠 있었음) */
+  if (day >= 6 && day <= 7) out.push(box('6~7일차 · 첫 주 돌아보기', lookHtml(true)));
+  else if (dw === 5 && day > 7) out.push(box('금요일 · 주간 돌아보기', lookHtml(false)));
   const wkey = { 4: 'w4', 8: 'w8', 12: 'w12' }[wk];
   if (wkey && dw === 6 && n.before) out.push(box(`${wk}주차 토요일 · 지금 내 습관 기록`, nowHtml(wkey)));
   return out.join('');
