@@ -630,7 +630,7 @@ function amText() {
   const d0 = state.day || {}, w = amOpt.wakes;
   const d = { ...d0, wake: amOpt.wake ? amOpt.wake + ':00' : d0.wake, condition: amOpt.cond || d0.condition };
   const yb = state.yesterday_bed || (amOpt.bed ? amOpt.bed + ':00' : null);
-  const t = x => x ? hmKo(x) : '( )시';
+  const t = x => { if (!x) return '( )시'; const h = +x.slice(0, 2), m = +x.slice(3, 5); return h + '시' + (m ? ' ' + m + '분' : ''); }; /* 24시 표기(2026-11-28 룡) */
   const cond = d.condition ? ['나쁨', '보통', '좋음'][d.condition - 1] : '';
   return '🔆 오늘 아침 컨디션 체크\n'
     + '✔ 수면: ' + t(yb) + ' 취침 → ' + t(d.wake) + ' 기상 · 중간에 깸 ' + (w == null ? '( )번' : w === 3 ? '3번 넘게' : w + '번') + '\n'
