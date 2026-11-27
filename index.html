@@ -71,6 +71,9 @@
   .srow.info { min-height: 36px; border-style: dashed; font-weight: 500; }
   .schbox { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-top: 6px; background: var(--fill); font-size: 14px; }
   .schbox p { margin: 6px 0 0; line-height: 1.5; }
+  /* 칸 사이 여백을 한 가지로(2026-11-28 룡 「여백 다 일정하게만 싹 바꿔줘」): 상자 안에서 앞 칸 다음에 오는 버튼·글 상자·입력 칸은 10px 띄운다 */
+  .schbox > * + button, .schbox > * + pre, .schbox > * + input, .schbox > * + textarea, .schbox > * + .exbox, .card > * + button.main, .card > * + pre.kt { margin-top: 10px; }
+  .err:empty { display: none; }
   .dl { display: block; width: 100%; text-align: left; margin-top: 4px; background: var(--card); border: 1px solid var(--line); font-size: 14px; min-height: 40px; padding: 6px 10px; }
   .dl.on { outline: 2px solid var(--main); }
   .kt { white-space: pre-wrap; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; font-size: 14px; margin: 10px 0 0; }
