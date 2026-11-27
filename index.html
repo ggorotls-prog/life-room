@@ -572,6 +572,16 @@ const evSum = e => (e.meal || 0) + (e.move || 0) + (e.supp || 0);
 function pmText(e) {
   return `[오늘의 셀프 체크] 🌙\n✔ 식단 ${e.meal}점\n✔ 운동 ${e.move}점\n✔ 영양제 ${e.supp}점\n✔ 합계 ${evSum(e)}점\n✔ 잘한 한 가지: ${e.note || ''}`;
 }
+/* 셀체인지 가입 화면에서 캠프 동의도 같이 받는다(2026-11-28 룡 「가입할 때 물어보잖아. 또 띄우지 말 것」). 일반 동의와 체크는 따로(민감정보 따로 동의) */
+function campConsentBlock() {
+  return `<div class="consent" style="margin-top:10px"><b>[필수] 셀체인지 캠프 건강 정보 처리 동의</b>
+    <p><b>받는 것:</b> 선포를 했는지, 밤 셀프 체크(식단·운동·영양제 점수 0~5점, 「잘한 한 가지」), 습관 기록(수면 시간, 세 끼 시각, 운동 일수·시간, 내가 쓴 글), 세포 돌봄 점검의 습관별 ✔ 개수, 내가 고른 영양제 일정</p>
+    <p><b>쓰는 곳:</b> 내 기록 보여 주기, 주간 합계 만들기, 조장이 보고 돌보기</p>
+    <p><b>보는 사람:</b> 그 조의 조장(캠프 코치)과 관리자는 점수·글·습관 기록·✔ 개수를 봅니다. 숨길 수 없습니다. 같은 조 사람은 했는지만 봅니다. 조장은 이 기록을 물건을 권하는 데 쓰지 않습니다.</p>
+    <p><b>보관:</b> 동의를 거두면 선포·셀프 체크·습관 기록·세포 돌봄 점검을 바로 지웁니다. 탈퇴하면 모두 바로 지웁니다. 마지막으로 쓴 날부터 1년이 지나면 지웁니다.</p>
+    <p>동의하지 않을 수 있습니다. 동의하지 않으면 셀체인지 캠프 사이트에 가입할 수 없습니다.</p>
+    <label class="ck"><input type="checkbox" id="cCamp"><span>[필수] 셀체인지 캠프 건강 정보 처리에 동의합니다</span></label></div>`;
+}
 function consentHtml() {
   return `<div class="schbox" id="c3Box"><b>[필수] 셀체인지 캠프 건강 정보 처리 동의</b>
     <p><b>받는 것:</b> 선포를 했는지, 밤 셀프 체크(식단·운동·영양제 점수 0~5점, 「잘한 한 가지」), 습관 기록(수면 시간, 세 끼 시각, 운동 일수·시간, 내가 쓴 글), 세포 돌봄 점검의 습관별 ✔ 개수, 내가 고른 영양제 일정</p>
@@ -1468,7 +1478,7 @@ function renderGoogleAuth(msg) {
    동의 글은 처리방침과 같이 고친다(방침-고칠-문장-2026-11-26.md) */
 function renderGoogleApply() {
   $tabs.innerHTML = ''; byId('invBg').hidden = true;
-  const rec = CAMP_SITE ? '기상·취침 시각, 컨디션, 식단 사진·글, 운동, 영양제 체크. 선포·셀프 체크는 캠프 동의를 따로 받은 뒤에만 받습니다'
+  const rec = CAMP_SITE ? '기상·취침 시각, 컨디션, 식단 사진·글, 운동, 영양제 체크. 선포·셀프 체크는 아래 캠프 동의를 따로 받습니다'
                         : '기상·취침 시각, 컨디션, 운동, 식단 사진·글(금식 포함)';
   $app.innerHTML = `
     <div class="ask"><div class="big">✍️</div><h1>가입 신청</h1>
@@ -1490,19 +1500,20 @@ function renderGoogleApply() {
         </ul></details>
         <label class="ck"><input type="checkbox" id="cHealth"><span>[필수] 이름(실명)과 건강에 관한 기록 처리에 동의합니다</span></label>
         <label class="ck"><input type="checkbox" id="cAge"><span>[필수] 만 14세 이상입니다</span></label></div>
+        ${CAMP_SITE ? campConsentBlock() : ''}
         <div class="err" id="gaErr"></div>
         <button class="main" id="go">동의하고 가입 신청</button>
       </form>
       <button class="switch" type="button" id="gaNo">그만두기</button>
     </div>`;
-  const go = byId('go'), sync = () => { go.disabled = !(byId('cHealth').checked && byId('cAge').checked); };
-  byId('cHealth').onchange = sync; byId('cAge').onchange = sync; sync();
+  const go = byId('go'), sync = () => { go.disabled = !(byId('cHealth').checked && byId('cAge').checked && (!CAMP_SITE || byId('cCamp').checked)); };
+  byId('cHealth').onchange = sync; byId('cAge').onchange = sync; if (CAMP_SITE) byId('cCamp').onchange = sync; sync();
   byId('gaNo').onclick = () => { gDone(); renderGoogleAuth(); };
   byId('gaF').onsubmit = async e => {
     e.preventDefault();
     const err = byId('gaErr'); err.textContent = ''; go.disabled = true;
     try {
-      const d = await gRpc('life_google_apply', { p_name: byId('gaName').value, p_with: byId('gaWith').value, p_consent: true });
+      const d = await gRpc('life_google_apply', { p_name: byId('gaName').value, p_with: byId('gaWith').value, p_consent: true, ...(CAMP_SITE ? { p_camp: byId('cCamp').checked } : {}) });
       if (d.error) { err.textContent = d.error; go.disabled = false; return; }
       token = d.token; store.set('life_token', token); gDone();
       await refresh();
