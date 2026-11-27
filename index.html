@@ -2531,11 +2531,22 @@ function coachScore(m) {
 }
 /* 룡 시안(2026-11-25): 「조원 살피기」 한 줄씩 = 색 · 이번 주 날마다 점수 · 안부 버튼. 자세한 것은 아래 조원 카드 */
 /* 3단계 조장 = 코치 체크표(2026-11-25 룡 「조장이 조원들 점수로 체크하는 거」). 가이드북 「숫자만 적어요」 「토요일 저녁, 누구를 챙길지 색으로」 */
+/* 본사 점수체크표(2026-11-27 룡 「쓰는 척만」): 참가자 · 월~토 셀프 체크 합계 · 주 합계 · 신호(초록 60↑ · 노랑 36~59 · 빨강 35↓, x = 0점). 엑셀(csv)로만 내보낸다 */
+let hqRows = [], hqWeek = null;
+function hqExport() {
+  const st = (camp && camp.start) || '2026-11-30', wk = Math.max(1, Math.floor((Date.parse(hqWeek) - Date.parse(st)) / (7 * 864e5)) + 1);
+  const q = v => { const x = String(v == null ? '' : v); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+  const lines = [[wk + '주차'], ['참가자', '월', '화', '수', '목', '금', '토', '합계', '신호'], ...hqRows].map(r => r.map(q).join(','));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = '셀체인지 점수표 ' + wk + '주차.csv'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
 function scoreTable(members, gname) {
   const t = state.today || seoulToday(), dw = dowOf(t), mon = dayAdd(t, dw ? -(dw - 1) : -6), days = [0, 1, 2, 3, 4, 5].map(i => dayAdd(mon, i));
   const list = (members || []).filter(m => !m.me);
   if (!list.length) return `<h2>📋 이번 주 셀프 체크</h2><div class="card"><p class="sub" style="margin:0">아직 조원이 없어요. ⚙️ 조 관리에서 조 코드를 전해 주세요.</p></div>`;
   const acts = [];
+  hqRows = []; hqWeek = mon;
   const rows = list.map(m => {
     const s = coachScore(m), rec = Object.fromEntries((m.records || []).map(r => [r.day, r]));
     const cell = k => { if (k > t) return '<td></td>'; const e = rec[k] && rec[k].evening; return e ? `<td>${(+e.meal || 0) + (+e.move || 0) + (+e.supp || 0)}</td>` : k < t ? '<td class="x">x</td>' : '<td></td>'; };
@@ -2543,11 +2554,13 @@ function scoreTable(members, gname) {
     if (s.allIdle || s.none >= 1) acts.push(`<div class="codeRow"><span>${esc(m.nickname)} · ${s.allIdle ? '최근 2주 기록 없음' : s.none + '일째 기록 없음'}</span><button type="button" data-share="${esc(COACH_BACK(m.nickname))}">안부 메시지 보내기</button></div>`);
     if (s.x >= 3) acts.push(`<div class="codeRow"><span>${esc(m.nickname)} · x ${s.x}일 연속</span><button type="button" data-share="${esc(`${gname} ${m.nickname}님이 ${s.x}일째 셀프 체크가 없어요. 개인톡으로 안부를 물었어요.`)}">운영진에게 보내기</button></div>`);
     if (g) acts.push(`<div class="codeRow"><span>${dot} ${esc(m.nickname)} · ${g[1]}</span><span class="sub">${g[2]}</span></div>`);
+    hqRows.push([m.nickname, ...days.map(k => { if (k > t) return ''; const e = rec[k] && rec[k].evening; return e ? (+e.meal || 0) + (+e.move || 0) + (+e.supp || 0) : k < t ? 'x' : ''; }), s.curSum, s.curSum >= 60 ? '초록' : s.curSum >= 36 ? '노랑' : '빨강']);
     return `<tr><td>${esc(m.nickname)}</td>${days.map(cell).join('')}<td><b>${s.curSum}</b></td><td>${dot}</td></tr>`;
   }).join('');
   return `<h2>📋 ${dw ? '이번 주' : '끝난 주'} 셀프 체크</h2><div class="card" style="padding:8px 10px"><div class="scroll"><table class="tbl st3"><tr><th>조원</th>${days.map(k => `<th>${'일월화수목금토'[dowOf(k)]}</th>`).join('')}<th>합계</th><th></th></tr>${rows}</table></div>
     ${acts.join('')}
-    <p class="sub" style="margin:6px 0 0;font-size:12px">토요일 점수까지 들어오면 색이 나와요 · 🟢 60점 이상 · 🟡 36~59 · 🔴 35점 이하 · x = 안 올린 날(0점)</p></div>`;
+    <p class="sub" style="margin:6px 0 0;font-size:12px">토요일 점수까지 들어오면 색이 나와요 · 🟢 60점 이상 · 🟡 36~59 · 🔴 35점 이하 · x = 안 올린 날(0점)</p>
+    <button type="button" class="switch" id="hqXls" style="margin-top:8px">📥 본사 점수표 엑셀로 받기</button></div>`;
 }
 function coachList(members, gname) {
   const rows = (members || []).filter(m => !m.me).map(m => {
@@ -2699,7 +2712,7 @@ async function renderLeader() {
       ${(g.invited || []).map(n => `<div class="codeRow"><span>${esc(n)} <span class="sub">· 답을 기다리는 중</span></span><button type="button" class="switch" data-uninv="${esc(n)}">거두기</button></div>`).join('')}
       <p class="sub" style="margin:10px 0 0;font-size:12px">${APPLY_ON ? '아직 가입하지 않은 사람은 ' + APP_NAME + ' 첫 화면 「가입 신청하기」에서 신청해요. 「누구와 함께하나요?」에 내 닉네임을 적게 알려 주세요.' : '아직 가입하지 않은 사람은 ' + APP_NAME + ' 첫 화면 「조 코드로 가입하기」에서 위 조 코드로 가입해요.'}</p></div>`;
   if (c3) { const cardEnd = $app.querySelector('details.card'); if (cardEnd) { let n = cardEnd.nextElementSibling; while (n) { const nx = n.nextElementSibling; cardEnd.appendChild(n); n = nx; } } } /* 조 코드·이름·초대를 조 관리 안으로 */
-  bindBack(); loadCt(gid, true, still); if (c3) bindCoachTodo(); /* 캠프 조도 2단계와 같은 체크표를 아래에 둔다(2026-11-27 룡) */
+  bindBack(); loadCt(gid, !c3, still); if (c3) { bindCoachTodo(); const hx = byId('hqXls'); if (hx) hx.onclick = hqExport; } /* 캠프 조 체크표는 조장만 보고 공유하지 않는다(2026-11-27 룡 「안전하게 빼자」) */ /* 캠프 조도 2단계와 같은 체크표를 아래에 둔다(2026-11-27 룡) */
   $app.querySelectorAll('.cbtn').forEach(b => b.onclick = () => condWhy(b));
   $app.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(b.dataset.copy));
   $app.querySelectorAll('[data-share]').forEach(b => b.onclick = () => shareKakao(b.dataset.share));
